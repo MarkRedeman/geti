@@ -12,15 +12,11 @@ import { setup } from './fixture';
 setup('Download and extract datasets for e2e tests', async ({}) => {
     await setup.step('Download and extract datasets', async () => {
         const outputPath = resolveDatasetPath('');
-        const url = process.env.E2E_DATASET_URL;
+        const url = 'http://s3.toolbox.iotg.sclab.intel.com/test/data/playwright/playwright-e2e-datasets.zip';
 
         if (fs.existsSync(resolveDatasetPath('cards'))) {
             console.info('Playwright datasets already exists, skipping download and extraction step', outputPath);
             return;
-        }
-
-        if (url === '' || url === undefined) {
-            throw new Error('Unable to download datasets required for E2E tests, please configure the E2E_DATASET_URL');
         }
 
         const datasetZip = resolveDatasetPath('../pw_datasets.zip');
