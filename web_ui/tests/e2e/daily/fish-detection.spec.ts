@@ -1,8 +1,14 @@
 // Copyright (C) 2022-2025 Intel Corporation
 // LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
+import fs from 'fs';
+
+import Shape from '@doodle3d/clipper-js';
 import { v4 as uuidv4 } from 'uuid';
 
+import { ShapeType } from '../../../src/core/annotations/shapetype.enum';
+import { MEDIA_TYPE } from '../../../src/core/media/base-media.interface';
+import { isVideo, VideoIdentifier } from '../../../src/core/media/video.interface';
 import { DatasetTabActions } from '../../../src/pages/project-details/components/project-dataset/utils';
 import { expectProjectToHaveLabels, expectProjectToHaveType } from '../../features/project-creation/expect';
 import { expect } from '../../fixtures/base-test';
@@ -24,6 +30,8 @@ test(
         annotatorPage,
         datasetPage,
         projectPage,
+        //apiServiceConfiguration,
+        //applicationServices,
     }) => {
         test.skip(canAnnotateFishDataset(), 'this test requires you to setup a local dataset');
 
@@ -122,8 +130,7 @@ test(
             await importDatasetDialogPage.uploadDataset(datasetZipPath);
 
             const timeout = TIMEOUTS.importDataset;
-
-            await page.getByRole('button', { name: /import/i }).click();
+            await page.getByRole('button', { name: /import/i }).click({ timeout });
 
             // Wait for the progress to start
             await expect(page.getByText(/Import dataset to project/)).toBeVisible({ timeout });

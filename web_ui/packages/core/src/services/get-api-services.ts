@@ -36,6 +36,7 @@ import { ApplicationServices, ServiceConfiguration } from './application-service
 export const getApiServices = (serviceConfiguration: ServiceConfiguration): ApplicationServices => {
     return {
         router: serviceConfiguration.router,
+        instance: serviceConfiguration.instance,
         useInMemoryEnvironment: false,
         authService: createApiAuthService(serviceConfiguration),
         codeDeploymentService: createApiCodeDeploymentService(serviceConfiguration),

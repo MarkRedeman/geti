@@ -43,7 +43,7 @@ export const loadFishAnnotations = (filename: string, buffer: VideoAnnotations) 
     return buffer[filename];
 };
 
-export const loadCardAnnotations = () => {
+export const loadCardAnnotations = (): CardAnnotationFromFile[] => {
     const annotationsPath = resolveDatasetPath(CARDS_DATASET_PATH, `cards.json`);
 
     const cards = JSON.parse(fs.readFileSync(annotationsPath) as unknown as string) as CardAnnotationFromFile[];

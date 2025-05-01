@@ -50,18 +50,25 @@ const getPlaywrightRequestAdapter = (requestContext: APIRequestContext): AxiosAd
             payload.headers['cookie'] = '';
         }
 
-        const response = await requestContext.fetch(config.url, payload);
+        const response = await requestContext.fetch(config.url, {
+            ...payload,
+            timeout: 10 * 60 * 1000,
+        });
 
         const headers = new Headers(response.headers());
         const isJson = headers.contentType.mediaType === 'application/json';
-        const data = isJson ? await response.json() : await response.body();
+        const data = isJson
+            ? await response.json()
+            : config.responseType === 'stream'
+              ? response.body()
+              : await response.body();
 
         const status = response.status();
         const statusText = response.statusText();
 
         const axiosResponse = {
             ...response,
-            data,
+            data: status === 204 ? undefined : data,
             config,
             status,
             statusText,
@@ -72,7 +79,7 @@ const getPlaywrightRequestAdapter = (requestContext: APIRequestContext): AxiosAd
     };
 };
 
-const getApiServiceConfiguration = (
+export const getApiServiceConfiguration = (
     baseURL: string,
     apiKey: string,
     requestContext: APIRequestContext

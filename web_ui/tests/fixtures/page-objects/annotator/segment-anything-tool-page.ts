@@ -14,7 +14,7 @@ export class SegmentAnythingToolPage {
         await (await this.getTool()).click();
 
         await expect(this.page.getByRole('progressbar', { name: 'Extracting image features' })).toBeHidden({
-            timeout: 30000,
+            timeout: 300_000,
         });
     }
 

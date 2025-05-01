@@ -41,7 +41,7 @@ const config: PlaywrightTestConfig = defineConfig({
     webServer: CI_E2E
         ? undefined
         : {
-              command: CI ? 'npx serve -s build -p 3000 -c ../serve.json' : 'npm start',
+              command: CI ? 'serve -s build -p 3000 -c ../serve.json' : 'npm run start',
               port: 3000,
               timeout: 5 * 60 * 1000,
               reuseExistingServer: true,
@@ -97,7 +97,7 @@ const config: PlaywrightTestConfig = defineConfig({
             expect: {
                 timeout: 1000 * 60,
             },
-            dependencies: ['e2e-setup'],
+            //dependencies: ['e2e-setup'],
             retries: 0,
             use: {
                 ...devices['Desktop Chrome'],

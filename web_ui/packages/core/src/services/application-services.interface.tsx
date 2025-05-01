@@ -37,6 +37,8 @@ import { API_URLS } from './urls';
 
 export interface ApplicationServices {
     router: typeof API_URLS;
+    instance: ReturnType<typeof axios.create>;
+
     useInMemoryEnvironment: boolean;
     authService: AuthService;
     mediaService: MediaService;

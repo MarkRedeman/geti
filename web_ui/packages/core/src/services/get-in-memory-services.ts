@@ -36,6 +36,7 @@ import { ApplicationServices, ServiceConfiguration } from './application-service
 export const getInMemoryServices = (serviceConfiguration: ServiceConfiguration): ApplicationServices => {
     return {
         router: serviceConfiguration.router,
+        instance: serviceConfiguration.instance,
         useInMemoryEnvironment: true,
         authService: createInMemoryAuthService(),
         codeDeploymentService: createInMemoryCodeDeploymentService(),

@@ -93,7 +93,14 @@ export const createApiProjectService: CreateApiService<ProjectService> = (
             .map((project) => getProjectEntity(project, router))
             .filter(Boolean);
 
-        const emptyNextPage: boolean = response.data.project_counts === response.data.project_page_count;
+        const emptyNextPage: boolean =
+            response.data.next_page === '' || response.data.project_counts === response.data.project_page_count;
+        // console.log({
+        //     emptyNextPage,
+        //     next_page: response.data.next_page,
+        //     project_counts: response.data.project_counts,
+        //     page_count: response.data.project_page_count,
+        // });
         const nextPage: string | null | undefined = emptyNextPage ? undefined : response.data.next_page;
 
         return { projects, nextPage };
@@ -194,6 +201,8 @@ export const createApiProjectService: CreateApiService<ProjectService> = (
         const tasks = domains.some(isKeypointDetection)
             ? getPreparedKeypointTasks(taskMetadata, filteredDomains)
             : getPreparedTasks(taskMetadata, filteredDomains, anomalyRevampFlagEnabled);
+
+        // console.log(tasks.map((task) => task?.labels?.map((l) => l.name)));
 
         const body = { name, pipeline: { connections, tasks } };
         const { data } = await instance.post<ProjectDTO>(router.PROJECTS(workspaceIdentifier), body);
