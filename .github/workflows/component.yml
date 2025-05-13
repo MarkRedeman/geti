@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 30
     env:
       TAG: ${{ inputs.image-tag || github.sha }}
-      REGISTRY: ${{ secrets.REGISTRY }}
+      REGISTRY: ${{ secrets.REGISTRY || "local" }}
       PYTHON_BUILDER_IMAGE: builder-images/python-builder:v0.1
       GO_BUILDER_IMAGE: builder-images/go-builder:v0.1
     steps:
@@ -79,14 +79,14 @@ jobs:
             echo "SKIP_IMAGE=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Push image
-        if: steps.build-image.outputs.SKIP_IMAGE != 'true'
-        run: make -C "${COMPONENT_DIR}" push-image
+      # - name: Push image
+      #   if: steps.build-image.outputs.SKIP_IMAGE != 'true'
+      #   run: make -C "${COMPONENT_DIR}" push-image
 
       - name: Lint chart
         if: steps.build-image.outputs.SKIP_IMAGE != 'true'
         run: make -C "${COMPONENT_DIR}" lint-chart
 
-      - name: Publish chart
-        if: steps.build-image.outputs.SKIP_IMAGE != 'true'
-        run: make -C "${COMPONENT_DIR}" publish-chart
+      # - name: Publish chart
+      #   if: steps.build-image.outputs.SKIP_IMAGE != 'true'
+      #   run: make -C "${COMPONENT_DIR}" publish-chart
