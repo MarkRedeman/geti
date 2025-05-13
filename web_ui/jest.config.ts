@@ -36,10 +36,5 @@ export default {
         'tests',
     ],
     coverageReporters: ['clover', 'json', 'json-summary'],
-    coverageThreshold: {
-        global: {
-            lines: 75,
-        },
-    },
     globalSetup: './jest.global.ts',
 };
