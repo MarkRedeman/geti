@@ -1,0 +1,12 @@
+[project]
+name = "geti-rest-api-tutorials"
+version = "0.1.0"
+description = "Tutorials for using Geti's Rest API using Python"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "certifi~=2025.4",
+    "requests~=2.32",
+    "requests-toolbelt~=1.0",
+    "tuspy~=1.1",
+]
