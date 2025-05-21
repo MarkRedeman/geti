@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 30
     env:
       TAG: ${{ inputs.image-tag || github.sha }}
-      REGISTRY: ${{ secrets.REGISTRY || "local" }}
+      REGISTRY: "local"
       PYTHON_BUILDER_IMAGE: builder-images/python-builder:v0.1
       GO_BUILDER_IMAGE: builder-images/go-builder:v0.1
     steps:
