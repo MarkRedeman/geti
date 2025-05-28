@@ -52,7 +52,7 @@ const getPlaywrightRequestAdapter = (requestContext: APIRequestContext): AxiosAd
 
         const response = await requestContext.fetch(config.url, {
             ...payload,
-            timeout: 10 * 60 * 1000,
+            timeout: 60 * 10 * 60 * 1000,
         });
 
         const headers = new Headers(response.headers());

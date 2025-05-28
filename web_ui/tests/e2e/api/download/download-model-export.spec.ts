@@ -32,7 +32,7 @@ function slugify(str: string) {
 const pipeline = promisify(stream.pipeline);
 
 async function extractTheStuff(
-    dp: string[],
+    destinationPath: string[],
     serviceConfiguration: ServiceConfiguration,
     projectIdentifier: ProjectIdentifier,
     ovmsPayload: {
@@ -45,7 +45,10 @@ async function extractTheStuff(
         await mkdir(resultPath, { recursive: true });
     }
 
-    const destinationFilePath = path.resolve(resultPath, `${dp.join('-')}-${ovmsPayload.package_type}.zip`);
+    const destinationFilePath = path.resolve(
+        resultPath,
+        `${destinationPath.join('-')}-${ovmsPayload.package_type}.zip`
+    );
     if (fs.existsSync(destinationFilePath)) {
         //console.log(`Ignoring because the file already exists`);
         return;
@@ -76,14 +79,14 @@ async function extractTheStuff(
         return;
     }
 
-    const destinationPath = path.resolve(resultPath, ...dp);
-    if (!fs.existsSync(destinationPath)) {
-        await mkdir(destinationPath, { recursive: true });
+    const resultDestinationPath = path.resolve(resultPath, ...destinationPath);
+    if (!fs.existsSync(resultDestinationPath)) {
+        await mkdir(resultDestinationPath, { recursive: true });
     }
 
     try {
         const zip = new AdmZip(destinationFilePath);
-        const extractedPath = path.resolve(destinationPath, ovmsPayload.package_type);
+        const extractedPath = path.resolve(resultDestinationPath, ovmsPayload.package_type);
         zip.extractAllTo(extractedPath);
     } catch (error) {
         console.error('Unable to unzip file', destinationFilePath, error);
@@ -91,7 +94,7 @@ async function extractTheStuff(
 }
 
 test.describe('Api testing', async () => {
-    test.only('Downloading model exportd - eployment package', async ({
+    test.only('Downloading model export - deployment package', async ({
         apiServiceConfiguration,
         applicationServices,
     }) => {
@@ -108,17 +111,25 @@ test.describe('Api testing', async () => {
         const workspaceIdentifier = testProject.workspaceIdentifier();
 
         const projectIds = [
-            '67b88889c3d4b31dec9ab03e',
-            '67b88923c3d4b31dec9ab1ca',
-            '67b88a9ec3d4b31dec9ab271',
-            '67b88c37c3d4b31dec9ab317',
-            '67b88d86c3d4b31dec9ab3bd',
-            '67b88e8fc3d4b31dec9ab463',
+            '68302dcf2af7ba4a0b2f5872', // yes we can
+            '6821a412d5e1e5dc3bf200c1', // semantic card segmentation
+            '5101e8f19d342b142b98535e', // kiemgetal
+            '52ee42766e6b53b0df466c47', // aeromanas
+            '68340c58c0f10881ffc9b190', // instance card segmentation 4 labels
+            '6821a633d5e1e5dc3bf2021d', // rotated card detection
+            '6836031160633ed43b454334', // card anomaly
+
+            // '67b88889c3d4b31dec9ab03e',
+            // '67b88923c3d4b31dec9ab1ca',
+            // '67b88a9ec3d4b31dec9ab271',
+            // '67b88c37c3d4b31dec9ab317',
+            // '67b88d86c3d4b31dec9ab3bd',
+            // '67b88e8fc3d4b31dec9ab463',
         ];
 
-        for (const p of projectIds) {
+        async function downloadProject(projectId: string) {
             //console.log(`[${p.id}]: ${p.name}`);
-            const projectIdentifier = { ...workspaceIdentifier, projectId: p };
+            const projectIdentifier = { ...workspaceIdentifier, projectId };
             const project = await projectService.getProject(projectIdentifier);
             console.log(`[${project.id}] - ${project.name}`);
 
@@ -150,16 +161,6 @@ test.describe('Api testing', async () => {
                             optimizedModelId: optimizedModel.id,
                         };
 
-                        const getSdkPayload = {
-                            package_type: 'geti_sdk',
-                            models: [
-                                {
-                                    model_group_id: optimizedModelIdentifier.modelGroupId,
-                                    model_id: optimizedModelIdentifier.optimizedModelId,
-                                },
-                            ],
-                        };
-
                         const destinationPath = [
                             slugify(project.name),
                             slugify(optimizedModel.modelName),
@@ -174,12 +175,12 @@ test.describe('Api testing', async () => {
                             }
                         }
 
-                        if (!optimizedModel.modelName.includes('FP32')) {
-                            continue;
-                        }
-                        if (optimizedModel.modelName.includes('with XAI')) {
-                            continue;
-                        }
+                        // if (!optimizedModel.modelName.includes('FP32')) {
+                        //     continue;
+                        // }
+                        // if (optimizedModel.modelName.includes('with XAI')) {
+                        //     continue;
+                        // }
                         //console.log(destinationPath.join('-'));
 
                         // if (slugify(optimizedModel.modelName).includes('segnext')) {
@@ -191,15 +192,45 @@ test.describe('Api testing', async () => {
                         //     }
                         // }
 
-                        await extractTheStuff(
-                            destinationPath,
-                            apiServiceConfiguration,
-                            projectIdentifier,
-                            getSdkPayload
-                        );
+                        const getSdkPayload = {
+                            package_type: 'geti_sdk',
+                            models: [
+                                {
+                                    model_group_id: optimizedModelIdentifier.modelGroupId,
+                                    model_id: optimizedModelIdentifier.optimizedModelId,
+                                },
+                            ],
+                        };
+
+                        //console.log(projectIdentifier, getSdkPayload);
+                        //continue;
+
+                        try {
+                            await extractTheStuff(
+                                destinationPath,
+                                apiServiceConfiguration,
+                                projectIdentifier,
+                                getSdkPayload
+                            );
+                            await extractTheStuff(destinationPath, apiServiceConfiguration, projectIdentifier, {
+                                ...getSdkPayload,
+                                package_type: 'ovms',
+                            });
+                        } catch (e) {
+                            console.error('Error while downloading model', e);
+                        }
                     }
                 }
             }
         }
+
+        await Promise.all(projectIds.map(downloadProject));
+        // for (const p of projectIds) {
+        //     try {
+        //         await downloadProject(p);
+        //     } catch (e) {
+        //         console.error(e, p);
+        //     }
+        // }
     });
 });

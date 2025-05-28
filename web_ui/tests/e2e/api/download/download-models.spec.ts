@@ -29,6 +29,16 @@ import { ServiceConfiguration } from '../../api-fixtures';
 import { test } from '../../fixtures';
 import { TestProject } from '../test-project';
 
+function slugify(str: string) {
+    str = str.replace(/^\s+|\s+$/g, ''); // trim leading/trailing white space
+    str = str.toLowerCase(); // convert string to lowercase
+    str = str
+        .replace(/[^a-z0-9 -]/g, '') // remove any non-alphanumeric characters
+        .replace(/\s+/g, '-') // replace spaces with hyphens
+        .replace(/-+/g, '-'); // remove consecutive hyphens
+    return str;
+}
+
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 test.setTimeout(1000 * 60 * 60 * 24);
@@ -438,14 +448,4 @@ async function extractTheStuff(
     } catch (error) {
         console.error('Unable to unzip file', destinationFilePath, error);
     }
-}
-
-function slugify(str: string) {
-    str = str.replace(/^\s+|\s+$/g, ''); // trim leading/trailing white space
-    str = str.toLowerCase(); // convert string to lowercase
-    str = str
-        .replace(/[^a-z0-9 -]/g, '') // remove any non-alphanumeric characters
-        .replace(/\s+/g, '-') // replace spaces with hyphens
-        .replace(/-+/g, '-'); // remove consecutive hyphens
-    return str;
 }
