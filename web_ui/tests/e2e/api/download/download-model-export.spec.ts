@@ -10,6 +10,8 @@ import { promisify } from 'util';
 import AdmZip from 'adm-zip';
 import { isAxiosError } from 'axios';
 
+import { ModelIdentifier } from '../../../../src/core/models/models.interface';
+import { OptimizedModel } from '../../../../src/core/models/optimized-models.interface';
 import { createApiModelsService } from '../../../../src/core/models/services/api-models-service';
 import { ProjectIdentifier } from '../../../../src/core/projects/core.interface';
 import { createApiProjectService } from '../../../../src/core/projects/services/api-project-service';
@@ -93,6 +95,67 @@ async function extractTheStuff(
     }
 }
 
+async function exportOnnxModel(
+    destinationPath: string[],
+    serviceConfiguration: ServiceConfiguration,
+    projectIdentifier: ProjectIdentifier,
+    model: OptimizedModel,
+    modelIdentifier: ModelIdentifier
+) {
+    const resultPath = path.resolve('./tests/results/geti-3');
+    if (!fs.existsSync(resultPath)) {
+        await mkdir(resultPath, { recursive: true });
+    }
+
+    const destinationFilePath = path.resolve(
+        resultPath,
+        //`${destinationPath.join('-')}-${ovmsPayload.package_type}.zip`
+        `${destinationPath.join('-')}-onnx.zip`
+    );
+    if (fs.existsSync(destinationFilePath)) {
+        //console.log(`Ignoring because the file already exists`);
+        return;
+    }
+
+    // https://10-123-246-154.iotg.sclab.intel.com/api/v1/organizations/7ff0c45b-1820-42e6-a794-74b618409d1d/workspaces/e5f777c7-264b-4ab6-99c4-aa2c20e5347d/projects/68374bcfcab0f738150a85a1/model_groups/683753e0e016060db4a08d4a/models/683753ee26ff494f8b9f97d1/optimized_models/683753ee26ff494f8b9f97d5/export?model_only=true
+    const downloadUrl = serviceConfiguration.router.EXPORT_OPTIMIZED_MODEL(modelIdentifier, model.id);
+    console.log(downloadUrl);
+
+    try {
+        console.log(`Starting download onnx`);
+        const response = await serviceConfiguration.instance.get(downloadUrl, { responseType: 'stream' });
+
+        await pipeline(response.data, fs.createWriteStream(destinationFilePath));
+        console.log(`[onnx] Finished downloading ${destinationFilePath}`);
+    } catch (e) {
+        console.error('OH NO', e);
+        if (isAxiosError(e)) {
+            console.log(`[onnx] Error downloading ${destinationFilePath}: ${e.message}`);
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            // console.log('DATA:', e.response?.data);
+            return;
+        }
+    }
+
+    if (!fs.existsSync(destinationFilePath)) {
+        console.error('File does not exist', destinationFilePath);
+        return;
+    }
+
+    const resultDestinationPath = path.resolve(resultPath, ...destinationPath);
+    if (!fs.existsSync(resultDestinationPath)) {
+        await mkdir(resultDestinationPath, { recursive: true });
+    }
+
+    try {
+        const zip = new AdmZip(destinationFilePath);
+        const extractedPath = path.resolve(resultDestinationPath, 'onnx');
+        zip.extractAllTo(extractedPath);
+    } catch (error) {
+        console.error('Unable to unzip file', destinationFilePath, error);
+    }
+}
+
 test.describe('Api testing', async () => {
     test.only('Downloading model export - deployment package', async ({
         apiServiceConfiguration,
@@ -150,11 +213,6 @@ test.describe('Api testing', async () => {
                     const model = await modelsService.getModel(modelIdentifier);
 
                     for (const optimizedModel of model.optimizedModels) {
-                        // ONNX deployment is not supported
-                        if (optimizedModel.optimizationType === 'ONNX') {
-                            continue;
-                        }
-
                         const optimizedModelIdentifier = {
                             ...projectIdentifier,
                             modelGroupId: modelGroup.groupId,
@@ -168,12 +226,12 @@ test.describe('Api testing', async () => {
                         ];
 
                         console.log(optimizedModel.modelName);
-                        if (slugify(optimizedModel.modelName).includes('segnext')) {
-                            if (optimizedModel.modelName.toLocaleLowerCase().includes('fp16')) {
-                                console.log('ignoring', destinationPath.join('-'));
-                                continue;
-                            }
-                        }
+                        // if (slugify(optimizedModel.modelName).includes('segnext')) {
+                        //     if (optimizedModel.modelName.toLocaleLowerCase().includes('fp16')) {
+                        //         console.log('ignoring', destinationPath.join('-'));
+                        //         continue;
+                        //     }
+                        //}
 
                         // if (!optimizedModel.modelName.includes('FP32')) {
                         //     continue;
@@ -201,6 +259,23 @@ test.describe('Api testing', async () => {
                                 },
                             ],
                         };
+
+                        // ONNX deployment is not supported
+                        if (optimizedModel.optimizationType === 'ONNX') {
+                            try {
+                                await exportOnnxModel(
+                                    destinationPath,
+                                    apiServiceConfiguration,
+                                    projectIdentifier,
+                                    optimizedModel,
+                                    modelIdentifier
+                                );
+                            } catch (e) {
+                                console.error('Error while downloading model', e);
+                            }
+                            continue;
+                        }
+                        continue;
 
                         //console.log(projectIdentifier, getSdkPayload);
                         //continue;
