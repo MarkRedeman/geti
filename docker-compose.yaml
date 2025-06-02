@@ -70,10 +70,8 @@ services:
       context: ./platform/services/account
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - credit_system=./grpc_interfaces/grpc_interfaces/credit_system/go
-        - account_service_grpc=./grpc_interfaces/grpc_interfaces/account_service/go
+        - credit_system=./libs/grpc_interfaces/src/grpc_interfaces/credit_system/go
+        - account_service_grpc=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
 
   platform_auth_proxy:
     image: ${REGISTRY-ghcr.io/geti}/platform_auth_proxy:${TAG-main}
@@ -81,9 +79,7 @@ services:
       context: ./platform/services/auth_proxy
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - account_service_client=./grpc_interfaces/grpc_interfaces/account_service/go
+        - account_service_client=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
 
   platform_credit:
     image: ${REGISTRY-ghcr.io/geti}/platform_credit:${TAG-main}
@@ -92,7 +88,6 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs 
-        - grpc_interfaces=./grpc_interfaces
 
   platform_notifier:
     image: ${REGISTRY-ghcr.io/geti}/platform_notifier:${TAG-main}
@@ -117,7 +112,6 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
 
   platform_initial_user:
     image: ${REGISTRY-ghcr.io/geti}/platform_initial_user:${TAG-main}
@@ -126,7 +120,6 @@ services:
       <<: *proxies
       additional_contexts:
         - common_libs=./libs
-        - grpc_interfaces=./grpc_interfaces
         - platform_libs=./platform/libs
 
   platform_user_directory:
@@ -136,7 +129,6 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
         - platform_libs=./platform/libs
 
   # IAI Services
@@ -147,10 +139,8 @@ services:
       context: ./interactive_ai/services/auto_train
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+        - iai_core=./interactive_ai/libs/iai_core_py/
 
   interactive_ai_dataset_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_import_export:${TAG-main}
@@ -159,8 +149,7 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+        - iai_core=./interactive_ai/libs/iai_core_py/
 
   interactive_ai_director:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/director:${TAG-main}
@@ -168,11 +157,10 @@ services:
       context: ./interactive_ai/services/director
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
         - schemas=./interactive_ai/services/api
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - supported_models=./interactive_ai/supported_models/
 
   interactive_ai_inference_gateway:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/inference_gateway:${TAG-main}
@@ -180,12 +168,10 @@ services:
       context: ./interactive_ai/services/inference_gateway
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - go_sdk=./interactive_ai/libs/go_sdk/
-        - modelmesh=./grpc_interfaces/grpc_interfaces/model_mesh/go/pb
-        - modelregistration=./grpc_interfaces/grpc_interfaces/model_registration/go/pb
-        - predict=./grpc_interfaces/grpc_interfaces/predict/go/pb
+        - iai_core=./interactive_ai/libs/iai_core_go/
+        - modelmesh=./libs/grpc_interfaces/src/grpc_interfaces/model_mesh/go/pb
+        - modelregistration=./libs/grpc_interfaces/src/grpc_interfaces/model_registration/go/pb
+        - predict=./libs/grpc_interfaces/src/grpc_interfaces/predict/go/pb
 
   interactive_ai_jobs:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -194,8 +180,7 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+        - iai_core=./interactive_ai/libs/iai_core_py/
 
   interactive_ai_media:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/media:${TAG-main}
@@ -203,9 +188,7 @@ services:
       context: ./interactive_ai/services/media
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - go_sdk=./interactive_ai/libs/go_sdk/
+        - iai_core=./interactive_ai/libs/iai_core_go/
 
   interactive_ai_mlflow_geti_store:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/mlflow_geti_store:${TAG-main}
@@ -219,7 +202,7 @@ services:
       context: ./interactive_ai/services/model_registration
       <<: *proxies
       additional_contexts:
-        - grpc_interfaces=./grpc_interfaces
+        - libs=./libs
 
   interactive_ai_project_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_import_export:${TAG-main}
@@ -227,9 +210,8 @@ services:
       context: ./interactive_ai/services/project_ie
       <<: *proxies
       additional_contexts:
-        - libs=./libs 
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
 
   interactive_ai_resource:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/resource:${TAG-main}
@@ -237,11 +219,9 @@ services:
       context: ./interactive_ai/services/resource
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
         - schemas=./interactive_ai/services/api
-        - libs=./libs 
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
 
   interactive_ai_visual_prompt:
@@ -250,8 +230,8 @@ services:
       context: ./interactive_ai/services/visual_prompt
       <<: *proxies
       additional_contexts:
-        - libs=./libs 
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
 
   # IAI Workflows
@@ -262,12 +242,10 @@ services:
       context: ./interactive_ai/workflows/geti_domain/dataset_ie
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
         - common=./interactive_ai/workflows/geti_domain/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
 
   interactive_ai_workflows_model_test:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
@@ -277,10 +255,8 @@ services:
       additional_contexts:
         - common=./interactive_ai/workflows/geti_domain/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
-
 
   interactive_ai_workflows_project_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_project_import_export:${TAG-main}
@@ -290,9 +266,8 @@ services:
       additional_contexts:
         - common=./interactive_ai/workflows/geti_domain/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
         - data_migration=./interactive_ai/data_migration
 
   interactive_ai_workflows_optimize:
@@ -301,12 +276,10 @@ services:
       context: ./interactive_ai/workflows/geti_domain/optimize
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
         - common=./interactive_ai/workflows/geti_domain/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
 
   interactive_ai_workflows_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
@@ -314,18 +287,23 @@ services:
       context: ./interactive_ai/workflows/geti_domain/train
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
         - common=./interactive_ai/workflows/geti_domain/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
 
-
-  interactive_ai_workflows_otx_v2:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2:${TAG-main}
+  interactive_ai_workflows_otx_v2_gpu:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2/
+      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2/gpu
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+
+  interactive_ai_workflows_otx_v2_xpu:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
+    build:
+      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2/xpu
       <<: *proxies
       additional_contexts:
         - libs=./libs
