@@ -95,8 +95,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
-        shardTotal: [5]
+        shard: [1]
+        shardTotal: [1]
     steps:
       - name: Checkout code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.2
@@ -128,6 +128,12 @@ jobs:
 
   report-unit-coverage:
     runs-on: ubuntu-latest
+    permissions:
+      # Required to checkout the code
+      contents: write
+      checks: write
+      # Required to put a comment into the pull-request
+      pull-requests: write
     needs:
       - unit-tests
     steps:
@@ -146,6 +152,7 @@ jobs:
       - name: Publish test results
         uses: ArtiomTr/jest-coverage-report-action@262a7bb0b20c4d1d6b6b026af0f008f78da72788 # v2.3.1
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           base-coverage-file: coverage-merged.json
           coverage-file: coverage-merged.json
 
