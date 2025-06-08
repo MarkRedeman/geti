@@ -322,3 +322,30 @@ services:
         - node_image=docker-image://${NODE_IMAGE}
         - docs_context=./docs 
         - api_context=./interactive_ai/services/api
+    ports:
+      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.geti-web.rule=Host(`geti.localhost`)"
+      - "traefik.http.services.geti-web.loadbalancer.server.port=3000"
+
+
+  # Infrastructure
+  #
+  # traefik
+  reverse-proxy:
+    image: traefik:v3.4
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--api=true"
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik.service=api@internal"

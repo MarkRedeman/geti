@@ -1,0 +1,9 @@
+{
+  "servingMode": "on-prem",
+  "auth": {
+    "type": "cidaas",
+    "authority": "https://consumer.intel.com/intelcorpb2c.onmicrosoft.com/B2C_1A_UNIFIEDLOGIN_SISU_CML_OIDC/v2.0",
+    "clientId": "141c13db-12e3-4c48-9990-7a3f0fcb076e"
+  },
+  "docsUrl": "https://docs.geti.intel.com/cloud/",
+}
