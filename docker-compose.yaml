@@ -295,7 +295,8 @@ services:
   interactive_ai_workflows_otx_v2_gpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2/gpu
+      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2
+      dockerfile: ./gpu/Dockerfile
       <<: *proxies
       additional_contexts:
         - libs=./libs
@@ -303,7 +304,8 @@ services:
   interactive_ai_workflows_otx_v2_xpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2/xpu
+      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2
+      dockerfile: ./xpu/Dockerfile
       <<: *proxies
       additional_contexts:
         - libs=./libs
