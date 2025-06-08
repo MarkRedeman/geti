@@ -56,12 +56,14 @@ FROM nginx:1.29-bookworm@sha256:8adbdcb969e2676478ee2c7ad333956f0c8e0e4c5a7463f4
 
 COPY --link --from=web_ui_deps /home/app/web_ui/build/app/ /usr/share/nginx/webui/
 COPY --link --from=web_ui_deps /home/app/web_ui/build/admin/ /usr/share/nginx/admin-app/
-RUN useradd -u 10001 webservice
+#RUN useradd -u 10001 webservice
 COPY --link nginx.conf /etc/nginx/nginx.conf
 COPY --link src/maintenance /maintenance
 COPY --link --from=build_rest_api_specs /home/app/rest-api-specs/public/openapi-spec.json /usr/share/nginx/webui/openapi-spec.json
+COPY --link ./dev-feature-flags.json /usr/share/nginx/flags/feature-flags.json
+COPY --link ./deployment-config.json /usr/share/nginx/flags/deployment-config.json
 
-USER webservice
+#USER webservice
 EXPOSE 3000
 
 CMD ["nginx", "-g", "daemon off;"]

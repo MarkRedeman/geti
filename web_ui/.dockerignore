@@ -15,3 +15,5 @@
 !rsbuild.config.ts
 !dev-proxy.ts
 !packages
+!dev-feature-flags.json
+!deployment-config.json
