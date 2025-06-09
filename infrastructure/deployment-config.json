@@ -1,5 +1,5 @@
 {
-  "servingMode": "on-prem",
+  "servingMode": "saas",
   "auth": {
     "type": "cidaas",
     "authority": "https://consumer.intel.com/intelcorpb2c.onmicrosoft.com/B2C_1A_UNIFIEDLOGIN_SISU_CML_OIDC/v2.0",
