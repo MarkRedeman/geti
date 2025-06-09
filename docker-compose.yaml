@@ -322,11 +322,9 @@ services:
         - node_image=docker-image://${NODE_IMAGE}
         - docs_context=./docs 
         - api_context=./interactive_ai/services/api
-    ports:
-      - "3000:3000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.geti-web.rule=Host(`geti.localhost`)"
+      - "traefik.http.routers.geti-web.rule=(Host(`geti.localhost`) && !(PathPrefix(`/dex`))) || Host(`web.geti.localhost`)"
       - "traefik.http.services.geti-web.loadbalancer.server.port=3000"
 
 
@@ -349,3 +347,46 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
       - "traefik.http.routers.traefik.service=api@internal"
+
+  # https://geek-cookbook.funkypenguin.co.nz/docker-swarm/authelia/
+  # https://www.authelia.com/integration/proxies/traefik/
+  authelia:
+    image: 'authelia/authelia'
+    restart: 'unless-stopped'
+    volumes:
+      - '${PWD}/infrastructure/data/authelia/config:/config'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.geti-web.rule=Host(`auth.geti.localhost`)"
+      #- "traefik.http.services.geti-web.loadbalancer.server.port=3000"
+
+
+
+      # "traefik.enable": 'true'
+      # "traefik.http.routers.authelia.rule": 'Host(`auth.geti.localhost`)'
+      # "traefik.http.routers.authelia.entryPoints": 'https'
+      # "traefik.http.routers.authelia.tls": 'true'
+      # "traefik.http.middlewares.authelia.forwardAuth.address": 'http://authelia:9091/api/authz/forward-auth'
+      ## The following commented line is for configuring the Authelia URL in the proxy. We strongly suggest this is
+      ## configured in the Session Cookies section of the Authelia configuration.
+      # traefik.http.middlewares.authelia.forwardAuth.address: 'http://authelia:9091/api/authz/forward-auth?authelia_url=https%3A%2F%2Fauth.example.com%2F'
+      # traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader: 'true'
+      # traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders: 'Remote-User,Remote-Groups,Remote-Email,Remote-Name'
+
+    # dex:
+    # https://geek-cookbook.funkypenguin.co.nz/docker-swarm/traefik-forward-auth/dex-static/
+  dex:
+    image: dexidp/dex
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - '${PWD}/infrastructure/data/dex/config.yml:/config.yml:ro'
+      - '${PWD}/infrastructure/data/dex/dex.db:/var/dex/dex.db'
+      - '${PWD}/web_ui/dex_templates:/web'
+    command: ['dex', 'serve','/config.yml']
+    #command: ['/bin/sh']
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dex.rule=(Host(`geti.localhost`) && PathPrefix(`/dex`))"
+      - "traefik.http.services.dex.loadbalancer.server.port=5556"
+    environment:
+      - "DEX_DOMAIN=dex.geti.localhost"
