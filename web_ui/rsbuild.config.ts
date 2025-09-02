@@ -2,6 +2,7 @@
 // LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import { defineConfig, loadEnv } from '@rsbuild/core';
+import { pluginBasicSsl } from '@rsbuild/plugin-basic-ssl';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginSvgr } from '@rsbuild/plugin-svgr';
@@ -22,6 +23,7 @@ export default defineConfig({
         },
     },
     plugins: [
+        pluginBasicSsl(),
         // Needed for React, JSX, etc
         pluginReact(),
         // Needed for sass support
@@ -87,15 +89,12 @@ export default defineConfig({
     server: {
         proxy: devProxy,
         headers: {
-            'Cross-Origin-Embedder-Policy': 'credentialless',
-            'Cross-Origin-Opener-Policy': 'same-origin',
-            'Content-Security-Policy':
-                "default-src 'self'; " +
-                "script-src 'self' 'unsafe-eval' blob:; " +
-                "worker-src 'self' blob:; " +
-                "connect-src 'self' data:; " +
-                "img-src 'self' data: blob:; " +
-                "style-src 'self' 'unsafe-inline';",
+            'Cross-Origin-embedder-Policy': 'require-corp',
+            'Cross-Origin-opener-Policy': 'same-origin',
         },
+        //          https: {
+        //   key: fs.readFileSync('certificates/private.pem'),
+        //   cert: fs.readFileSync('certificates/public.pem'),
+        // },,
     },
 });
