@@ -29,6 +29,7 @@ export class SegmentAnythingDecoder {
     ) {}
 
     public async process(encodingOutput: EncodingOutput, input: SegmentAnythingPrompt): Promise<SegmentAnythingResult> {
+        console.time('[SAM] Decoding');
         const { masks, iouPredictions } = await this.processDecoder(
             { boxes: input.boxes ?? [], points: input.points ?? [] },
             encodingOutput
@@ -64,6 +65,7 @@ export class SegmentAnythingDecoder {
             ...(input.ouputConfig ?? { type: 'polygon' }),
             shapeFilter: (shape) => positivePoints.some((point) => isPointInShape(shape, point)),
         });
+        console.timeEnd('[SAM] Decoding');
         return results;
     }
 
@@ -118,8 +120,10 @@ export class SegmentAnythingDecoder {
         }
 
         const ratio = 1024 / Math.max(originalHeight, originalWidth);
+
+        const data = encoderResult;
         const feeds: Record<string, ort.Tensor> = {
-            image_embeddings: encoderResult,
+            image_embeddings: new ort.Tensor(new Float32Array(data), [1, 256, 64, 64]),
             // TODO: reuse the low_res_masks output, also use existing polygons?
             mask_input: new ort.Tensor(new Float32Array(256 * 256).fill(1), [1, 1, 256, 256]),
             has_mask_input: new ort.Tensor(new Float32Array(1).fill(0), [1]),
@@ -131,7 +135,11 @@ export class SegmentAnythingDecoder {
             point_labels: new ort.Tensor(new Float32Array(pointLabels), [1, pointLabels.length]),
         };
 
+        //console.log({ encoderResult, feeds });
+        console.time('[SAM] Decoding run');
         const outputData = await this.session.run(feeds);
+        console.timeEnd('[SAM] Decoding run');
+        //console.log({ outputData });
 
         return {
             masks: outputData['masks'],

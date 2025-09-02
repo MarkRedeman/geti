@@ -3,7 +3,6 @@
 
 import { OpenCVTypes } from '@geti/smart-tools/opencv';
 import type * as Comlink from 'comlink';
-import * as ort from 'onnxruntime-common';
 
 import { OpenCVPreprocessor, OpenCVPreprocessorConfig } from './pre-processing';
 import { type Session } from './session';
@@ -13,7 +12,7 @@ type cv = typeof OpenCVTypes;
 type ModelSession = Session | Comlink.Remote<Session>;
 
 export type EncodingOutput = {
-    encoderResult: ort.Tensor;
+    encoderResult: Float32Array;
     originalWidth: number;
     originalHeight: number;
     newWidth: number;
@@ -45,12 +44,16 @@ export class SegmentAnythingEncoder {
         const newWidth = result.newWidth;
         const newHeight = result.newHeight;
 
-        return {
-            encoderResult,
+        console.log(encoderResult);
+        const a = {
+            encoderResult: await encoderResult.getData(),
+            dims: encoderResult.dims,
             originalWidth,
             originalHeight,
             newWidth,
             newHeight,
         };
+        console.log(a);
+        return a;
     }
 }
