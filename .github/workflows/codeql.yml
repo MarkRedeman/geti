@@ -10,8 +10,6 @@ on: # zizmor: ignore[cache-poisoning]
     branches:
       - main
       - release**
-  schedule:
-    - cron: "37 3 * * 0"
 
 permissions: {} # No permissions by default on workflow level
 

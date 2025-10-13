@@ -27,8 +27,6 @@
 name: Main CI
 
 on:
-  schedule:
-    - cron: "0 18 * * *"
   merge_group:
     branches:
       - main
