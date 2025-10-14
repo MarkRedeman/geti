@@ -9,7 +9,7 @@ import { isOrganizationAdmin } from '@geti/core/src/users/user-role-utils';
 import { RESOURCE_TYPE } from '@geti/core/src/users/users.interface';
 import { useWorkspacesApi } from '@geti/core/src/workspaces/hooks/use-workspaces.hook';
 import { WorkspaceEntity } from '@geti/core/src/workspaces/services/workspaces.interface';
-import { ActionButton, Flex, Item, Loading, TabList, Tabs, Tooltip, TooltipTrigger, View } from '@geti/ui';
+import { ActionButton, Flex, Item, Loading, TabList, Tabs, Tooltip, TooltipTrigger } from '@geti/ui';
 import { Add } from '@geti/ui/icons';
 
 import { useProjectActions } from '../../../core/projects/hooks/use-project-actions.hook';
@@ -22,6 +22,8 @@ import { getUniqueNameFromArray } from '../../../shared/utils';
 import { WorkspaceDeleteDialog } from '../../landing-page/workspaces-tabs/components/workspace-delete-dialog.component';
 import { CustomTabItemWithMenu } from '../../landing-page/workspaces-tabs/custom-tab-item-with-menu.component';
 import { useWorkspaceActions } from '../../landing-page/workspaces-tabs/hooks/use-workspace-actions.hook';
+
+import classes from '../../../shared/components/custom-tab-item/custom-tab-item.module.scss';
 
 interface WorkspaceUsersToolbarProps {
     workspaces: WorkspaceEntity[];
@@ -63,41 +65,38 @@ export const WorkspaceUsersToolbar = ({
     };
 
     return (
-        <Flex direction={'column'} gap={'size-150'}>
+        <Flex direction={'column'} gap={'size-150'} UNSAFE_className={classes.componentWrapper}>
             <Tabs
                 selectedKey={selectedWorkspaceId}
                 onSelectionChange={handleSelection}
                 aria-label={'Workspace tabs'}
                 items={tabItems}
+                orientation='vertical'
             >
-                <Flex alignItems={'center'} gap={'size-200'} UNSAFE_style={{ overflow: 'hidden' }}>
-                    <TabList width={'100%'}>
+                <Flex alignItems={'center'} gap={'size-200'} UNSAFE_className={classes.tabWrapper}>
+                    <TabList UNSAFE_className={classes.tabList}>
                         {(item: { key: string; name: string }) => {
                             return (
                                 <Item key={item.key} textValue={item.name}>
                                     {item.key === selectedWorkspaceId && FEATURE_FLAG_WORKSPACE_ACTIONS ? (
-                                        <View marginTop={'size-65'}>
-                                            <HasPermission
-                                                operations={[OPERATION.WORKSPACE_MANAGEMENT]}
-                                                resources={[{ type: RESOURCE_TYPE.WORKSPACE, id: item.key }]}
-                                                specialCondition={
-                                                    activeUser !== undefined &&
-                                                    isOrganizationAdmin(activeUser, organizationId)
-                                                }
-                                                Fallback={<CustomTabItem name={item.name} isMoreIconVisible={false} />}
-                                            >
-                                                <CustomTabItemWithMenu
-                                                    workspace={selectedWorkspace as WorkspaceEntity}
-                                                    isMoreIconVisible={item.key === selectedWorkspaceId}
-                                                    workspaces={workspaces}
-                                                    selectWorkspace={(id: string) => handleSelection(id)}
-                                                />
-                                            </HasPermission>
-                                        </View>
+                                        <HasPermission
+                                            operations={[OPERATION.WORKSPACE_MANAGEMENT]}
+                                            resources={[{ type: RESOURCE_TYPE.WORKSPACE, id: item.key }]}
+                                            specialCondition={
+                                                activeUser !== undefined &&
+                                                isOrganizationAdmin(activeUser, organizationId)
+                                            }
+                                            Fallback={<CustomTabItem name={item.name} isMoreIconVisible={false} />}
+                                        >
+                                            <CustomTabItemWithMenu
+                                                workspace={selectedWorkspace as WorkspaceEntity}
+                                                isMoreIconVisible={item.key === selectedWorkspaceId}
+                                                workspaces={workspaces}
+                                                selectWorkspace={(id: string) => handleSelection(id)}
+                                            />
+                                        </HasPermission>
                                     ) : (
-                                        <View>
-                                            <CustomTabItem isMoreIconVisible={false} name={item.name} />
-                                        </View>
+                                        <CustomTabItem isMoreIconVisible={false} name={item.name} />
                                     )}
                                 </Item>
                             );
