@@ -10,22 +10,22 @@ import {
     Button,
     ButtonGroup,
     Content,
+    ContextualHelp,
     Dialog,
     Divider,
     Flex,
     Form,
     Heading,
     TextField,
-    Tooltip,
-    TooltipTrigger,
 } from '@geti/ui';
 import { Email } from '@geti/ui/icons';
 
 import { StatusCell } from '../../../../shared/components/table/status-cell/status-cell.component';
+import { OrganizationRoleTooltipContent } from '../../../../shared/components/tooltips/organization-role-tooltip';
 import { RolePicker } from '../old-project-users/role-picker.component';
-import { OrganizationRoleTooltipContent } from '../organization-role-tooltip/organization-role-tooltip';
 import { LastLoginCell } from '../users-table/last-login-cell.component';
 
+import tooltipClasses from '../../../../shared/components/tooltips/tooltips.module.scss';
 import classes from '../workspace-users/actions/user-summary.module.scss';
 
 interface EditOrganizationUserDialogProps {
@@ -177,18 +177,21 @@ export const EditOrganizationUserDialog = ({
                             onChange={setLastName}
                         />
                     </Flex>
-                    <TooltipTrigger placement={'bottom'}>
-                        <RolePicker
-                            label='Organization role'
-                            roles={[USER_ROLE.ORGANIZATION_ADMIN, USER_ROLE.ORGANIZATION_CONTRIBUTOR]}
-                            selectedRole={selectedOrgRole as USER_ROLE}
-                            setSelectedRole={setSelectedOrgRole}
-                            isDisabled={isLastRemainingOrgAdmin}
-                        />
-                        <Tooltip>
-                            <OrganizationRoleTooltipContent />
-                        </Tooltip>
-                    </TooltipTrigger>
+                    <RolePicker
+                        label='Organization role'
+                        roles={[USER_ROLE.ORGANIZATION_ADMIN, USER_ROLE.ORGANIZATION_CONTRIBUTOR]}
+                        selectedRole={selectedOrgRole as USER_ROLE}
+                        setSelectedRole={setSelectedOrgRole}
+                        isDisabled={isLastRemainingOrgAdmin}
+                        contextualHelp={
+                            <ContextualHelp>
+                                <Heading>What roles can there be in an organization?</Heading>
+                                <Content UNSAFE_className={tooltipClasses.organizationRoleContextualHelp}>
+                                    <OrganizationRoleTooltipContent />
+                                </Content>
+                            </ContextualHelp>
+                        }
+                    />
                     <ButtonGroup align={'end'} marginTop={'size-350'}>
                         <Button variant='secondary' onPress={closeDialog} id='cancel-edit-org-user'>
                             Cancel

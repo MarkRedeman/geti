@@ -26,14 +26,14 @@ import {
 import { Info } from '@geti/ui/icons';
 
 import { useWorkspaces } from '../../../../providers/workspaces-provider/workspaces-provider.component';
+import { OrganizationRoleTooltipContent } from '../../../../shared/components/tooltips/organization-role-tooltip';
+import { WorkspaceRoleTooltipContent } from '../../../../shared/components/tooltips/workspace-role-tooltip';
 import { isYupValidationError } from '../../profile-page/utils';
 import { ErrorMessage } from '../add-member-popup/error-message/error-message.component';
 import { RolePicker } from '../old-project-users/role-picker.component';
-import { OrganizationRoleTooltipContent } from '../organization-role-tooltip/organization-role-tooltip';
 import { MAX_NUMBER_OF_CHARACTERS, validateEmail, validateUserEmail } from '../utils';
-import { WorkspaceRoleTooltipContent } from '../workspace-role-tooltip/workspace-role-tooltip';
 
-import classes from '../add-member-popup/add-member-popup.module.scss';
+import classes from '../../../../shared/components/tooltips/tooltips.module.scss';
 
 interface InviteUserDialogProps extends WorkspaceIdentifier {
     id: string;

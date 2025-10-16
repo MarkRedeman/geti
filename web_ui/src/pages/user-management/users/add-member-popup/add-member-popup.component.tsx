@@ -28,17 +28,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ValidationError } from 'yup';
 
 import { useWorkspaces } from '../../../../providers/workspaces-provider/workspaces-provider.component';
+import { OrganizationRoleTooltipContent } from '../../../../shared/components/tooltips/organization-role-tooltip';
+import { WorkspaceRoleTooltipContent } from '../../../../shared/components/tooltips/workspace-role-tooltip';
 import { CONFIRM_PASSWORD_ERROR_MESSAGE, encodeToBase64 } from '../../../../shared/utils';
 import { EditFullName } from '../../profile-page/edit-full-name.component';
 import { isYupValidationError } from '../../profile-page/utils';
 import { RolePicker } from '../old-project-users/role-picker.component';
-import { OrganizationRoleTooltipContent } from '../organization-role-tooltip/organization-role-tooltip';
 import { MAX_NUMBER_OF_CHARACTERS, validateEmail, validateUserEmail } from '../utils';
-import { WorkspaceRoleTooltipContent } from '../workspace-role-tooltip/workspace-role-tooltip';
 import { PasswordState } from './add-member-popup.interface';
 import { ErrorMessage } from './error-message/error-message.component';
 import { defaultPasswordState, handlePassword, validatePasswordsSchema } from './utils';
 
+import tooltipClasses from '../../../../shared/components/tooltips/tooltips.module.scss';
 import classes from './add-member-popup.module.scss';
 
 type AddMemberPopupProps = WorkspaceIdentifier;
@@ -241,7 +242,7 @@ export const AddMemberPopup = ({ organizationId, workspaceId }: AddMemberPopupPr
                                     contextualHelp={
                                         <ContextualHelp>
                                             <Heading>What roles can there be in an organization?</Heading>
-                                            <Content UNSAFE_className={classes.organizationRoleContextualHelp}>
+                                            <Content UNSAFE_className={tooltipClasses.organizationRoleContextualHelp}>
                                                 <OrganizationRoleTooltipContent />
                                             </Content>
                                         </ContextualHelp>
@@ -269,7 +270,9 @@ export const AddMemberPopup = ({ organizationId, workspaceId }: AddMemberPopupPr
                                             contextualHelp={
                                                 <ContextualHelp>
                                                     <Heading>What roles can there be in a workspace?</Heading>
-                                                    <Content UNSAFE_className={classes.workspaceRoleContextualHelp}>
+                                                    <Content
+                                                        UNSAFE_className={tooltipClasses.workspaceRoleContextualHelp}
+                                                    >
                                                         <WorkspaceRoleTooltipContent />
                                                     </Content>
                                                 </ContextualHelp>

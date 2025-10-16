@@ -4,13 +4,11 @@
 import QUERY_KEYS from '@geti/core/src/requests/query-keys';
 import { useUsers } from '@geti/core/src/users/hook/use-users.hook';
 import { User } from '@geti/core/src/users/users.interface';
-import { AlertDialog } from '@geti/ui';
+import { AlertDialog, Flex, Text } from '@geti/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { isFunction } from 'lodash-es';
 
-import { useHandleSignOut } from '../../../../../hooks/use-handle-sign-out/use-handle-sign-out.hook';
-
-import classes from '../workspace-user.module.scss';
+import { useHandleSignOut } from '../../../../hooks/use-handle-sign-out/use-handle-sign-out.hook';
 
 interface UserActionsProps {
     organizationId: string;
@@ -40,7 +38,7 @@ export const RemoveUserDialog = ({ organizationId, user, activeUser, onDeleting 
         } catch (_error: unknown) {}
     };
 
-    const question = `Are you sure you want to delete "${user.email}"?`;
+    const email = user.email;
 
     return (
         <AlertDialog
@@ -49,9 +47,14 @@ export const RemoveUserDialog = ({ organizationId, user, activeUser, onDeleting 
             primaryActionLabel='Delete'
             onPrimaryAction={deleteUserAction}
             cancelLabel={'Cancel'}
-            UNSAFE_className={classes.removeUserDialog}
         >
-            {question}
+            <Flex direction={'column'} gap={'size-150'}>
+                <Text>
+                    This user account of {email} will be permanently deleted from your Geti™ organization. After
+                    deleting the account, the user will not be able to log in again with this account.
+                </Text>
+                <Text>Are you sure you want to delete {email}?</Text>
+            </Flex>
         </AlertDialog>
     );
 };
