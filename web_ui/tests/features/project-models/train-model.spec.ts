@@ -154,8 +154,11 @@ test.describe('Train model', () => {
                 trainingSize: 71,
             });
 
-            await trainModelPage.changeSubsetRange('start', 10);
-            await trainModelPage.changeSubsetRange('end', 5);
+            const distributionSlider = page.getByText('Distribution 70/20/10%');
+            await trainModelPage.changeSubsetRange(distributionSlider, 'start', 10);
+
+            const refreshedDistributionSlider = page.getByText('Distribution 60/30/10%');
+            await trainModelPage.changeSubsetRange(refreshedDistributionSlider, 'end', 5);
 
             await expectTrainingSubsetsDistribution(page, {
                 testSubset: 15,
@@ -168,8 +171,41 @@ test.describe('Train model', () => {
                 trainingSize: 61,
             });
 
+            await page.getByRole('button', { name: 'Custom' }).click();
             await trainModelPage.changeNumberParameter('Tile size', 128);
             await expect(trainModelPage.getNumberParameter('Tile size')).toHaveValue('128');
+
+            await expect(trainModelPage.getBooleanParameter('Enable random IoU crop')).toBeChecked();
+
+            await trainModelPage.toggleEnableParameter('Enable color jitter');
+
+            await expect(page.getByRole('slider', { name: 'Minimum Change Brightness' })).toHaveValue('0.875');
+            await expect(page.getByRole('slider', { name: 'Maximum Change Brightness' })).toHaveValue('1.125');
+
+            const brightnessStart = page.getByRole('button', {
+                name: 'Increase Change Brightness range start range value',
+            });
+
+            await brightnessStart.click();
+
+            const brightnessSlider = page.getByLabel('Change Brightness range value');
+
+            await brightnessSlider.click();
+
+            const endRange = brightnessSlider.getByRole('presentation').nth(2);
+
+            await endRange.click();
+
+            const box = await endRange.boundingBox();
+
+            if (box) {
+                await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+                await page.mouse.down();
+                await page.mouse.move(box.x + box.width / 2 - 30, box.y + box.height / 2);
+                await page.mouse.up();
+            } else {
+                throw new Error('Could not get bounding box for endRange handle');
+            }
 
             await expect(trainModelPage.getBooleanParameter('Enable center crop')).toBeChecked();
             await expect(trainModelPage.getNumberParameter('Crop ratio')).toBeEnabled();
@@ -268,7 +304,9 @@ test.describe('Train model', () => {
 
             await trainModelPage.selectTab('Data management');
 
-            await trainModelPage.changeSubsetRange('start', 10);
+            const distributionSlider = page.getByText('Distribution 70/20/10%');
+            await trainModelPage.changeSubsetRange(distributionSlider, 'start', 10);
+
             await expectTrainingSubsetsDistribution(page, {
                 testSubset: 10,
                 validationSubset: 30,
@@ -380,8 +418,11 @@ test.describe('Train model', () => {
                 trainingSize: 71,
             });
 
-            await trainModelPage.changeSubsetRange('start', 10);
-            await trainModelPage.changeSubsetRange('end', 5);
+            const distributionSlider = page.getByText('Distribution 70/20/10%');
+            await trainModelPage.changeSubsetRange(distributionSlider, 'start', 10);
+
+            const refreshedDistributionSlider = page.getByText('Distribution 60/30/10%');
+            await trainModelPage.changeSubsetRange(refreshedDistributionSlider, 'end', 5);
 
             await expectTrainingSubsetsDistribution(page, {
                 testSubset: 15,
@@ -396,6 +437,35 @@ test.describe('Train model', () => {
 
             await trainModelPage.changeNumberParameter('Tile size', 128);
             await expect(trainModelPage.getNumberParameter('Tile size')).toHaveValue('128');
+
+            await trainModelPage.toggleEnableParameter('Enable color jitter');
+
+            await expect(page.getByRole('slider', { name: 'Minimum Change Brightness' })).toHaveValue('0.875');
+            await expect(page.getByRole('slider', { name: 'Maximum Change Brightness' })).toHaveValue('1.125');
+
+            const brightnessStart = page.getByRole('button', {
+                name: 'Increase Change Brightness range start range value',
+            });
+
+            await brightnessStart.click();
+
+            const brightnessSlider = page.getByLabel('Change Brightness range value');
+
+            await brightnessSlider.click();
+
+            const endRange = brightnessSlider.getByRole('presentation').nth(2);
+
+            await endRange.click();
+            const box = await endRange.boundingBox();
+
+            if (box) {
+                await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+                await page.mouse.down();
+                await page.mouse.move(box.x + box.width / 2 - 30, box.y + box.height / 2);
+                await page.mouse.up();
+            } else {
+                throw new Error('Could not get bounding box for endRange handle');
+            }
 
             await expect(trainModelPage.getBooleanParameter('Enable center crop')).toBeChecked();
             await expect(trainModelPage.getNumberParameter('Crop ratio')).toBeEnabled();
@@ -497,7 +567,8 @@ test.describe('Train model', () => {
 
             await trainModelPage.selectTab('Data management');
 
-            await trainModelPage.changeSubsetRange('start', 10);
+            const distributionSlider = page.getByText('Distribution 70/20/10%');
+            await trainModelPage.changeSubsetRange(distributionSlider, 'start', 10);
             await expectTrainingSubsetsDistribution(page, {
                 testSubset: 10,
                 validationSubset: 30,

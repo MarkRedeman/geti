@@ -24,7 +24,7 @@ const getStep = ({
     type,
 }: {
     step?: number;
-    minValue: number;
+    minValue: number | null;
     maxValue: number | null;
     type: NumberParameter['type'];
 }): number => {
@@ -32,7 +32,7 @@ const getStep = ({
         return step;
     }
 
-    if (maxValue === null) {
+    if (maxValue === null || minValue === null) {
         return type === 'int' ? DEFAULT_INT_STEP : DEFAULT_FLOAT_STEP;
     }
 
@@ -63,13 +63,14 @@ export const NumberParameterField: FC<NumberGroupParamsProps> = ({
         setParameterValue(value);
     }, [value]);
 
-    if (maxValue === null) {
+    if (maxValue === null || minValue === null) {
         return (
             <NumberField
                 aria-label={`Change ${name}`}
                 step={fieldStep}
                 value={parameterValue}
-                minValue={minValue}
+                minValue={minValue === null ? undefined : minValue}
+                maxValue={maxValue === null ? undefined : maxValue}
                 onChange={handleValueChange}
                 isDisabled={isDisabled}
             />
