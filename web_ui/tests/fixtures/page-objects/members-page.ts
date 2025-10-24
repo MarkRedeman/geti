@@ -2,8 +2,9 @@
 // LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import { paths } from '@geti/core';
-import { USER_ROLE } from '@geti/core/src/users/users.interface';
 import { expect, Locator, Page } from '@playwright/test';
+
+import { USER_ROLE } from '../../../packages/core/src/users/users.interface';
 
 export class MembersPage {
     constructor(private page: Page) {}
@@ -41,7 +42,8 @@ export class MembersPage {
         email: string;
         firstName: string;
         lastName: string;
-        role: USER_ROLE.WORKSPACE_ADMIN | USER_ROLE.WORKSPACE_CONTRIBUTOR;
+        workspaceRole?: USER_ROLE.WORKSPACE_ADMIN | USER_ROLE.WORKSPACE_CONTRIBUTOR;
+        organizationRole: USER_ROLE.ORGANIZATION_ADMIN | USER_ROLE.ORGANIZATION_CONTRIBUTOR;
         password: string;
     }) {
         await this.addMemberButton.click();
@@ -51,9 +53,16 @@ export class MembersPage {
         await this.page.getByRole('textbox', { name: /email address/i }).fill(member.email);
         await this.page.getByRole('textbox', { name: /first name/i }).fill(member.firstName);
         await this.page.getByRole('textbox', { name: /last name/i }).fill(member.lastName);
+        await this.page.getByRole('button', { name: /Organization contributor/i }).click();
+        await this.page.getByRole('option', { name: member.organizationRole }).click();
 
-        await this.page.getByRole('button', { name: /select a role/i }).click();
-        await this.page.getByRole('option', { name: member.role }).click();
+        if (member.organizationRole === USER_ROLE.ORGANIZATION_CONTRIBUTOR) {
+            await this.page.getByRole('button', { name: 'Default workspace Workspace' }).click();
+            await this.page.getByRole('option', { name: 'Default workspace' }).click();
+            await this.page.getByRole('button', { name: 'Workspace contributor' }).click();
+            await this.page.getByRole('option', { name: member.workspaceRole }).click();
+        }
+
         await this.page.getByLabel('Password', { exact: true }).fill(member.password);
         await this.page.getByLabel('Confirm password').fill(member.password);
 
@@ -61,7 +70,7 @@ export class MembersPage {
     }
 
     private getActionMenuButton(email: string) {
-        return this.page.getByRole('button', { name: new RegExp(`${email} action menu`) });
+        return this.page.getByRole('button', { name: new RegExp(`${email} organization user action menu`) });
     }
 
     async removeMember(email: string) {

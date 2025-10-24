@@ -4,6 +4,7 @@
 import { RESOURCE_TYPE, User } from '@geti/core/src/users/users.interface';
 import { Flex, Text } from '@geti/ui';
 
+import { useOrganization } from '../../../intel-admin-app/pages/organization/hooks/organization.hook';
 import { OrganizationUserActions } from './actions/organization-user-actions.component';
 import { Users } from './users.component';
 
@@ -12,6 +13,8 @@ interface UsersTabProps {
 }
 
 export const UsersTab = ({ activeUser }: UsersTabProps) => {
+    const { organizationId } = useOrganization();
+
     if (!activeUser) return <></>;
 
     return (
@@ -24,8 +27,8 @@ export const UsersTab = ({ activeUser }: UsersTabProps) => {
             </Text>
             <Users
                 activeUser={activeUser}
-                resourceType={[RESOURCE_TYPE.ORGANIZATION, RESOURCE_TYPE.WORKSPACE]}
-                resourceId={undefined}
+                resourceType={RESOURCE_TYPE.ORGANIZATION}
+                resourceId={organizationId}
                 UserActions={OrganizationUserActions}
             />
         </Flex>
