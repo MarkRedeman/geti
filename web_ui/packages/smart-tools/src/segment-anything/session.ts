@@ -37,6 +37,8 @@ const PATHS = {
     },
 };
 
+type ExecutionModel = 'cpu' | 'webgpu' | 'webnn-gpu' | 'webnn-npu' | 'webnn';
+
 console.log(PATHS);
 
 // use a dynamic import to avoid bundling the entire onnxruntime-web package
@@ -62,7 +64,7 @@ export class Session {
     }
 
     public async init(modelPath: string) {
-        const useWebGPU = false;
+        const useWebGPU = true;
         const ort = await getOrt(useWebGPU);
         ort.env.wasm.numThreads = this.params.numThreads;
         ort.env.wasm.wasmPaths = this.params.wasmRoot;
@@ -84,10 +86,10 @@ export class Session {
         }
 
         const session = await ort.InferenceSession.create(modelData, {
-            //executionProviders: [{ name: 'webgpu' }],
+            executionProviders: [{ name: 'webgpu' }],
             //executionProviders: [{ name: 'webnn', deviceType: 'gpu' }],
             //executionProviders: [{ name: 'webnn', deviceType: 'npu' }],
-            executionProviders: [{ name: 'cpu' }],
+            //executionProviders: [{ name: 'cpu' }],
             //executionProviders: [{ name: 'webgl' }],
             graphOptimizationLevel: 'all',
             executionMode: 'parallel',
