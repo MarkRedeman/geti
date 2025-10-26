@@ -23,7 +23,7 @@ export default defineConfig({
         },
     },
     plugins: [
-        pluginBasicSsl(),
+        //pluginBasicSsl(),
         // Needed for React, JSX, etc
         pluginReact(),
         // Needed for sass support
