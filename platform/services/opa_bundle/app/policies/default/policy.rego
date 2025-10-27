@@ -564,7 +564,7 @@ allow if {
 
 # * /api/<api_ver>/organizations/{organization_id}/workspaces/{workspace_id}/projects/uploads
 # * /api/<api_ver>/organizations/{organization_id}/workspaces/{workspace_id}/projects/uploads/*
-# Workspace project upload operations, user should be granted with "can_manage" workspace level permission
+# Workspace project upload operations, user should be granted with "can_contribute" workspace level permission
 allow if {
     ["api", api_ver, "organizations", organization_id, "workspaces", workspace_id, "projects", "uploads"] = array.slice(parsed_path, 0, 8)
 	is_valid_api_version(api_ver)
@@ -572,12 +572,12 @@ allow if {
     print("Policy: Import project operations", parsed_path)
     user_id := resolve_user_id(http_request.headers)
 	check_relation(spicedb_address, spicedb_key, "workspace", workspace_id, "parent_organization", "organization", organization_id)
-    check_authorization_allowing_pat(spicedb_key, "workspace", workspace_id, "can_manage", user_id)
+    check_authorization_allowing_pat(spicedb_key, "workspace", workspace_id, "can_contribute", user_id)
     check_authorization_allowing_pat(spicedb_key, "organization", organization_id, "can_contribute", user_id)
 }
 
 # * /api/<api_ver>/organizations/{organization_id}/workspaces/{workspace_id}/projects:import
-# Import project, user should be granted with "can_manage" workspace level permission
+# Import project, user should be granted with "can_contribute" workspace level permission
 allow if {
     http_request.method == "POST"
 	["api", api_ver, "organizations", organization_id, "workspaces", workspace_id, "projects:import"] = array.slice(parsed_path, 0, 7)
@@ -586,7 +586,7 @@ allow if {
 	print("Policy: Import project operations", parsed_path)
 	check_relation(spicedb_address, spicedb_key, "workspace", workspace_id, "parent_organization", "organization", organization_id)
 	user_id := resolve_user_id(http_request.headers)
-	check_authorization_allowing_pat(spicedb_key, "workspace", workspace_id, "can_manage", user_id)
+	check_authorization_allowing_pat(spicedb_key, "workspace", workspace_id, "can_contribute", user_id)
 	check_authorization_allowing_pat(spicedb_key, "organization", organization_id, "can_contribute", user_id)
 }
 
