@@ -89,8 +89,14 @@ func (s *GRPCServer) Create(ctx context.Context, data *pb.WorkspaceData) (*pb.Wo
 		logger.Errorf("error during parsing organization UUID: %v", err)
 		return nil, status.Error(codes.InvalidArgument, "malformed organization UUID")
 	}
+
+    if strings.TrimSpace(data.Name) == "" {
+        logger.Errorf("workspace name is required")
+        return nil, status.Error(codes.InvalidArgument, "workspace name is required")
+    }
+
 	workspace := models.Workspace{
-		Name:           data.Name,
+		Name:           strings.TrimSpace(data.Name),
 		OrganizationID: parsedOrganizationUUID,
 		ModifiedAt: &sql.NullTime{
 			Valid: false,
@@ -184,6 +190,11 @@ func (s *GRPCServer) Modify(ctx context.Context, data *pb.WorkspaceData) (*pb.Wo
 		return nil, status.Errorf(codes.InvalidArgument, "invalid workspace UUID: \"%v\" ", data.Id)
 	}
 
+    if strings.TrimSpace(data.Name) == "" {
+        logger.Errorf("workspace name is required")
+        return nil, status.Error(codes.InvalidArgument, "workspace name is required")
+    }
+
 	transactionFunc := func(tx *gorm.DB) error {
 		dbResult := tx.First(&workspace, "id = ?", workspaceRequestedID.String())
 		if dbResult.Error != nil {
@@ -194,7 +205,7 @@ func (s *GRPCServer) Modify(ctx context.Context, data *pb.WorkspaceData) (*pb.Wo
 			return status.Error(codes.Unknown, "unexpected error")
 		}
 
-		workspace.Name = data.Name
+		workspace.Name = strings.TrimSpace(data.Name)
 		workspaceOrganizationID, err := uuid.Parse(data.OrganizationId)
 		if err != nil {
 			logger.Errorf("error during parsing organization uuid: %v", err)
