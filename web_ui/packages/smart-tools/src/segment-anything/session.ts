@@ -64,7 +64,7 @@ export class Session {
     }
 
     public async init(modelPath: string) {
-        const useWebGPU = true;
+        const useWebGPU = false;
         const ort = await getOrt(useWebGPU);
         ort.env.wasm.numThreads = this.params.numThreads;
         ort.env.wasm.wasmPaths = this.params.wasmRoot;
@@ -86,9 +86,11 @@ export class Session {
         }
 
         const session = await ort.InferenceSession.create(modelData, {
-            executionProviders: [{ name: 'webgpu' }],
+            //executionProviders: [{ name: 'webgpu' }],
             //executionProviders: [{ name: 'webnn', deviceType: 'gpu' }],
             //executionProviders: [{ name: 'webnn', deviceType: 'npu' }],
+            //executionProviders: [{ name: 'webnn', deviceType: 'cpu' }],
+            executionProviders: useWebGPU === false ? [{ name: 'cpu' }] : [{ name: 'webnn', deviceType: 'cpu' }],
             //executionProviders: [{ name: 'cpu' }],
             //executionProviders: [{ name: 'webgl' }],
             graphOptimizationLevel: 'all',

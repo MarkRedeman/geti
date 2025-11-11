@@ -4,6 +4,7 @@
 import * as ort from 'onnxruntime-common';
 
 import { OpenCVTypes } from '../opencv/interfaces';
+import { getOrt } from '../segment-anything/session';
 import { Point, Polygon, RegionOfInterest, Shape, ShapeType } from '../shared/interfaces';
 import { OpenCVLoader } from '../utils/opencv-loader';
 import { approximateShape, concatFloat32Arrays, isPolygonValid, loadSource, stackPlanes } from '../utils/tool-utils';
@@ -35,6 +36,8 @@ class RITM {
         if (!data) {
             throw 'Could not load model';
         }
+
+        const ort = await getOrt(false);
 
         return ort.InferenceSession.create(data);
     }
