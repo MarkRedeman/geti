@@ -16,3 +16,6 @@ export { buildIntelligentScissorsInstance, IntelligentScissors } from './src/int
 
 export { Anchor } from './src/edit-bounding-box/anchor.component';
 export { ANCHOR_SIZE, ResizeAnchor } from './src/edit-bounding-box/resize-anchor.component';
+
+export { OpenCVLoader } from './src/utils/opencv-loader';
+export type { OpenCVTypes } from './src/opencv/interfaces';
