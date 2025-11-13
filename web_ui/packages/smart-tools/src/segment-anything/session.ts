@@ -10,7 +10,7 @@ import { SessionParameters, sessionParams } from '../utils/wasm-utils';
 
 type ORT = typeof import('onnxruntime-web');
 
-const loadModel = async (modelPath: string) => {
+const loadModel = async (modelPath: string): Promise<ArrayBufferLike | undefined> => {
     return await (await loadSource(modelPath))?.arrayBuffer();
 };
 
@@ -44,6 +44,7 @@ console.log(PATHS);
 // use a dynamic import to avoid bundling the entire onnxruntime-web package
 let ort: ORT | null = null;
 export const getOrt = async (useWebGPU: boolean): Promise<ORT> => {
+    console.log('load ort', useWebGPU);
     if (ort !== null) {
         return ort;
     }
@@ -55,17 +56,28 @@ export const getOrt = async (useWebGPU: boolean): Promise<ORT> => {
     return ort;
 };
 
+type SessionOptions = InferenceSession.SessionOptions;
+export type ExecutionProviders = SessionOptions['executionProviders'];
+
 export class Session {
     ortSession: InferenceSession | undefined;
     params: SessionParameters;
 
-    constructor() {
+    constructor(
+        private useWebGPU = true,
+        private executionProviders?: ExecutionProviders
+    ) {
         this.params = sessionParams;
+
+        console.log('session', { useWebGPU, executionProviders });
+
+        this.executionProviders =
+            this.executionProviders ??
+            (this.useWebGPU === false ? [{ name: 'cpu' }] : [{ name: 'webnn', deviceType: 'cpu' }]);
     }
 
     public async init(modelPath: string) {
-        const useWebGPU = false;
-        const ort = await getOrt(useWebGPU);
+        const ort = await getOrt(this.useWebGPU);
         ort.env.wasm.numThreads = this.params.numThreads;
         ort.env.wasm.wasmPaths = this.params.wasmRoot;
         ort.env.wasm.simd = true;
@@ -73,11 +85,9 @@ export class Session {
         ort.env.debug = true;
         ort.env.wasm.proxy = true;
         ort.env.wasm.wasmPaths = {
-            mjs: useWebGPU ? PATHS.webgpu.mjs : PATHS.wasm.mjs,
-            wasm: useWebGPU ? PATHS.webgpu.wasm : PATHS.wasm.wasm,
+            mjs: this.useWebGPU ? PATHS.webgpu.mjs : PATHS.wasm.mjs,
+            wasm: this.useWebGPU ? PATHS.webgpu.wasm : PATHS.wasm.wasm,
         };
-
-        const executionProviders = [useWebGPU ? 'webnn' : 'wasm'];
 
         const modelData = await loadModel(modelPath);
 
@@ -85,14 +95,9 @@ export class Session {
             throw new Error(`Unable to load model from "${modelPath}"`);
         }
 
+        console.log('create session', this.executionProviders);
         const session = await ort.InferenceSession.create(modelData, {
-            //executionProviders: [{ name: 'webgpu' }],
-            //executionProviders: [{ name: 'webnn', deviceType: 'gpu' }],
-            //executionProviders: [{ name: 'webnn', deviceType: 'npu' }],
-            //executionProviders: [{ name: 'webnn', deviceType: 'cpu' }],
-            executionProviders: useWebGPU === false ? [{ name: 'cpu' }] : [{ name: 'webnn', deviceType: 'cpu' }],
-            //executionProviders: [{ name: 'cpu' }],
-            //executionProviders: [{ name: 'webgl' }],
+            executionProviders: this.executionProviders,
             graphOptimizationLevel: 'all',
             executionMode: 'parallel',
         });

@@ -8,11 +8,16 @@ import { SegmentAnythingModels } from './models/models';
 import { SegmentAnythingModel } from './segment-anything';
 import { SegmentAnythingPrompt } from './segment-anything-decoder';
 import { EncodingOutput } from './segment-anything-encoder';
+import { ExecutionProviders } from './session';
 
 class SegmentAnythingModelWrapper {
     private model: SegmentAnythingModel;
 
-    constructor(private CV: OpenCVTypes.cv) {
+    constructor(
+        private CV: OpenCVTypes.cv,
+        private useWebGPU = false,
+        private executionProviders?: ExecutionProviders
+    ) {
         const config = {
             preProcessorConfig: {
                 normalize: {
@@ -32,7 +37,13 @@ class SegmentAnythingModelWrapper {
             ]),
         };
 
-        this.model = new SegmentAnythingModel(this.CV, config.modelPaths, config.preProcessorConfig);
+        this.model = new SegmentAnythingModel(
+            this.CV,
+            config.modelPaths,
+            config.preProcessorConfig,
+            this.useWebGPU,
+            this.executionProviders
+        );
     }
 
     public async init(algorithm: 'SEGMENT_ANYTHING_DECODER' | 'SEGMENT_ANYTHING_ENCODER'): Promise<void> {
@@ -51,10 +62,13 @@ class SegmentAnythingModelWrapper {
     }
 }
 
-const buildSegmentAnythingInstance = async (): Promise<SegmentAnythingModelWrapper> => {
+const buildSegmentAnythingInstance = async (
+    useWebGPU = false,
+    executionProviders?: ExecutionProviders
+): Promise<SegmentAnythingModelWrapper> => {
     const opencv = await OpenCVLoader();
 
-    return new SegmentAnythingModelWrapper(opencv);
+    return new SegmentAnythingModelWrapper(opencv, useWebGPU, executionProviders);
 };
 
 export { buildSegmentAnythingInstance, SegmentAnythingModelWrapper };

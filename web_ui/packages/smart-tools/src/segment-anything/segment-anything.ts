@@ -7,12 +7,16 @@ import { SegmentAnythingResult } from './interfaces';
 import { OpenCVPreprocessorConfig } from './pre-processing';
 import { SegmentAnythingDecoder, SegmentAnythingPrompt } from './segment-anything-decoder';
 import { EncodingOutput, SegmentAnythingEncoder } from './segment-anything-encoder';
-import { Session } from './session';
+import { ExecutionProviders, Session } from './session';
 
 type cv = typeof OpenCVTypes;
 
-const createSession = async (modelPath: string): Promise<Session> => {
-    const session = new Session();
+const createSession = async (
+    modelPath: string,
+    useWebGPU = false,
+    sessionOptions?: ExecutionProviders
+): Promise<Session> => {
+    const session = new Session(useWebGPU, sessionOptions);
     await session.init(modelPath);
     return session;
 };
@@ -25,7 +29,9 @@ export class SegmentAnythingModel {
     public constructor(
         private cv: cv,
         modelPaths: Map<string, string>,
-        preProcessorConfig: OpenCVPreprocessorConfig
+        preProcessorConfig: OpenCVPreprocessorConfig,
+        private useWebGPU = false,
+        private sessionOptions?: ExecutionProviders
     ) {
         this.modelPaths = modelPaths;
         this.preProcessorConfig = preProcessorConfig;
@@ -34,12 +40,12 @@ export class SegmentAnythingModel {
     public async init(algorithm: 'SEGMENT_ANYTHING_DECODER' | 'SEGMENT_ANYTHING_ENCODER'): Promise<void> {
         if (!this.sessions.has('encoder') && algorithm === 'SEGMENT_ANYTHING_ENCODER') {
             const encoderPath = this.modelPaths.get('encoder') ?? '';
-            this.sessions.set('encoder', await createSession(encoderPath));
+            this.sessions.set('encoder', await createSession(encoderPath, this.useWebGPU, this.sessionOptions));
         }
 
         if (!this.sessions.has('decoder') && algorithm === 'SEGMENT_ANYTHING_DECODER') {
             const decoderPath = this.modelPaths.get('decoder') ?? '';
-            this.sessions.set('decoder', await createSession(decoderPath));
+            this.sessions.set('decoder', await createSession(decoderPath, this.useWebGPU, this.sessionOptions));
         }
     }
 
