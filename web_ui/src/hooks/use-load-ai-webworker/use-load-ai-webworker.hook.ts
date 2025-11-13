@@ -38,6 +38,7 @@ export const useLoadAIWebworker = <T extends AlgorithmType>(algorithmType: T) =>
                 return worker.build(true, executionProviders);
             }
 
+            console.log('[WEBCPU] No special stuff');
             // TODO: allow passing argumentsto build
             return worker.build();
         },

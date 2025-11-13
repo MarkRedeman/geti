@@ -1,11 +1,24 @@
 // Copyright (C) 2022-2025 Intel Corporation
 // LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-import { Divider, Flex, Loading, Switch, Text, Tooltip, TooltipTrigger, useMediaQuery, View } from '@geti/ui';
+import {
+    Divider,
+    Flex,
+    Item,
+    Loading,
+    Picker,
+    Switch,
+    Text,
+    Tooltip,
+    TooltipTrigger,
+    useMediaQuery,
+    View,
+} from '@geti/ui';
 import { RightClick } from '@geti/ui/icons';
 import { isLargeSizeQuery } from '@geti/ui/theme';
 import { isEmpty } from 'lodash-es';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { useSearchParams } from 'react-router-dom';
 
 import { NumberSliderWithLocalHandler } from '../../../../shared/components/number-slider/number-slider-with-local-handler.component';
 import { AcceptRejectButtonGroup } from '../../components/accept-reject-button-group/accept-reject-button-group.component';
@@ -17,6 +30,59 @@ const INTERACTIVE_MODE_TOOLTIP = 'With this mode ON, edit preview by placing new
 
 const RIGHT_CLICK_MODE_TOOLTIP =
     'With this mode ON, press left-click to place positive points and right-click to place negative points.';
+
+const SessionPicker = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const webnn = searchParams.get('webnn');
+    const selectedKey = searchParams.has('webgpu')
+        ? 'web-gpu'
+        : webnn === null
+          ? 'cpu'
+          : webnn === 'cpu'
+            ? 'webnn-cpu'
+            : webnn === 'gpu'
+              ? 'webnn-gpu'
+              : 'webnn-npu';
+    return (
+        <Picker
+            onSelectionChange={(selection) => {
+                console.log('set selection');
+                if (selection === 'cpu') {
+                    searchParams.delete('webnn');
+                    searchParams.delete('webgpu');
+                    setSearchParams(searchParams);
+                    return;
+                }
+                if (selection === 'web-gpu') {
+                    searchParams.delete('webnn');
+                    searchParams.set('webgpu', 'true');
+                    setSearchParams(searchParams);
+                    return;
+                }
+
+                searchParams.delete('webgpu');
+                if (selection === 'webnn-cpu') {
+                    searchParams.set('webnn', 'cpu');
+                }
+
+                if (selection === 'webnn-gpu') {
+                    searchParams.set('webnn', 'gpu');
+                }
+                if (selection === 'webnn-npu') {
+                    searchParams.set('webnn', 'npu');
+                }
+                setSearchParams(searchParams);
+            }}
+            selectedKey={selectedKey}
+        >
+            <Item key='cpu'>CPU</Item>
+            <Item key='web-gpu'>WebGPU</Item>
+            <Item key='webnn-cpu'>WebNN - CPU</Item>
+            <Item key='webnn-gpu'>WebNN - GPU</Item>
+            <Item key='webnn-npu'>WebNN - NPU</Item>
+        </Picker>
+    );
+};
 
 export const SecondaryToolbar = () => {
     const isLargeSize = useMediaQuery(isLargeSizeQuery);
@@ -77,6 +143,8 @@ export const SecondaryToolbar = () => {
                 </Switch>
                 <Tooltip>{INTERACTIVE_MODE_TOOLTIP}</Tooltip>
             </TooltipTrigger>
+
+            <SessionPicker />
 
             <Divider orientation='vertical' size='S' />
 
