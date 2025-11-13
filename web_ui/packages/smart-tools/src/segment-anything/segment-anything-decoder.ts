@@ -81,6 +81,23 @@ export class SegmentAnythingDecoder {
         return predictionIdx;
     }
 
+    public async run(
+        encodingOutput: EncodingOutput,
+        input: SegmentAnythingPrompt
+    ): Promise<{
+        masks: ort.Tensor;
+        iouPredictions: ort.Tensor;
+        lowResMasks: ort.Tensor;
+    }> {
+        console.time('[SAM] Decoding');
+        const result = await this.processDecoder(
+            { boxes: input.boxes ?? [], points: input.points ?? [] },
+            encodingOutput
+        );
+        console.timeEnd('[SAM] Decoding');
+        return result;
+    }
+
     private async processDecoder(
         prompt: {
             points: InteractiveAnnotationPoint[];

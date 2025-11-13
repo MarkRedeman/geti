@@ -2,6 +2,7 @@
 // LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import { OpenCVTypes } from '@geti/smart-tools/opencv';
+import * as ort from 'onnxruntime-common';
 
 import { SegmentAnythingResult } from './interfaces';
 import { OpenCVPreprocessorConfig } from './pre-processing';
@@ -86,5 +87,22 @@ export class SegmentAnythingModel {
             maxContourIdx: output.maxContourIdx,
             shapes: [output.shapes[output.maxContourIdx]],
         };
+    }
+
+    public async runDecoder(
+        encodingOutput: EncodingOutput,
+        input: SegmentAnythingPrompt
+    ): Promise<{
+        masks: ort.Tensor;
+        iouPredictions: ort.Tensor;
+        lowResMasks: ort.Tensor;
+    }> {
+        const session = this.sessions.get('decoder');
+        if (!session) {
+            throw Error('the decoder is absent in the sessions map');
+        }
+
+        const decoder = new SegmentAnythingDecoder(this.cv, session);
+        return await decoder.run(encodingOutput, input);
     }
 }

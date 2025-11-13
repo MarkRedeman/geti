@@ -1,6 +1,8 @@
 // Copyright (C) 2022-2025 Intel Corporation
 // LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
+import * as ort from 'onnxruntime-common';
+
 import { OpenCVTypes } from '../opencv/interfaces';
 import { OpenCVLoader } from '../utils/opencv-loader';
 import { SegmentAnythingResult } from './interfaces';
@@ -59,6 +61,18 @@ class SegmentAnythingModelWrapper {
         input: SegmentAnythingPrompt
     ): Promise<SegmentAnythingResult> {
         return this.model.processDecoder(encodingOutput, input);
+    }
+
+    // Helper for my talk
+    public async runDecoder(
+        encodingOutput: EncodingOutput,
+        input: SegmentAnythingPrompt
+    ): Promise<{
+        masks: ort.Tensor;
+        iouPredictions: ort.Tensor;
+        lowResMasks: ort.Tensor;
+    }> {
+        return this.model.runDecoder(encodingOutput, input);
     }
 }
 
