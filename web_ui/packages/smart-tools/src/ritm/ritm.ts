@@ -37,7 +37,8 @@ class RITM {
             throw 'Could not load model';
         }
 
-        const ort = await getOrt(false);
+        // TODO: use session and provide webgpu execution providers as options
+        const ort = await getOrt(true);
 
         return ort.InferenceSession.create(data);
     }
