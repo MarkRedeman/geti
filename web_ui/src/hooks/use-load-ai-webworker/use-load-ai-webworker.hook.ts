@@ -15,6 +15,7 @@ export const useLoadAIWebworker = <T extends AlgorithmType>(algorithmType: T) =>
             const baseWorker = getWorker(algorithmType);
             const worker = wrap<WorkerFactory<T>>(baseWorker);
 
+            // TODO: allow passing argumentsto build
             return worker.build();
         },
         staleTime: Infinity,
