@@ -38,14 +38,16 @@ class FastAPITelemetry:
             )
             raise
 
-        def response_hook(span: Span, message: dict) -> None:
-            if span and span.is_recording() and message.get("type") == "http.response.start":
-                propagator.inject(
-                    setter=HttpEncodedHeaderSetter(),  # type: ignore[arg-type]
-                    carrier=message["headers"],
-                )
+        def response_hook(span: Span, scope: dict, message: dict) -> None:  # noqa: ARG001
+            if span and message.get("type") == "http.response.start":
+                try:
+                    propagator.inject(
+                        setter=HttpEncodedHeaderSetter(),  # type: ignore[arg-type]
+                        carrier=message["headers"],
+                    )
+                except Exception:
+                    logger.exception("Failed to inject trace headers in response_hook")
 
-        logger.debug("Instrumenting FastAPI application")
         FastAPIInstrumentor().instrument_app(app, tracer_provider=tracer_provider, client_response_hook=response_hook)
 
     @staticmethod

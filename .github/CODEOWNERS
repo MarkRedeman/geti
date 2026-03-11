@@ -5,15 +5,15 @@
 * @Radwan-Ibrahim @mpryahin @jcchr @leoll2 @piotrgrubicki
 
 # Platform components
-platform/ @jcchr @piotrgrubicki @mgumowsk
+platform/ @jcchr @piotrgrubicki @mgumowsk @leoll2
 
 # IAI components
-interactive_ai/ @open-edge-platform/geti-core-backend-write
-docs/rest_api/ @open-edge-platform/geti-core-backend-write
-/libs/ @open-edge-platform/geti-core-backend-write
+interactive_ai/ @open-edge-platform/geti-core-backend-write @jcchr @piotrgrubicki @mgumowsk
+docs/rest_api/ @open-edge-platform/geti-core-backend-write @jcchr @piotrgrubicki @mgumowsk
+/libs/ @open-edge-platform/geti-core-backend-write @jcchr @piotrgrubicki @mgumowsk
 
 # UI components
-web_ui/ @jpggvilaca @MarkRedeman @camiloHimura @pplaskie @ActiveChooN @romanowska @dwesolow
+web_ui/ @jpggvilaca @MarkRedeman @camiloHimura @pplaskie @ActiveChooN @romanowska @dwesolow @jcchr @piotrgrubicki @mgumowsk
 
 # CI and security
 .github/workflows/ @open-edge-platform/geti-ci-maintain
