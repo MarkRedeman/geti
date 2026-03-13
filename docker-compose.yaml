@@ -360,6 +360,7 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
       - "traefik.http.routers.traefik.service=api@internal"
+    restart: unless-stopped
 
   # https://geek-cookbook.funkypenguin.co.nz/docker-swarm/authelia/
   # https://www.authelia.com/integration/proxies/traefik/
@@ -370,8 +371,8 @@ services:
       - '${PWD}/infrastructure/data/authelia/config:/config'
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.geti-web.rule=Host(`auth.geti.localhost`)"
-      #- "traefik.http.services.geti-web.loadbalancer.server.port=3000"
+      - "traefik.http.routers.authelia.rule=Host(`auth.geti.localhost`)"
+      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
 
 
 
@@ -403,6 +404,7 @@ services:
       - "traefik.http.services.dex.loadbalancer.server.port=5556"
     environment:
       DEX_DOMAIN: "dex.geti.localhost"
+    restart: unless-stopped
 
 
   kafka:
@@ -428,17 +430,20 @@ services:
       interval: 10s
       retries: 5
       timeout: 10s
+    restart: always
 
   s3:
     image: chrislusf/seaweedfs:3.69
     restart: always
-    command: server -s3
+    command: server -s3 -dir=/data
     ports:
       - "8333:8333"
+    volumes:
+      - s3_data:/data
 
   spicedb:
     image: authzed/spicedb:v1.34.0
-    command: serve --grpc-preshared-key "somerandomkeyhere"
+    command: serve --grpc-preshared-key "${SPICEDB_TOKEN}"
     restart: always
     healthcheck:
       test: ["CMD", "grpc_health_probe", "-v", "-addr=localhost:50051"]
@@ -460,3 +465,32 @@ services:
       retries: 5
       timeout: 10s
     restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mongodb:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE_NAME}
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--username", "${MONGODB_ROOT_USERNAME}", "--password", "${MONGODB_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
+      start_period: 20s
+      interval: 10s
+      retries: 5
+      timeout: 10s
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  s3_data:
+  postgres_data:
+  mongodb_data:
+
+networks:
+  default:
+    name: geti

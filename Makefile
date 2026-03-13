@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component
+.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component compose-config
 .DEFAULT_GOAL := build
 PROJECTS = interactive_ai platform web_ui web_ui/dex_templates
 DISTRIB_CHARTS := deploy/charts interactive_ai/migration_job
@@ -90,3 +90,6 @@ test-component:
 		echo "Running make test-component in $$dir..."; \
 		$(MAKE) -C $$dir test-component; \
 	done
+
+compose-config:
+	docker compose config --quiet
