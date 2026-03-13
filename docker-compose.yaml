@@ -524,6 +524,7 @@ services:
       DATASET_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_ie_workflow:${TAG-main}
       PROJECT_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_ie_workflow:${TAG-main}
       MODEL_TEST_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/model_test_workflow:${TAG-main}
+      TRAIN_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/train_workflow:${TAG-main}
       DATABASE_ADDRESS: ${DATABASE_ADDRESS}
       DATABASE_USERNAME: ${DATABASE_USERNAME}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}

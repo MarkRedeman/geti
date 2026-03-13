@@ -19,6 +19,7 @@ _IMPORT_EXPORT_JOB_TYPES = {
 }
 
 _MODEL_TEST_JOB_TYPES = {"test"}
+_TRAIN_JOB_TYPES = {"train"}
 
 _DATASET_IE_CONTAINER_JOB_TYPES = {
     "export_dataset",
@@ -39,6 +40,10 @@ def _project_ie_image() -> str:
 
 def _model_test_image() -> str:
     return os.environ.get("MODEL_TEST_WORKFLOW_IMAGE", "")
+
+
+def _train_workflow_image() -> str:
+    return os.environ.get("TRAIN_WORKFLOW_IMAGE", "")
 
 
 def _build_workflow_runner(job_type: str) -> str:
@@ -106,6 +111,19 @@ def _build_workflow_runner(job_type: str) -> str:
             if job_type == "test"
             else ""
         )
+        + (
+            "from job.tasks.prepare_and_train.get_train_data import get_train_data as fn; "
+            "fn(project_id=payload['project_id'], task_id=payload['task_id'], "
+            "model_storage_id=payload.get('model_storage_id', ''), from_scratch=payload['from_scratch'], "
+            "should_activate_model=payload['should_activate_model'], infer_on_pipeline=payload.get('infer_on_pipeline', True), "
+            "hyper_parameters_id=payload.get('hyper_parameters_id', ''), "
+            "min_annotation_size=payload.get('min_annotation_size'), "
+            "max_number_of_annotations=payload.get('max_number_of_annotations'), "
+            "reshuffle_subsets=payload.get('reshuffle_subsets', False), "
+            "training_configuration_json=payload.get('training_configuration_json'))"
+            if job_type == "train"
+            else ""
+        )
     )
 
 
@@ -114,6 +132,8 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> None:
         image = _dataset_ie_image()
     elif job_type in _MODEL_TEST_JOB_TYPES:
         image = _model_test_image()
+    elif job_type in _TRAIN_JOB_TYPES:
+        image = _train_workflow_image()
     else:
         image = _project_ie_image()
     if not image:
@@ -156,10 +176,10 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
     """
     Transitional Celery task for compose mode.
 
-    Dispatches import/export and model-test job types to dedicated workflow runtime containers.
+    Dispatches import/export, model-test, and train-preflight job types to workflow runtime containers.
     Other job types remain in simulation fallback for now.
     """
-    if job_type in _IMPORT_EXPORT_JOB_TYPES or job_type in _MODEL_TEST_JOB_TYPES:
+    if job_type in _IMPORT_EXPORT_JOB_TYPES or job_type in _MODEL_TEST_JOB_TYPES or job_type in _TRAIN_JOB_TYPES:
         _run_import_export_in_container(job_type=job_type, payload=payload)
     else:
         duration = float(payload.get("sim_duration_sec", 2))
