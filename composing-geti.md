@@ -481,6 +481,11 @@ Validation scope for this phase:
 
 **Acceptance:** Core jobs run in compose without Flyte.
 
+Phase 7 completion status refinement:
+
+- **Completed for compose local runnability:** scheduler/worker orchestration and job-type bridges are operational without Flyte.
+- **Remaining for full parity:** optimize real execution and full non-stubbed train post-processing (registration/inference chain).
+
 ### Phase 7 implementation notes (completed)
 
 - Selected runtime for compose mode: **local scheduler executor** (simulation-first), with a clean path to later swap to Celery workers.
@@ -562,6 +567,11 @@ Evaluate stub control is now split per sub-step:
 - `WORKFLOW_EVALUATE_STUB_PIPELINE_INFER`
 
 This allows incremental de-stubbing of evaluate flow without all-or-nothing risk.
+
+Current de-stub progression:
+
+- `WORKFLOW_EVALUATE_STUB_EVALUATE=false` in compose worker (real evaluate path enabled)
+- registration/acceptance/task-infer/pipeline-infer remain stubbed until their dependencies are fully compose-ready.
 
 Important note on current scope:
 

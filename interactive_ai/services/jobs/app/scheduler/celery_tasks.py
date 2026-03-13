@@ -95,6 +95,7 @@ def _run_train_trainer_container(payload: dict) -> None:
         "OTEL_",
         "ENABLE_",
         "FEATURE_FLAG_",
+        "WORKFLOW_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -129,6 +130,7 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
         "OTEL_",
         "ENABLE_",
         "FEATURE_FLAG_",
+        "WORKFLOW_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -176,6 +178,7 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
         "OTEL_",
         "ENABLE_",
         "FEATURE_FLAG_",
+        "WORKFLOW_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -184,7 +187,6 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=train"]
     cmd += ["--env", "WORKFLOW_JOB_STAGE=evaluate"]
-    cmd += ["--env", "WORKFLOW_EVALUATE_STUB=true"]
     cmd += ["--env", f"TRAIN_PREP_RESULT_JSON={json.dumps(prep_result)}"]
     cmd += [image, *_workflow_runner_command()]
     _ = subprocess.run(cmd, check=True, timeout=3600)  # noqa: S603
@@ -227,6 +229,7 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
         "CELERY_",
         "OTEL_",
         "ENABLE_",
+        "WORKFLOW_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
