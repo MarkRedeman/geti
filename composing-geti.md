@@ -550,6 +550,7 @@ Train safety safeguards added:
 - evaluate stage now checks that base model status is in `TRAINED_NO_STATS`/`SUCCESS` before running.
 - finalize stage is skipped on retry if model status is no longer `NOT_READY`, to avoid double-finalize state corruption.
 - evaluate stub mode is now explicit via `WORKFLOW_EVALUATE_STUB` env in jobs worker compose config.
+- evaluate stage now always no-ops embedded `finalize_train` call because finalize is executed in a dedicated prior stage.
 
 Important note on current scope:
 

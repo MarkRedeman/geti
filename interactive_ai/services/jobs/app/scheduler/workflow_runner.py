@@ -163,6 +163,11 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                 if _WORKFLOW_EVALUATE_STUB
                 else nullcontext()
             )
+            # finalize_train is already executed in a dedicated preceding stage.
+            # Keep evaluate stage idempotent by always no-oping embedded finalize call.
+            finalize_patch = patch(
+                "job.tasks.evaluate_and_infer.evaluate_and_infer.finalize_train", lambda *a, **k: None
+            )
             register_patch = (
                 patch("job.tasks.evaluate_and_infer.evaluate_and_infer.register_models", lambda *a, **k: None)
                 if _WORKFLOW_EVALUATE_STUB
@@ -187,7 +192,14 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                 else nullcontext()
             )
 
-            with evaluate_patch, register_patch, acceptance_patch, task_infer_patch, pipeline_infer_patch:
+            with (
+                finalize_patch,
+                evaluate_patch,
+                register_patch,
+                acceptance_patch,
+                task_infer_patch,
+                pipeline_infer_patch,
+            ):
                 evaluate_and_infer(
                     train_data=train_ctx,
                     should_activate_model=payload.get("should_activate_model", True),
