@@ -4,6 +4,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import asyncio
+import os
 
 from kubernetes_asyncio import config
 
@@ -11,7 +12,13 @@ from geti_logger_tools.logger_config import initialize_logger
 from inference_services import cleanup_inference_services_older_than_threshold
 from telemetry import cleanup_telemetry_samples
 
-config.load_incluster_config()
+
+def _is_compose_mode() -> bool:
+    return os.getenv("DEPLOYMENT_MODE", "").lower() == "compose"
+
+
+if not _is_compose_mode():
+    config.load_incluster_config()
 
 logger = initialize_logger(__name__)
 
@@ -23,10 +30,13 @@ async def run_platform_cleaner():  # noqa: ANN201
     tasks = []
 
     tasks.append(asyncio.create_task(cleanup_telemetry_samples()))
-    # Cleanup inference services for on-prem
-    tasks.append(asyncio.create_task(cleanup_inference_services_older_than_threshold(namespace="impt")))
-    # Cleanup inferennce services for SaaS
-    tasks.append(asyncio.create_task(cleanup_inference_services_older_than_threshold(namespace="modelmesh")))
+    if _is_compose_mode():
+        logger.warning("[COMPOSE MODE] Skipping KServe inference service cleanup in platform_cleaner")
+    else:
+        # Cleanup inference services for on-prem
+        tasks.append(asyncio.create_task(cleanup_inference_services_older_than_threshold(namespace="impt")))
+        # Cleanup inference services for SaaS
+        tasks.append(asyncio.create_task(cleanup_inference_services_older_than_threshold(namespace="modelmesh")))
 
     await asyncio.gather(*tasks)
 

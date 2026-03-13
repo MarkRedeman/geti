@@ -63,3 +63,15 @@ async def test_cleanup_inference_services_older_than_threshold(mocker):
     assert is_inference_service_older_than_threshold_mock.call_count == 2
     assert list_object_mock.call_count == 1
     assert delete_object_mock.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_cleanup_inference_services_older_than_threshold_compose_skips_k8s(monkeypatch, mocker):
+    monkeypatch.setenv("DEPLOYMENT_MODE", "compose")
+    api_client_mock = mocker.patch("inference_services.ApiClient")
+    custom_object_api_client_mock = mocker.patch("inference_services.client.CustomObjectsApi")
+
+    await inference_services.cleanup_inference_services_older_than_threshold(namespace="test")
+
+    api_client_mock.assert_not_called()
+    custom_object_api_client_mock.assert_not_called()

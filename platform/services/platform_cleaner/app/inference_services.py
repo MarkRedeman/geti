@@ -4,6 +4,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import datetime
+import os
 
 from kubernetes_asyncio import client
 from kubernetes_asyncio.client.api_client import ApiClient
@@ -46,6 +47,10 @@ async def cleanup_inference_services_older_than_threshold(
     """
     Remove Inference Services older than max_age_hours in given namespace.
     """
+    if os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+        logger.warning("[COMPOSE MODE] Skipping KServe inference service cleanup")
+        return
+
     async with ApiClient() as api:
         custom_objects_api = client.CustomObjectsApi(api)
         inference_services = await custom_objects_api.list_namespaced_custom_object(

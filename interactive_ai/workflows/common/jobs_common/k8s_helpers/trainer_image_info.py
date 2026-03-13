@@ -17,6 +17,10 @@ from kubernetes_asyncio.config import ConfigException
 logger = logging.getLogger(__name__)
 
 
+def _is_compose_mode() -> bool:
+    return os.getenv("DEPLOYMENT_MODE", "").lower() == "compose"
+
+
 async def get_config_map(namespace: str, name: str = "impt-configuration") -> client.V1ConfigMap:
     """
     Gets config map
@@ -56,21 +60,29 @@ class TrainerImageInfo:
         if training_framework.type != TrainingFrameworkType.OTX:
             raise ValueError(f"{training_framework.type} type is not supported yet.")
 
-        namespace = os.getenv("IMPT_NAMESPACE", "impt")
-        name = os.getenv("IMPT_CONFIGURATION", "impt-configuration")
-
-        configmap = asyncio.run(get_config_map(namespace=namespace, name=name))
-
         render_gid = 0
 
-        msg = "Cannot get `{0}` field from config map `{1}/{2}`"
+        if _is_compose_mode():
+            image_name = os.getenv("TRAINER_RUNTIME_IMAGE", "")
+            if not image_name:
+                raise ValueError(
+                    "Cannot resolve trainer image in compose mode. Set TRAINER_RUNTIME_IMAGE for jobs/workflow runtime."
+                )
+            if render_gid_value := os.getenv("TRAINER_RENDER_GID"):
+                render_gid = int(render_gid_value)
+        else:
+            namespace = os.getenv("IMPT_NAMESPACE", "impt")
+            name = os.getenv("IMPT_CONFIGURATION", "impt-configuration")
 
-        # This information is from `impt-configuration` config map in the namespace `impt`
-        if (otx2_image := configmap.data.get("otx2_image")) is None:
-            raise ValueError(msg.format("otx2_image", namespace, name))
-        if render_gid_value := configmap.data.get("render_gid"):
-            render_gid = int(render_gid_value)
-        image_name = otx2_image
+            configmap = asyncio.run(get_config_map(namespace=namespace, name=name))
+            msg = "Cannot get `{0}` field from config map `{1}/{2}`"
+
+            # This information is from `impt-configuration` config map in the namespace `impt`
+            if (otx2_image := configmap.data.get("otx2_image")) is None:
+                raise ValueError(msg.format("otx2_image", namespace, name))
+            if render_gid_value := configmap.data.get("render_gid"):
+                render_gid = int(render_gid_value)
+            image_name = otx2_image
 
         logger.info(
             f"Trainer image has been selected {image_name}, where a model has trainer "
