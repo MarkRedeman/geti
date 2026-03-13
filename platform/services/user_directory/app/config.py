@@ -10,6 +10,7 @@ import os
 IMPT_CONFIGURATION_CM = os.getenv("IMPT_CONFIGURATION_CM", "impt-configuration")
 K8S_CR_NAMESPACE = os.getenv("K8S_CR_NAMESPACE", "default")
 USE_KUBECONFIG = os.getenv("USE_KUBECONFIG", "False").lower() == "true"
+DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "").lower()
 
 # Auth settings
 LDAP_HOST = os.getenv("LDAP_HOST", "impt-openldap")

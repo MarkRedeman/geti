@@ -10,7 +10,7 @@ import logging
 from kubernetes import client as k8s
 from kubernetes import config as k8s_config
 
-from config import USE_KUBECONFIG
+from config import DEPLOYMENT_MODE, USE_KUBECONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,15 @@ class K8S:
     @classmethod
     def create_k8s_apis(cls):
         """Create k8s api"""
+        if DEPLOYMENT_MODE == "compose":
+            logger.error(
+                "Feature unavailable in compose mode: user_directory.k8s_api_init. "
+                "This path currently requires Kubernetes/Flyte."
+            )
+            raise NotImplementedError(
+                "Feature unavailable in compose mode: user_directory.k8s_api_init. "
+                "This path currently requires Kubernetes/Flyte."
+            )
         if USE_KUBECONFIG:
             logger.info("Using kube_config")
             k8s_config.load_kube_config()

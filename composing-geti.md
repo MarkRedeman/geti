@@ -408,6 +408,8 @@ Additional unavailable-path guard coverage added:
   - `platform/services/observability/app/main.py` (skip sherlock Kubernetes backend in compose)
   - `platform/services/user_directory/app/main.py` (skip sherlock Kubernetes backend in compose)
   - `interactive_ai/services/jobs/app/policies/main.py` (skip resource manager loop in compose)
+  - `platform/services/user_directory/app/service_connection/k8s_client/apis.py` (fail-fast K8s API init in compose)
+  - `platform/services/observability/app/service_connection/k8s_client/apis.py` (fail-fast K8s API init in compose)
 
 Additional tests added:
 
@@ -415,6 +417,8 @@ Additional tests added:
 - `interactive_ai/services/jobs/tests/unit/scheduler/test_kafka_handler.py::test_on_flyte_event_compose_mode_raises`
 - `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_cancellation.py::test_cancel_execution_compose_mode_raises`
 - `interactive_ai/services/jobs/tests/unit/policy/test_main.py::test_start_skips_resource_manager_in_compose`
+- `platform/services/user_directory/tests/unit/service_connection/k8s_client/test_apis.py::test_create_k8s_apis_compose_mode_raises`
+- `platform/services/observability/tests/unit/service_connection/k8s_client/test_apis.py::test_create_k8s_apis_compose_mode_raises`
 
 ## Phase 6 — Replace KServe model registration path
 
