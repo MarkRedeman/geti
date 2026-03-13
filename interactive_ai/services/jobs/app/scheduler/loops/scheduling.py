@@ -8,7 +8,7 @@ from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
 
 from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_main_execution_name, resolve_main_job
@@ -119,6 +119,7 @@ def start_main_execution(job: Job) -> tuple[FlyteWorkflow, FlyteWorkflowExecutio
     :param job: Job to start main execution for
     :return: FlyteWorkflow, FlyteWorkflowExecution Tuple of Flyte workflow and  Flyte workflow execution object
     """
+    ensure_flyte_available(operation="jobs.start_main_execution")
     execution_name = get_main_execution_name(job_id=job.id)
 
     # Resolving Flyte workflow name and version

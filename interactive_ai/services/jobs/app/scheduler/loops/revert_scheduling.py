@@ -7,7 +7,7 @@ import os
 from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
 
 from model.job import Job
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_revert_execution_name, resolve_revert_job
 
@@ -96,6 +96,7 @@ def start_revert_execution(job: Job) -> FlyteWorkflowExecution | None:
     :param job: Job to start revert execution for
     :return: FlyteWorkflowExecution Flyte workflow execution object
     """
+    ensure_flyte_available(operation="jobs.start_revert_execution")
     execution_name = get_revert_execution_name(job_id=job.id)
 
     # Resolving Flyte workflow name and version

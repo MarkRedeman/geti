@@ -374,6 +374,24 @@ Commands added:
 
 **Acceptance:** No hidden hangs/crashes; unsupported features fail fast with actionable logs.
 
+### Phase 5 implementation notes (in progress)
+
+Current status: **partial** (first high-impact subset implemented).
+
+- Added compose-mode (`DEPLOYMENT_MODE=compose`) fail-fast guards for jobs scheduler Flyte paths:
+  - `interactive_ai/services/jobs/app/scheduler/flyte.py`
+  - `interactive_ai/services/jobs/app/scheduler/loops/scheduling.py`
+  - `interactive_ai/services/jobs/app/scheduler/loops/revert_scheduling.py`
+  - `interactive_ai/services/jobs/app/scheduler/loops/cancellation.py`
+  - `interactive_ai/services/jobs/app/scheduler/loops/recovery.py`
+- Added compose-mode fail-fast guards for model registration KServe/K8s paths:
+  - `interactive_ai/services/model_registration/app/service/custom_resource.py`
+  - `interactive_ai/services/model_registration/app/service/model_registration.py`
+- Guard behavior:
+  - Scheduler/model-registration logs explicit message:
+    - `"Feature unavailable in compose mode: <operation>. This path currently requires Kubernetes/Flyte."`
+  - gRPC model-registration endpoints now abort with `UNIMPLEMENTED` in compose mode.
+
 ## Phase 6 — Replace KServe model registration path
 
 - [ ] Introduce Docker-native model serving control path.

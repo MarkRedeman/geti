@@ -32,7 +32,7 @@ from grpc_interfaces.model_registration.pb.service_pb2 import (
 from grpc_interfaces.model_registration.pb.service_pb2_grpc import ModelRegistrationServicer
 from kubernetes_asyncio.client.rest import ApiException
 
-from service.config import MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
+from service.config import DEPLOYMENT_MODE, MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
 from service.inference_manager import InferenceManager
 from service.model_converter import GraphVariant, ModelConverter, UnsupportedModelType
 from service.responses import Responses
@@ -40,6 +40,14 @@ from service.s3client import S3Client
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def _abort_if_compose_mode(context: grpc.aio.ServicerContext, operation: str) -> None:
+    if DEPLOYMENT_MODE != "compose":
+        return
+    details = f"Feature unavailable in compose mode: {operation}. This path currently requires Kubernetes/Flyte."
+    logger.error(details)
+    await context.abort(grpc.StatusCode.UNIMPLEMENTED, details=details)
 
 
 class ModelRegistration(ModelRegistrationServicer):
@@ -75,6 +83,8 @@ class ModelRegistration(ModelRegistrationServicer):
         """
         Registers new pipeline
         """
+        await _abort_if_compose_mode(context=context, operation="model_registration.register_new_pipelines")
+        pipeline_name = req.name if len(req.name) > 0 else f"{req.project.id}_active"
         try:
             inference = InferenceManager()
             pipeline_name = (
@@ -200,6 +210,7 @@ class ModelRegistration(ModelRegistrationServicer):
         """
         Deregisters existing pipeline
         """
+        await _abort_if_compose_mode(context=context, operation="model_registration.deregister_pipeline")
         try:
             inference = InferenceManager()
             await inference.remove_inference(name=request.name, namespace=MODELMESH_NAMESPACE)
@@ -261,6 +272,7 @@ class ModelRegistration(ModelRegistrationServicer):
         Checks if the folder with model artifacts exists on S3. If so, the model will
         be registered with ModelMesh and a success response is returned
         """
+        await _abort_if_compose_mode(context=context, operation="model_registration.recover_pipeline")
         inference = InferenceManager()
         pipelines = await inference.list_inference(namespace=MODELMESH_NAMESPACE)
         pipeline_name = request.name
@@ -295,6 +307,7 @@ class ModelRegistration(ModelRegistrationServicer):
         If all pipelines and artifacts are deleted without errors, the endpoint
         returns a success response
         """
+        await _abort_if_compose_mode(context=context, operation="model_registration.delete_project_pipelines")
         project_prefix = request.project_id + "-"
         success = True
 

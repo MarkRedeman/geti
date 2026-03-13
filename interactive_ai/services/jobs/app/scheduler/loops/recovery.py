@@ -5,7 +5,7 @@ import logging
 import os
 
 from model.job import Job
-from scheduler.flyte import Flyte
+from scheduler.flyte import Flyte, is_compose_mode
 from scheduler.state_machine import StateMachine
 
 from geti_types import ID, RequestSource, make_session, session_context
@@ -53,6 +53,12 @@ def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     Checks workspace jobs and resets the jobs missing in Flyte.
     :param jobs: list of jobs to check
     """
+    if is_compose_mode():
+        logger.error(
+            "Feature unavailable in compose mode: jobs.recovery_loop. This path currently requires Kubernetes/Flyte."
+        )
+        return
+
     logger.debug(f"Processing jobs {[job.id for job in jobs]}")
 
     executions_ids = [job.executions.main.execution_id for job in jobs if job.executions.main.execution_id is not None]

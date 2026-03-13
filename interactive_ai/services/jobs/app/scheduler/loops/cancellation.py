@@ -7,7 +7,7 @@ import os
 from flyteidl.core.execution_pb2 import WorkflowExecution
 
 from model.job_state import JobState
-from scheduler.flyte import Flyte
+from scheduler.flyte import Flyte, is_compose_mode
 from scheduler.state_machine import StateMachine
 
 from geti_telemetry_tools import unified_tracing
@@ -102,6 +102,12 @@ def cancel_execution(execution_name: str) -> None:
 
     :param execution_name: Execution name
     """
+    if is_compose_mode():
+        logger.error(
+            "Feature unavailable in compose mode: jobs.cancel_execution. This path currently requires Kubernetes/Flyte."
+        )
+        return
+
     execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
     if execution is None:
         logger.warning(f"Execution {execution_name} cannot be found in Flyte, marking job as cancelled")

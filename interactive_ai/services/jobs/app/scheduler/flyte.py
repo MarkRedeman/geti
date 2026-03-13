@@ -25,6 +25,7 @@ from geti_types import Session, Singleton
 
 PROJECT = os.environ.get("FLYTE_PROJECT", "impt-jobs")
 DOMAIN = os.environ.get("FLYTE_DOMAIN", "production")
+DEPLOYMENT_MODE = os.environ.get("DEPLOYMENT_MODE", "").lower()
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,22 @@ class ExecutionType(Enum):
     REVERT = "REVERT"
 
 
+class FlyteUnavailableInComposeError(RuntimeError):
+    """Raised when Flyte/Kubernetes-backed execution is requested in compose mode."""
+
+
+def is_compose_mode() -> bool:
+    return DEPLOYMENT_MODE == "compose"
+
+
+def ensure_flyte_available(operation: str) -> None:
+    if not is_compose_mode():
+        return
+    message = f"Feature unavailable in compose mode: {operation}. This path currently requires Kubernetes/Flyte."
+    logger.error(message)
+    raise FlyteUnavailableInComposeError(message)
+
+
 class FlyteClient(FlyteRemote, metaclass=Singleton):
     """
     Flyte client
@@ -48,6 +65,7 @@ class FlyteClient(FlyteRemote, metaclass=Singleton):
     """
 
     def __init__(self) -> None:
+        ensure_flyte_available(operation="scheduler.flyte_client_init")
         endpoint = os.environ.get("FLYTE_URL", "localhost:30003")
 
         config = Config.for_endpoint(endpoint=endpoint, insecure=True)
