@@ -437,6 +437,18 @@ Additional tests added:
 - [ ] Keep existing service API contract stable.
 - [ ] Add deploy/infer/undeploy smoke checks.
 
+### Temporary bridge (implemented)
+
+- `interactive_ai_inference_gateway` now supports a compose-only disabled mode:
+  - when `DEPLOYMENT_MODE=compose`, gateway starts without ModelMesh/KServe clients,
+  - all requests return `404 Not Found`.
+- This avoids startup failure/noisy KServe errors during compose migration while making unsupported inference behavior explicit.
+
+Related files:
+
+- `interactive_ai/services/inference_gateway/main.go`
+- `docker-compose.yaml` (`interactive_ai_inference_gateway.environment.DEPLOYMENT_MODE`)
+
 **Acceptance:** Local model serving works without K8s CRDs.
 
 ## Phase 7 — Replace Flyte jobs execution path

@@ -390,6 +390,8 @@ services:
       - "traefik.http.routers.interactive-ai-inference-gateway.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`))"
       - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
     depends_on:
       migration_job:
         condition: service_completed_successfully

@@ -5,6 +5,9 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"os"
+	"strings"
 
 	"geti.com/iai_core/frames"
 	"geti.com/iai_core/logger"
@@ -38,6 +41,22 @@ func main() {
 	cleanup := telemetry.SetupTracing(context.Background())
 	defer cleanup()
 
+	var cfg config
+	if err := env.Parse(&cfg); err != nil {
+		logger.Log().Fatalf("Cannot parse environment variables: %s", err)
+	}
+
+	if isComposeMode() {
+		logger.Log().Warn(
+			"[COMPOSE MODE] inference_gateway is running in temporary disabled mode; returning 404 for all requests.",
+		)
+		router := createCompose404Router()
+		if err := router.Run(":" + cfg.InferenceGatewayPort); err != nil {
+			logger.Log().Fatalf("Cannot run server: %s", err)
+		}
+		return
+	}
+
 	meshClient, err := grpc.NewModelMeshClient()
 	if err != nil {
 		logger.Log().Fatalf("Cannot run server: %s", err)
@@ -54,11 +73,6 @@ func main() {
 		_ = registrationClient.Close()
 	}()
 
-	var cfg config
-	if err = env.Parse(&cfg); err != nil {
-		logger.Log().Fatalf("Cannot parse environment variables: %s", err)
-	}
-
 	modelAccessSrv := service.NewModelAccessService(meshClient, registrationClient)
 	clientManager, err := minio.NewClientManager()
 	if err != nil {
@@ -70,6 +84,19 @@ func main() {
 	if err = router.Run(":" + cfg.InferenceGatewayPort); err != nil {
 		logger.Log().Fatalf("Cannot run server: %s", err)
 	}
+}
+
+func isComposeMode() bool {
+	return strings.EqualFold(os.Getenv("DEPLOYMENT_MODE"), "compose")
+}
+
+func createCompose404Router() *gin.Engine {
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.NoRoute(func(c *gin.Context) {
+		c.Status(http.StatusNotFound)
+	})
+	return r
 }
 
 // createRouter initializes and returns a new instance of *gin.Engine.
