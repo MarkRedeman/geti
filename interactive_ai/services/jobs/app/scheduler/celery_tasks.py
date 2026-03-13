@@ -46,6 +46,69 @@ def _train_workflow_image() -> str:
     return os.environ.get("TRAIN_WORKFLOW_IMAGE", "")
 
 
+def _trainer_runtime_image() -> str:
+    return os.environ.get("TRAINER_RUNTIME_IMAGE", "")
+
+
+def _run_train_trainer_container(payload: dict) -> None:
+    """
+    Transitional trainer runtime stage for train jobs.
+
+    This runs the trainer image after train-data/model preparation has completed.
+    """
+    image = _trainer_runtime_image()
+    if not image:
+        raise RuntimeError("Missing TRAINER_RUNTIME_IMAGE for train job")
+
+    org_id = os.environ.get("SESSION_ORGANIZATION_ID", payload.get("organization_id", ""))
+    workspace_id = os.environ.get("SESSION_WORKSPACE_ID", payload.get("workspace_id", ""))
+    project_id = payload["project_id"]
+    job_id = os.environ.get("JOB_METADATA_ID", payload.get("job_id", ""))
+    identifier_json = json.dumps(
+        {
+            "organization_id": str(org_id),
+            "workspace_id": str(workspace_id),
+            "project_id": str(project_id),
+            "job_id": str(job_id),
+        }
+    )
+
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+    ]
+
+    _forward_prefixes = (
+        "DATABASE_",
+        "MONGODB_",
+        "KAFKA_",
+        "SPICEDB_",
+        "S3_",
+        "SESSION_",
+        "JOB_METADATA_",
+        "JOBS_SCHEDULER",
+        "SIGNING_IE_PRIVKEY",
+        "CELERY_",
+        "OTEL_",
+        "ENABLE_",
+        "FEATURE_FLAG_",
+    )
+    for key in os.environ:
+        if any(key.startswith(p) for p in _forward_prefixes):
+            cmd += ["--env", key]
+
+    cmd += ["--env", f"IDENTIFIER_JSON={identifier_json}"]
+    cmd += ["--env", f"SHARD_FILES_DIR={os.environ.get('SHARD_FILES_DIR', '/tmp/shard_files')}"]
+    cmd += ["--env", "TASK_ID=train"]
+
+    trainer_command = os.environ.get("TRAINER_RUNTIME_COMMAND", "bash -c run")
+    cmd += [image, "bash", "-c", trainer_command]
+    subprocess.run(cmd, check=True, timeout=7200)  # noqa: S603
+
+
 def _build_workflow_runner(job_type: str) -> str:
     return (
         "import json, os; "
@@ -187,8 +250,11 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
     Dispatches import/export, model-test, and train-preflight job types to workflow runtime containers.
     Other job types remain in simulation fallback for now.
     """
-    if job_type in _IMPORT_EXPORT_JOB_TYPES or job_type in _MODEL_TEST_JOB_TYPES or job_type in _TRAIN_JOB_TYPES:
+    if job_type in _IMPORT_EXPORT_JOB_TYPES or job_type in _MODEL_TEST_JOB_TYPES:
         _run_import_export_in_container(job_type=job_type, payload=payload)
+    elif job_type in _TRAIN_JOB_TYPES:
+        _run_import_export_in_container(job_type=job_type, payload=payload)
+        _run_train_trainer_container(payload=payload)
     else:
         duration = float(payload.get("sim_duration_sec", 2))
         time.sleep(duration)

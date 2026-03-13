@@ -536,11 +536,12 @@ Celery execution status (current):
   - lock + train data resolution
   - train dataset creation
   - pre-train model/output preparation (`prepare_train`)
+- train bridge now also launches the trainer runtime container step (OTX runtime image command execution).
 - optimize job type still uses simulation fallback while dedicated execution runner is being integrated.
 
 Train status caveat:
 
-- current train Celery path still does not run the full trainer-container + evaluate/infer sequence.
+- current train Celery path still does not run the full evaluate/infer post-training sequence.
 
 Important note on current scope:
 
