@@ -1,6 +1,7 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 import logging
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
@@ -43,6 +44,10 @@ TITLE = "title"
 TO = "to"
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
 
 
 @dataclass
@@ -366,8 +371,11 @@ class ProjectManager:
         :param user_uid: caller user's uid
         :return: all ID's of projects found (accessible for the caller) with their names
         """
-        permitted_projects = SpiceDB().get_user_projects(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
-        permitted_project_ids = tuple(ID(project_id) for project_id in permitted_projects)
+        if _is_mock_auth_mode():
+            permitted_project_ids = None
+        else:
+            permitted_projects = SpiceDB().get_user_projects(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
+            permitted_project_ids = tuple(ID(project_id) for project_id in permitted_projects)
         return ProjectRepo().get_names(permitted_project_ids)
 
     @staticmethod
@@ -385,8 +393,11 @@ class ProjectManager:
         :param include_hidden: Whether to include hidden (not fully created) projects
         :return: list of Project in the workspace with filtering and pagination and count of all projects in workspace
         """
-        permitted_projects = SpiceDB().get_user_projects(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
-        permitted_project_ids = tuple(ID(project_id) for project_id in permitted_projects)
+        if _is_mock_auth_mode():
+            permitted_project_ids = None
+        else:
+            permitted_projects = SpiceDB().get_user_projects(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
+            permitted_project_ids = tuple(ID(project_id) for project_id in permitted_projects)
         project_repo = ProjectRepo()
         projects = project_repo.get_by_page(
             query_data=query_data,

@@ -42,6 +42,11 @@ from iai_core.session.session_propagation import setup_session_grpc
 
 logger = logging.getLogger(__name__)
 
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
+
+
 GRPC_MAX_MESSAGE_SIZE = int(os.environ.get("GRPC_MAX_MESSAGE_SIZE", 128 * 1024**2))
 
 DEFAULT_N_JOBS_RETURNED = 10
@@ -205,25 +210,30 @@ class GRPCJobService(JobServiceServicer):
             )
 
         workspace_jobs_author = None
-        if author_uid is not None and request.all_permitted_jobs and workspace_id is not None:
-            view_all_workspace_jobs = SpiceDB().check_permission(
-                subject_type=SpiceDBResourceTypes.USER.value,
-                subject_id=author_uid,
-                resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-                resource_id=workspace_id,
-                permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-            )
-            if not view_all_workspace_jobs:
-                workspace_jobs_author = author_uid
+        if _is_mock_auth_mode():
+            permitted_projects = None
+        else:
+            if author_uid is not None and request.all_permitted_jobs and workspace_id is not None:
+                view_all_workspace_jobs = SpiceDB().check_permission(
+                    subject_type=SpiceDBResourceTypes.USER.value,
+                    subject_id=author_uid,
+                    resource_type=SpiceDBResourceTypes.WORKSPACE.value,
+                    resource_id=workspace_id,
+                    permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
+                )
+                if not view_all_workspace_jobs:
+                    workspace_jobs_author = author_uid
 
-        permitted_projects = (
-            [
-                ID(project_id)
-                for project_id in SpiceDB().get_user_projects(user_id=author_uid, permission=Permissions.VIEW_PROJECT)
-            ]
-            if author_uid is not None and request.all_permitted_jobs
-            else None
-        )
+            permitted_projects = (
+                [
+                    ID(project_id)
+                    for project_id in SpiceDB().get_user_projects(
+                        user_id=author_uid, permission=Permissions.VIEW_PROJECT
+                    )
+                ]
+                if author_uid is not None and request.all_permitted_jobs
+                else None
+            )
         acl = JobsAcl(
             permitted_projects=permitted_projects,
             workspace_jobs_author=workspace_jobs_author,
@@ -298,25 +308,30 @@ class GRPCJobService(JobServiceServicer):
             return ListJobsResponse()
 
         workspace_jobs_author = None
-        if author_uid is not None and request.all_permitted_jobs:
-            view_all_workspace_jobs = SpiceDB().check_permission(
-                subject_type=SpiceDBResourceTypes.USER.value,
-                subject_id=author_uid,
-                resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-                resource_id=workspace_id,
-                permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-            )
-            if not view_all_workspace_jobs:
-                workspace_jobs_author = author_uid
+        if _is_mock_auth_mode():
+            permitted_projects = None
+        else:
+            if author_uid is not None and request.all_permitted_jobs:
+                view_all_workspace_jobs = SpiceDB().check_permission(
+                    subject_type=SpiceDBResourceTypes.USER.value,
+                    subject_id=author_uid,
+                    resource_type=SpiceDBResourceTypes.WORKSPACE.value,
+                    resource_id=workspace_id,
+                    permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
+                )
+                if not view_all_workspace_jobs:
+                    workspace_jobs_author = author_uid
 
-        permitted_projects = (
-            [
-                ID(project_id)
-                for project_id in SpiceDB().get_user_projects(user_id=author_uid, permission=Permissions.VIEW_PROJECT)
-            ]
-            if author_uid is not None and request.all_permitted_jobs
-            else None
-        )
+            permitted_projects = (
+                [
+                    ID(project_id)
+                    for project_id in SpiceDB().get_user_projects(
+                        user_id=author_uid, permission=Permissions.VIEW_PROJECT
+                    )
+                ]
+                if author_uid is not None and request.all_permitted_jobs
+                else None
+            )
         acl = JobsAcl(
             permitted_projects=permitted_projects,
             workspace_jobs_author=workspace_jobs_author,

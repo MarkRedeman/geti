@@ -41,6 +41,10 @@ from geti_spicedb_tools import Permissions, Relations, RoleMutationOperations, S
 logger = logging.getLogger(__name__)
 
 
+def _is_mock_auth_mode() -> bool:
+    return environ.get("AUTH_MODE", "").lower() == "mock"
+
+
 class Singleton(abc.ABCMeta):
     """
     Metaclass to create singleton classes.
@@ -113,6 +117,12 @@ class SpiceDB(metaclass=Singleton):
     """
 
     def __init__(self) -> None:
+        self._client: Any = None
+        self._mock_auth_mode = _is_mock_auth_mode()
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] SpiceDB authorization is bypassed (allow-all).")
+            return
+
         spicedb_address = environ.get("SPICEDB_ADDRESS", "localhost:50051")
         spicedb_token = environ.get("SPICEDB_TOKEN", "")
         spicedb_credentials = environ.get("SPICEDB_CREDENTIALS", "token")
@@ -191,6 +201,9 @@ class SpiceDB(metaclass=Singleton):
         :param permission: permission to check (i.e. can_manage, can_contribute)
         :return list of workspaces
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] get_user_workspaces bypass active; returning no workspace filter.")
+            return ()
         resp = self._lookup_resources(
             SpiceDBResourceTypes.WORKSPACE.value,
             permission.value,
@@ -210,6 +223,9 @@ class SpiceDB(metaclass=Singleton):
         :param permission: permission to check (i.e. view_job)
         :return list of jobs
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] get_user_jobs bypass active; returning no job filter.")
+            return ()
         resp = self._lookup_resources(
             SpiceDBResourceTypes.JOB.value,
             permission.value,
@@ -229,6 +245,9 @@ class SpiceDB(metaclass=Singleton):
         :param permission: permission to check (i.e. can_manage, can_contribute)
         :return list of projects
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] get_user_projects bypass active; returning no project filter.")
+            return ()
         resp = self._lookup_resources(
             SpiceDBResourceTypes.PROJECT.value,
             permission.value,
@@ -244,6 +263,9 @@ class SpiceDB(metaclass=Singleton):
 
     @retry_grpc_call_on_unavailable_response
     def get_user_roles(self, resource_type: str, user_id: str, resource_id: str | None = None) -> list[tuple[str, str]]:
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] get_user_roles bypass active; returning empty roles.")
+            return []
         logger.info(f"Getting user {user_id} roles on {resource_type}/{resource_id if resource_id is not None else ''}")
         if resource_id:
             relationship_filter = RelationshipFilter(
@@ -303,6 +325,9 @@ class SpiceDB(metaclass=Singleton):
         Returns True if User has the permission, returns False otherwise.
         """
         logger.info(f"Checking {subject_type}/{subject_id} {permission} permission on {resource_type}/{resource_id}")
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] check_permission bypass active; allowing request.")
+            return True
         if subject_type == SpiceDBResourceTypes.USER.value:
             subject_id = self.convert_user_id(subject_id)
 
@@ -329,6 +354,9 @@ class SpiceDB(metaclass=Singleton):
         """
         Connect given organization to workspace with parent_organization relation.
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] link_organization_to_workspace_in_spicedb bypass active; no-op.")
+            return
         self.write_relationship(
             resource=authzed.ObjectReference(object_type="workspace", object_id=workspace_id),
             subject=authzed.SubjectReference(
@@ -352,6 +380,9 @@ class SpiceDB(metaclass=Singleton):
         """
         Write relationship into spice db
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] write_relationship bypass active; no-op.")
+            return authzed.WriteRelationshipsResponse()
         logger.debug(f"Creating {relation} relationship for {subject} in {resource}.")
         resp: authzed.WriteRelationshipsResponse = self._client.WriteRelationships(
             authzed.WriteRelationshipsRequest(
@@ -382,6 +413,9 @@ class SpiceDB(metaclass=Singleton):
         """
         Change relations for target user
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] change_user_relation bypass active; no-op.")
+            return
         if operation == RoleMutationOperations.CREATE:
             relation_operation = authzed.RelationshipUpdate.Operation.OPERATION_CREATE
         elif operation == RoleMutationOperations.DELETE:
@@ -526,6 +560,9 @@ class SpiceDB(metaclass=Singleton):
         Atomically bulk deletes all relationships matching the provided filter.
         If no relationships match, none will be deleted and the operation will succeed.
         """
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] delete_relations bypass active; no-op.")
+            return
         for resource_type in SpiceDBResourceTypes:
             logger.debug(f"Deleting relationship for {user_id}, {object_type} and {resource_type}.")
             resp: authzed.DeleteRelationshipsResponse = self._client.DeleteRelationships(
@@ -623,6 +660,9 @@ class SpiceDB(metaclass=Singleton):
 
     @retry_grpc_call_on_unavailable_response
     def delete_relation(self, resource_object_type: str, resource_id: str) -> DeleteRelationshipsResponse:
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] delete_relation bypass active; no-op.")
+            return authzed.DeleteRelationshipsResponse()
         return self._client.DeleteRelationships(
             DeleteRelationshipsRequest(
                 relationship_filter=RelationshipFilter(
@@ -635,6 +675,9 @@ class SpiceDB(metaclass=Singleton):
     def delete_subject(
         self, resource_object_type: str, subject_type: str, subject_id: str
     ) -> DeleteRelationshipsResponse:
+        if self._mock_auth_mode:
+            logger.warning("[MOCK AUTH] delete_subject bypass active; no-op.")
+            return authzed.DeleteRelationshipsResponse()
         return self._client.DeleteRelationships(
             DeleteRelationshipsRequest(
                 relationship_filter=RelationshipFilter(
