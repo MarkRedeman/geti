@@ -371,6 +371,7 @@ Commands added:
 - [ ] Return 501/503 + explicit logs for unimplemented paths.
 - [ ] Ensure error messages are consistent and discoverable.
 - [ ] Add one integration smoke test covering unavailable-path response behavior.
+- [x] Add one integration smoke test covering unavailable-path response behavior.
 
 **Acceptance:** No hidden hangs/crashes; unsupported features fail fast with actionable logs.
 
@@ -391,6 +392,9 @@ Current status: **partial** (first high-impact subset implemented).
   - Scheduler/model-registration logs explicit message:
     - `"Feature unavailable in compose mode: <operation>. This path currently requires Kubernetes/Flyte."`
   - gRPC model-registration endpoints now abort with `UNIMPLEMENTED` in compose mode.
+- Added tests for unavailable-path behavior:
+  - `interactive_ai/services/model_registration/tests/unit/test_model_registration.py::test_register_new_pipelines_compose_mode_aborts`
+  - `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_recovery.py::test_check_and_recover_workspace_jobs_if_needed_compose_mode`
 
 ## Phase 6 — Replace KServe model registration path
 

@@ -2,6 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import grpc
 import pytest
 from botocore.exceptions import ClientError
 from grpc.aio import ServicerContext
@@ -107,6 +108,25 @@ async def test_register_new_pipelines_error(get_inference, model_registration, s
     req = RegisterRequest(name="test", override=False)
     response = await model_registration.register_new_pipelines(req, servicer_context)
     assert response.status == Responses.Failed
+
+
+@pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_register_new_pipelines_compose_mode_aborts(model_registration, servicer_context):
+    servicer_context.abort.side_effect = RuntimeError("aborted")
+
+    req = RegisterRequest(name="test", override=False)
+
+    with pytest.raises(RuntimeError, match="aborted"):
+        await model_registration.register_new_pipelines(req, servicer_context)
+
+    servicer_context.abort.assert_awaited_once_with(
+        grpc.StatusCode.UNIMPLEMENTED,
+        details=(
+            "Feature unavailable in compose mode: model_registration.register_new_pipelines. "
+            "This path currently requires Kubernetes/Flyte."
+        ),
+    )
 
 
 @pytest.mark.asyncio

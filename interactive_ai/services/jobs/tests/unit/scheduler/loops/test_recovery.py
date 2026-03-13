@@ -146,6 +146,31 @@ def test_check_and_recover_workspace_jobs_if_needed_empty_list(
     mock_reset_job_to_submitted_state.assert_not_called()
 
 
+@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
+@patch.object(Flyte, "list_workflow_executions")
+@patch.object(StateMachine, "reset_job_to_submitted_state")
+@patch.object(StateMachine, "__init__", new=mock_state_machine)
+def test_check_and_recover_workspace_jobs_if_needed_compose_mode(
+    mock_reset_job_to_submitted_state,
+    mock_list_workflow_executions,
+    mock_is_compose_mode,
+    request,
+) -> None:
+    request.addfinalizer(reset_singletons)
+
+    # Arrange
+    job = MagicMock()
+    job.executions.main.execution_id = "execution"
+
+    # Act
+    check_and_recover_organization_jobs_if_needed(jobs=[job])
+
+    # Assert
+    mock_is_compose_mode.assert_called_once_with()
+    mock_list_workflow_executions.assert_not_called()
+    mock_reset_job_to_submitted_state.assert_not_called()
+
+
 @patch.object(Flyte, "list_workflow_executions")
 @patch.object(StateMachine, "reset_job_to_submitted_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
