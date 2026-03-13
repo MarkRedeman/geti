@@ -10,6 +10,7 @@ import logging
 import os
 
 import kubernetes
+from config import DEPLOYMENT_MODE
 
 from service_connection.k8s_client.apis import K8S
 
@@ -106,6 +107,14 @@ def _dump_nodes_list(directory: str):
 
 def create_cluster_info_dump(directory: str):  # noqa: ANN201
     """Returns the path where cluster-info dump is stored."""
+
+    if DEPLOYMENT_MODE == "compose":
+        message = (
+            "Feature unavailable in compose mode: observability.cluster_info_dump. "
+            "This path currently requires Kubernetes/Flyte."
+        )
+        logger.error(message)
+        raise NotImplementedError(message)
 
     with kubernetes.client.ApiClient() as client:
         core_api = kubernetes.client.CoreV1Api(client)

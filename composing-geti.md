@@ -410,6 +410,7 @@ Additional unavailable-path guard coverage added:
   - `interactive_ai/services/jobs/app/policies/main.py` (skip resource manager loop in compose)
   - `platform/services/user_directory/app/service_connection/k8s_client/apis.py` (fail-fast K8s API init in compose)
   - `platform/services/observability/app/service_connection/k8s_client/apis.py` (fail-fast K8s API init in compose)
+  - `platform/services/observability/app/service_connection/k8s_client/cluster_info.py` (fail-fast cluster dump path in compose)
 
 Additional tests added:
 
@@ -419,6 +420,7 @@ Additional tests added:
 - `interactive_ai/services/jobs/tests/unit/policy/test_main.py::test_start_skips_resource_manager_in_compose`
 - `platform/services/user_directory/tests/unit/service_connection/k8s_client/test_apis.py::test_create_k8s_apis_compose_mode_raises`
 - `platform/services/observability/tests/unit/service_connection/k8s_client/test_apis.py::test_create_k8s_apis_compose_mode_raises`
+- `platform/services/observability/tests/unit/service_connection/k8s_client/test_cluster_info.py::test_create_cluster_info_dump_compose_mode_raises`
 
 ## Phase 6 — Replace KServe model registration path
 
