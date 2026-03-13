@@ -591,7 +591,7 @@ Current de-stub progression:
 
 - `WORKFLOW_EVALUATE_STUB_EVALUATE=false` in compose worker (real evaluate path enabled)
 - `WORKFLOW_EVALUATE_STUB_REGISTER=false` and `WORKFLOW_EVALUATE_STUB_ACCEPTANCE=false` (real registration + acceptance enabled)
-- `WORKFLOW_EVALUATE_STUB_TASK_INFER=true` and `WORKFLOW_EVALUATE_STUB_PIPELINE_INFER=true` remain stubbed until inference path replacement is complete.
+- `WORKFLOW_EVALUATE_STUB_TASK_INFER=false` and `WORKFLOW_EVALUATE_STUB_PIPELINE_INFER=false` (real post-train task/pipeline inference enabled in compose)
 
 Required compose wiring for real registration path:
 
