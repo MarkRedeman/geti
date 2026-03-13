@@ -302,13 +302,27 @@ Traefik smoke validation command:
 
 ## Phase 3 — MongoDB bootstrap automation
 
-- [ ] Add compose `migration_job` service.
-- [ ] Run Mongo service-user creation step.
-- [ ] Run Mongo version migrations.
-- [ ] Run S3 bucket bootstrap.
-- [ ] Make app services depend on successful migration job completion.
+- [x] Add compose `migration_job` service.
+- [x] Run Mongo service-user creation step.
+- [x] Run Mongo version migrations.
+- [x] Run S3 bucket bootstrap.
+- [x] Make app services depend on successful migration job completion.
 
 **Acceptance:** Fresh environment can be bootstrapped end-to-end without manual DB operations.
+
+### Phase 3 implementation notes (done)
+
+- Added `migration_job` service in root compose that executes:
+  - `mongodb_create_service_user`
+  - `run_migration`
+  - `create_s3_bucket`
+- Added env wiring for migration bootstrap in `.env` / `.env.example`:
+  - `SERVICE_USER_ALL_DB_ROLES`
+  - `S3_BUCKET`
+- Added `depends_on: migration_job: condition: service_completed_successfully` to interactive_ai services.
+- Added helper bootstrap command:
+  - `make compose-bootstrap`
+  - Script: `infrastructure/compose-bootstrap.sh`
 
 ## Phase 4 — Platform service wiring
 

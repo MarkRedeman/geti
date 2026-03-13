@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component compose-config compose-smoke
+.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component compose-config compose-smoke compose-bootstrap
 .DEFAULT_GOAL := build
 PROJECTS = interactive_ai platform web_ui web_ui/dex_templates
 DISTRIB_CHARTS := deploy/charts interactive_ai/migration_job
@@ -96,3 +96,6 @@ compose-config:
 
 compose-smoke:
 	bash infrastructure/compose-smoke.sh
+
+compose-bootstrap:
+	bash infrastructure/compose-bootstrap.sh

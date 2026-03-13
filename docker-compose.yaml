@@ -188,6 +188,9 @@ services:
       - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`))"
       - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
       - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_director:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/director:${TAG-main}
@@ -204,6 +207,9 @@ services:
       - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
       - "traefik.http.routers.interactive-ai-director.priority=65"
       - "traefik.http.services.interactive-ai-director.loadbalancer.server.port=4999"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_inference_gateway:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/inference_gateway:${TAG-main}
@@ -220,6 +226,9 @@ services:
       - "traefik.http.routers.interactive-ai-inference-gateway.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`))"
       - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_jobs:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -234,6 +243,9 @@ services:
       - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`)"
       - "traefik.http.routers.interactive-ai-jobs.priority=70"
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_media:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/media:${TAG-main}
@@ -247,12 +259,18 @@ services:
       - "traefik.http.routers.interactive-ai-media.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/media/images/.*/display/(full|thumb)$`)"
       - "traefik.http.routers.interactive-ai-media.priority=70"
       - "traefik.http.services.interactive-ai-media.loadbalancer.server.port=5002"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_mlflow_geti_store:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/mlflow_geti_store:${TAG-main}
     build:
       <<: *proxies
       context: ./interactive_ai/services/mlflow_geti_store
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_model_registration:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/model_registration:${TAG-main}
@@ -261,6 +279,9 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_project_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_import_export:${TAG-main}
@@ -275,6 +296,9 @@ services:
       - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
       - "traefik.http.routers.interactive-ai-project-ie.priority=75"
       - "traefik.http.services.interactive-ai-project-ie.loadbalancer.server.port=8000"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_resource:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/resource:${TAG-main}
@@ -291,6 +315,9 @@ services:
       - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathPrefix(`/api/`))"
       - "traefik.http.routers.interactive-ai-resource.priority=50"
       - "traefik.http.services.interactive-ai-resource.loadbalancer.server.port=5000"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
 
   interactive_ai_visual_prompt:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/visual_prompt:${TAG-main}
@@ -306,6 +333,46 @@ services:
       - "traefik.http.routers.interactive-ai-visual-prompt.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:prompt$`)"
       - "traefik.http.routers.interactive-ai-visual-prompt.priority=80"
       - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
+
+  migration_job:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/migration_job:${TAG-main}
+    build:
+      context: ./interactive_ai/migration_job
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+        - data_migration=./interactive_ai/data_migration
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        mongodb_create_service_user &&
+        run_migration &&
+        create_s3_bucket
+    environment:
+      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+      DATABASE_USERNAME: ${MONGODB_ROOT_USERNAME}
+      DATABASE_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      DATABASE_USERNAME_SERVICE: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD_SERVICE: ${DATABASE_PASSWORD}
+      SERVICE_USER_ALL_DB_ROLES: ${SERVICE_USER_ALL_DB_ROLES}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      MONGODB_CREDENTIALS_PROVIDER: local
+      S3_ADDRESS: ${S3_ENDPOINT}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      s3:
+        condition: service_started
+    restart: "no"
 
   # IAI Workflows
   # 
