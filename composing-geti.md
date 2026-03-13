@@ -464,13 +464,16 @@ Related files:
   - `put_json_object`, `get_json_object`, `list_registry_folders`
   - registry key format: `<pipeline_name>/.registry.json`
 - `interactive_ai_model_registration` compose env now includes S3 endpoint/credentials and model bucket wiring.
-- `interactive_ai_inference_gateway` remains intentionally disabled in compose mode and returns 404 for all routes as temporary behavior.
- - `interactive_ai_inference_gateway` now runs in compose with OVMS backend bridge (model loading/configuration still progressive).
+- `interactive_ai_inference_gateway` runs in compose mode with OVMS backend bridge.
+- compose model lifecycle is now wired end-to-end between model_registration and OVMS:
+  - register/override sync model artifacts into OVMS model directory and add `models.json` entry,
+  - deregister/purge remove OVMS model config and files,
+  - recover restores model artifacts from S3 and re-adds OVMS config.
 
 Validation scope for this phase:
 
-- model registration deploy/register/list/recover/delete paths can execute in compose without KServe,
-- inference endpoint behavior remains explicit 404 until OVMS integration phase.
+- model registration deploy/register/list/recover/delete paths execute in compose without KServe,
+- inference endpoints use OVMS path in compose mode (with readiness/retry behavior).
 
 **Acceptance:** Local model serving works without K8s CRDs.
 
@@ -707,9 +710,9 @@ The repository is now in a **workable compose-first local state** for developer 
 
 ### Gaps / limitations found while implementing
 
-1. **Inference is intentionally disabled in compose mode**
-   - `interactive_ai_inference_gateway` currently returns 404 in compose mode.
-   - This is explicit and safe, but not feature-complete.
+1. **Inference parity is partial in compose mode**
+   - `interactive_ai_inference_gateway` uses OVMS in compose mode with real readiness checks and recovery retries.
+   - Full API conformance and negative-path coverage (deploy/infer/undeploy/error semantics) still needs systematic testing.
 
 2. **Jobs execution in compose is transitional**
    - Current local executor defaults to simulation-first behavior for deterministic state transitions.
@@ -740,7 +743,7 @@ The repository is now in a **workable compose-first local state** for developer 
 
 Use this as the next execution backlog after Phases 1–8.
 
-- [ ] **Inference replacement (highest priority):** integrate OVMS-based local serving path and remove compose 404 mode.
+- [x] **Inference replacement (highest priority):** OVMS-based local serving path integrated; compose 404 mode removed.
 - [ ] Add deploy/infer/undeploy conformance tests for inference API contract.
 - [ ] Move jobs executor from simulation-first to validated real execution for at least one job type end-to-end.
 - [ ] Expand real-execution coverage to train/optimize/test/import-export with deterministic retries/cancel semantics.
