@@ -208,6 +208,8 @@ services:
       - "traefik.http.routers.platform-observability.rule=Host(`geti.localhost`) && PathPrefix(`/api/v1/logs`)"
       - "traefik.http.routers.platform-observability.priority=55"
       - "traefik.http.services.platform-observability.loadbalancer.server.port=9000"
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
 
   platform_onboarding:
     image: ${REGISTRY-ghcr.io/geti}/platform_onboarding:${TAG-main}
@@ -306,6 +308,7 @@ services:
       KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
       AUTH_MODE: ${AUTH_MODE}
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       LOGS_DIR: /logs
       LOGGING_CONFIG_DIR: /
       USE_KUBECONFIG: "true"
@@ -398,6 +401,8 @@ services:
       - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`)"
       - "traefik.http.routers.interactive-ai-jobs.priority=70"
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
     depends_on:
       migration_job:
         condition: service_completed_successfully

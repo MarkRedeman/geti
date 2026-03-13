@@ -2,6 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import sys
+import os
 
 import endpoints.user_management
 import sherlock
@@ -22,6 +23,8 @@ if ENABLE_TRACING:
 
 if "pytest" in sys.modules:
     logger.warning("Running inside a pytest session. Skipping sherlock configuration.")
+elif os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+    logger.warning("Running in compose mode. Skipping sherlock Kubernetes backend configuration.")
 else:
     sherlock.configure(
         backend=sherlock.backends.KUBERNETES, expire=None, retry_interval=0.1, client=K8S.get_cord_k8s_api()

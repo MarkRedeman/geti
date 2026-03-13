@@ -404,12 +404,17 @@ Additional unavailable-path guard coverage added:
   - `interactive_ai/services/jobs/app/scheduler/kafka_handler.py`
 - cancellation path guard standardized to raising behavior:
   - `interactive_ai/services/jobs/app/scheduler/loops/cancellation.py`
+- startup-critical non-Flyte K8s couplings guarded in compose mode:
+  - `platform/services/observability/app/main.py` (skip sherlock Kubernetes backend in compose)
+  - `platform/services/user_directory/app/main.py` (skip sherlock Kubernetes backend in compose)
+  - `interactive_ai/services/jobs/app/policies/main.py` (skip resource manager loop in compose)
 
 Additional tests added:
 
 - `interactive_ai/services/jobs/tests/unit/scheduler/grpc_api/test_job_update_service.py::test_job_update_compose_mode_returns_unimplemented`
 - `interactive_ai/services/jobs/tests/unit/scheduler/test_kafka_handler.py::test_on_flyte_event_compose_mode_raises`
 - `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_cancellation.py::test_cancel_execution_compose_mode_raises`
+- `interactive_ai/services/jobs/tests/unit/policy/test_main.py::test_start_skips_resource_manager_in_compose`
 
 ## Phase 6 — Replace KServe model registration path
 

@@ -17,6 +17,12 @@ from geti_types import RequestSource, make_session, session_context
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)  # type: ignore[attr-defined]
+DEPLOYMENT_MODE = os.environ.get("DEPLOYMENT_MODE", "").lower()
+
+
+def _is_compose_mode() -> bool:
+    return DEPLOYMENT_MODE == "compose"
+
 
 POLICY_LOOP_INTERVAL = int(os.environ.get("SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL", 1))
 logger.info(f"Running scheduling policy checks every {POLICY_LOOP_INTERVAL} second(s)")
@@ -45,7 +51,13 @@ def start() -> None:
     atexit.register(stop)
 
     policy_executor.submit(start_policy_loop)
-    resource_manager_executor.submit(start_resource_manager_loop)
+    if _is_compose_mode():
+        logger.warning(
+            "Feature unavailable in compose mode: jobs.resource_manager_loop. "
+            "This path currently requires Kubernetes/Flyte."
+        )
+    else:
+        resource_manager_executor.submit(start_resource_manager_loop)
 
 
 def start_loop(loop_id: str, loop: Callable, loop_interval: int) -> None:
