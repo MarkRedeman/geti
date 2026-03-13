@@ -741,7 +741,9 @@ The repository is now in a **workable compose-first local state** for developer 
 
 2. **Jobs execution in compose is transitional**
    - Local executor still supports simulation mode, but compose worker path now runs staged real execution for import/export/model-test/train/optimize.
-   - Recovery loop is intentionally disabled in compose (no Flyte-backed execution recovery), so failed/stuck-run auto-recovery semantics are still limited.
+   - Recovery loop now runs in compose and re-queues orphaned local executions by resetting stuck jobs to `SUBMITTED` via `LocalExecutor` metadata checks.
+   - Scheduler runtime paths for scheduling/revert/cancellation and gRPC job updates are now compose-only (non-compose returns explicit unavailable errors).
+   - Kafka scheduler event/update handlers are now compose-only and resolve execution metadata via `LocalExecutor` instead of Flyte fetches.
 
 3. **Auth model is intentionally insecure for local mode**
    - `AUTH_MODE=mock` bypasses identity/authorization.
@@ -771,7 +773,7 @@ Use this as the next execution backlog after Phases 1–8.
 - [x] **Inference replacement (highest priority):** OVMS-based local serving path integrated; compose 404 mode removed.
 - [ ] Add deploy/infer/undeploy conformance tests for inference API contract.
 - [ ] Move jobs executor from simulation-first to validated real execution for at least one job type end-to-end.
-- [ ] Expand real-execution coverage to train/optimize/test/import-export with deterministic retries/cancel semantics.
+- [x] Expand real-execution coverage to train/optimize/test/import-export with deterministic retries/cancel semantics.
 - [ ] Add readiness-driven waits in CI compose job (remove blind sleep).
 - [ ] Upload compose logs/artifacts on CI smoke failure for fast diagnosis.
 - [ ] Expand Traefik smoke paths to a broader API matrix and verify expected status classes.
