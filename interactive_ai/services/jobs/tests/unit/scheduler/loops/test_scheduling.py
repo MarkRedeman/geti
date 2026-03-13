@@ -12,7 +12,6 @@ from model.job_state import JobTaskState
 from scheduler.flyte import ExecutionType, Flyte
 from scheduler.jobs_templates import JobsTemplates, JobTemplateStep
 from scheduler.loops.scheduling import (
-    FlyteWorkflowNotFound,
     run_scheduling_loop,
     schedule_main_job,
     start_execution,
@@ -309,12 +308,6 @@ def test_schedule_main_job_max_retry_counter(
 
 
 @patch(
-    "scheduler.loops.scheduling.start_execution",
-)
-@patch(
-    "scheduler.loops.scheduling.resolve_main_job",
-)
-@patch(
     "scheduler.loops.scheduling.get_main_execution_name",
 )
 @patch.object(Flyte, "fetch_workflow")
@@ -322,8 +315,6 @@ def test_schedule_main_job_max_retry_counter(
 def test_start_main_execution_no_workflow(
     mock_flyte_fetch_workflow,
     mock_get_main_execution_name,
-    mock_resolve_main_job,
-    mock_start_execution,
     fxt_job,
     request,
 ) -> None:
@@ -331,28 +322,17 @@ def test_start_main_execution_no_workflow(
 
     # Arrange
     mock_get_main_execution_name.return_value = "execution_name"
-    mock_resolve_main_job.return_value = ("workflow_name", "workflow_version")
     mock_flyte_fetch_workflow.return_value = None
 
     # Act
-    with pytest.raises(FlyteWorkflowNotFound):
+    with pytest.raises(RuntimeError, match="outside compose mode"):
         start_main_execution(job=fxt_job)
 
     # Assert
-    mock_flyte_fetch_workflow.assert_called_once_with(
-        workflow_name="workflow_name", workflow_version="workflow_version"
-    )
     mock_get_main_execution_name.assert_called_once_with(job_id=fxt_job.id)
-    mock_resolve_main_job.assert_called_once_with(job_type=fxt_job.type)
-    mock_start_execution.assert_not_called()
+    mock_flyte_fetch_workflow.assert_not_called()
 
 
-@patch(
-    "scheduler.loops.scheduling.start_execution",
-)
-@patch(
-    "scheduler.loops.scheduling.resolve_main_job",
-)
 @patch(
     "scheduler.loops.scheduling.get_main_execution_name",
 )
@@ -361,8 +341,6 @@ def test_start_main_execution_no_workflow(
 def test_start_main_execution(
     mock_flyte_fetch_workflow,
     mock_get_main_execution_name,
-    mock_resolve_main_job,
-    mock_start_execution,
     fxt_job,
     request,
 ) -> None:
@@ -370,32 +348,17 @@ def test_start_main_execution(
 
     # Arrange
     mock_get_main_execution_name.return_value = "execution_name"
-    mock_resolve_main_job.return_value = ("workflow_name", "workflow_version")
 
     workflow = MagicMock()
     mock_flyte_fetch_workflow.return_value = workflow
 
-    execution = MagicMock()
-    mock_start_execution.return_value = execution
-
     # Act
-    result_execution_name, result_launch_plan_id = start_main_execution(job=fxt_job)
+    with pytest.raises(RuntimeError, match="outside compose mode"):
+        start_main_execution(job=fxt_job)
 
     # Assert
-    mock_flyte_fetch_workflow.assert_called_once_with(
-        workflow_name="workflow_name", workflow_version="workflow_version"
-    )
     mock_get_main_execution_name.assert_called_once_with(job_id=fxt_job.id)
-    mock_resolve_main_job.assert_called_once_with(job_type=fxt_job.type)
-    mock_start_execution.assert_called_once_with(
-        job=fxt_job,
-        workflow=workflow,
-        execution_type=ExecutionType.MAIN,
-        execution_name="execution_name",
-        payload=fxt_job.payload,
-    )
-    assert result_execution_name == execution.id.name
-    assert result_launch_plan_id == execution.spec.launch_plan.name
+    mock_flyte_fetch_workflow.assert_not_called()
 
 
 @patch.object(Flyte, "start_workflow_execution")
@@ -409,25 +372,18 @@ def test_start_execution_existing(
 ) -> None:
     request.addfinalizer(reset_singletons)
 
-    # Arrange
-    workflow = MagicMock()
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="outside compose mode"):
+        start_execution(
+            job=fxt_job,
+            workflow=MagicMock(),
+            execution_type=ExecutionType.MAIN,
+            execution_name="execution_name",
+            payload={"key": "value"},
+        )
 
-    execution = MagicMock()
-    mock_flyte_fetch_workflow_execution.return_value = execution
-
-    # Act
-    result = start_execution(
-        job=fxt_job,
-        workflow=workflow,
-        execution_type=ExecutionType.MAIN,
-        execution_name="execution_name",
-        payload={"key": "value"},
-    )
-
-    # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
+    mock_flyte_fetch_workflow_execution.assert_not_called()
     mock_flyte_start_workflow_execution.assert_not_called()
-    assert result == execution
 
 
 @patch.object(Flyte, "start_workflow_execution")
@@ -441,33 +397,15 @@ def test_start_execution_new(
 ) -> None:
     request.addfinalizer(reset_singletons)
 
-    # Arrange
-    workflow = MagicMock()
-    execution = MagicMock()
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="outside compose mode"):
+        start_execution(
+            job=fxt_job,
+            workflow=MagicMock(),
+            execution_type=ExecutionType.MAIN,
+            execution_name="execution_name",
+            payload={"key": "value"},
+        )
 
-    mock_flyte_fetch_workflow_execution.return_value = None
-    mock_flyte_start_workflow_execution.return_value = execution
-
-    # Act
-    result = start_execution(
-        job=fxt_job,
-        workflow=workflow,
-        execution_type=ExecutionType.MAIN,
-        execution_name="execution_name",
-        payload={"key": "value"},
-    )
-
-    # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
-    mock_flyte_start_workflow_execution.assert_called_once_with(
-        workspace_id=fxt_job.workspace_id,
-        job=fxt_job,
-        project_id=fxt_job.project_id,
-        execution_type=ExecutionType.MAIN,
-        execution_name="execution_name",
-        workflow=workflow,
-        payload={"key": "value"},
-        telemetry=fxt_job.telemetry,
-        session=fxt_job.session,
-    )
-    assert result == execution
+    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_flyte_start_workflow_execution.assert_not_called()

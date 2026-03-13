@@ -3,32 +3,22 @@
 
 import logging
 import os
-from typing import TYPE_CHECKING
 
 from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
+from scheduler.flyte import ExecutionType, is_compose_mode
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
-from scheduler.utils import get_main_execution_name, resolve_main_job
+from scheduler.utils import get_main_execution_name
 
 from geti_telemetry_tools import unified_tracing
 from geti_types import ID, session_context
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
-
 MAX_START_RETRY_COUNT = int(os.environ.get("MAX_START_RETRY_COUNT", 5))
 logger.info(f"Max start retries number is {MAX_START_RETRY_COUNT}")
-
-
-class FlyteWorkflowNotFound(Exception):
-    """
-    Exception to indicate that a Flyte workflow is not found and therefore cannot be started
-    """
 
 
 def run_scheduling_loop() -> None:
@@ -120,7 +110,7 @@ def start_main_execution(job: Job) -> tuple[str, str]:
     Starts jobs main execution.
 
     In compose mode, launches via LocalExecutor (Docker).
-    In Flyte mode, fetches and executes the registered Flyte workflow.
+    Outside compose mode this path is not supported.
 
     :param job: Job to start main execution for
     :return: Tuple of (execution_name, launch_plan_id).
@@ -128,89 +118,30 @@ def start_main_execution(job: Job) -> tuple[str, str]:
     """
     execution_name = get_main_execution_name(job_id=job.id)
 
-    if is_compose_mode():
-        container_id = LocalExecutor().start_execution(
-            execution_name=execution_name,
-            job_id=str(job.id),
-            workspace_id=str(job.workspace_id),
-            organization_id=str(job.session.organization_id),
-            execution_type=ExecutionType.MAIN,
-            job_type=job.type,
-            payload=job.payload,
-            session_headers=list(job.session.as_list_bytes()),
+    if not is_compose_mode():
+        raise RuntimeError(
+            "Feature unavailable outside compose mode: jobs.start_main_execution. "
+            "Flyte-backed scheduling path has been removed."
         )
-        logger.info(
-            f"Job execution started locally (compose mode): "
-            f"execution_name={execution_name}, container_id={container_id}"
-        )
-        return execution_name, execution_name
 
-    ensure_flyte_available(operation="jobs.start_main_execution")
-
-    # Resolving Flyte workflow name and version
-    workflow_name, workflow_version = resolve_main_job(job_type=job.type)
-
-    logger.debug(f"Trying to lookup for {workflow_name}:{workflow_version} workflow")
-    workflow = Flyte().fetch_workflow(workflow_name=workflow_name, workflow_version=workflow_version)
-    if workflow is None:
-        logger.debug(f"Workflow {workflow_name}:{workflow_version} is not found")
-        raise FlyteWorkflowNotFound(f"Workflow {workflow_name}:{workflow_version} is not found")
-
-    logger.debug(
-        f"Workflow {workflow_name}:{workflow_version} is found, launching it with execution name {execution_name}"
-    )
-    execution = start_execution(
-        job=job,
-        workflow=workflow,
-        execution_type=ExecutionType.MAIN,
+    container_id = LocalExecutor().start_execution(
         execution_name=execution_name,
+        job_id=str(job.id),
+        workspace_id=str(job.workspace_id),
+        organization_id=str(job.session.organization_id),
+        execution_type=ExecutionType.MAIN,
+        job_type=job.type,
         payload=job.payload,
+        session_headers=list(job.session.as_list_bytes()),
     )
-    return execution.id.name, execution.spec.launch_plan.name
+    logger.info(
+        f"Job execution started locally (compose mode): execution_name={execution_name}, container_id={container_id}"
+    )
+    return execution_name, execution_name
 
 
 @unified_tracing
-def start_execution(
-    job: Job,
-    workflow: "FlyteWorkflow",
-    execution_type: ExecutionType,
-    execution_name: str,
-    payload: dict,
-) -> "FlyteWorkflowExecution":
-    """
-    Starts job related execution (Flyte path only).
-
-    :param job: Job to start execution for
-    :param workflow: Job workflow
-    :param execution_type: Execution type: MAIN or REVERT
-    :param execution_name: Execution name
-    :return: FlyteWorkflowExecution Flyte workflow execution object
-    """
-    # Let's check maybe it's already running
-    execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
-
-    if execution is not None:
-        logger.info(f"Reusing already running job execution in Flyte: {execution.id.name}")
-        return execution
-
-    # If no running execution exists, need to launch it
-    project_id = str(job.project_id) if job.project_id is not None else None
-    logger.info(
-        f"Scheduling a job execution with name {execution_name} in Flyte: "
-        f"workspace_id={job.workspace_id}, project_id={project_id}, "
-        f"workflow={workflow.id}, payload={job.payload}"
+def start_execution(*args, **kwargs):  # noqa: ANN002, ANN003, ANN201
+    raise RuntimeError(
+        "Feature unavailable outside compose mode: jobs.start_execution. Flyte-backed scheduling path has been removed."
     )
-
-    execution = Flyte().start_workflow_execution(
-        workspace_id=job.workspace_id,
-        job=job,
-        project_id=project_id,
-        execution_type=execution_type,
-        execution_name=execution_name,
-        workflow=workflow,
-        payload=payload,
-        telemetry=job.telemetry,
-        session=job.session,
-    )
-    logger.info(f"Job execution scheduled in Flyte: {execution.id.name}")
-    return execution
