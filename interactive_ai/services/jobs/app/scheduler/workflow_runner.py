@@ -3,9 +3,11 @@
 
 import json
 import os
+from contextlib import nullcontext
 from unittest.mock import patch
 
 _TRAIN_PREP_RESULT_PREFIX = "TRAIN_PREP_RESULT="
+_WORKFLOW_EVALUATE_STUB = os.environ.get("WORKFLOW_EVALUATE_STUB", "true").lower() == "true"
 
 
 def _load_payload() -> dict:
@@ -101,7 +103,9 @@ def _run_job_type(job_type: str, payload: dict) -> None:
         from job.tasks.prepare_and_train.create_task_train_dataset import create_task_train_dataset
         from job.tasks.prepare_and_train.get_train_data import get_train_data
         from job.tasks.prepare_and_train.train_helpers import finalize_train, prepare_train
+        from job.tasks.evaluate_and_infer.evaluate_and_infer import evaluate_and_infer
         from job.utils.train_workflow_data import TrainWorkflowData
+        from job.utils.train_workflow_data import TrainWorkflowDataForFlyteTaskTrainer
         from jobs_common_extras.experiments.utils.train_output_models import TrainOutputModelIds
 
         stage = os.environ.get("WORKFLOW_JOB_STAGE", "prepare")
@@ -118,6 +122,63 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                 train_output_model_ids=train_output_model_ids,
                 retain_training_artifacts=payload.get("retain_training_artifacts", False),
             )
+            return
+
+        if stage == "evaluate":
+            serialized = os.environ.get("TRAIN_PREP_RESULT_JSON")
+            if not serialized:
+                raise RuntimeError("TRAIN_PREP_RESULT_JSON is required for train evaluate stage")
+            prep = json.loads(serialized)
+            train_data = TrainWorkflowData.from_json(prep["train_data_json"])
+            train_output_model_ids = TrainOutputModelIds.from_json(prep["train_output_model_ids_json"])
+            train_ctx = TrainWorkflowDataForFlyteTaskTrainer(
+                train_data=train_data,
+                dataset_id=prep["dataset_id"],
+                organization_id=os.environ.get("SESSION_ORGANIZATION_ID", prep.get("organization_id", "")),
+                job_id=os.environ.get("JOB_METADATA_ID", prep.get("job_id", "")),
+                train_output_model_ids=train_output_model_ids,
+            )
+
+            evaluate_patch = (
+                patch(
+                    "job.tasks.evaluate_and_infer.evaluate_and_infer.evaluate",
+                    lambda *a, **k: (True, "compose-train-inference-placeholder"),
+                )
+                if _WORKFLOW_EVALUATE_STUB
+                else nullcontext()
+            )
+            register_patch = (
+                patch("job.tasks.evaluate_and_infer.evaluate_and_infer.register_models", lambda *a, **k: None)
+                if _WORKFLOW_EVALUATE_STUB
+                else nullcontext()
+            )
+            acceptance_patch = (
+                patch("job.tasks.evaluate_and_infer.evaluate_and_infer.post_model_acceptance", lambda *a, **k: None)
+                if _WORKFLOW_EVALUATE_STUB
+                else nullcontext()
+            )
+            task_infer_patch = (
+                patch("job.tasks.evaluate_and_infer.evaluate_and_infer.task_infer_on_unannotated", lambda *a, **k: None)
+                if _WORKFLOW_EVALUATE_STUB
+                else nullcontext()
+            )
+            pipeline_infer_patch = (
+                patch(
+                    "job.tasks.evaluate_and_infer.evaluate_and_infer.pipeline_infer_on_unannotated",
+                    lambda *a, **k: None,
+                )
+                if _WORKFLOW_EVALUATE_STUB
+                else nullcontext()
+            )
+
+            with evaluate_patch, register_patch, acceptance_patch, task_infer_patch, pipeline_infer_patch:
+                evaluate_and_infer(
+                    train_data=train_ctx,
+                    should_activate_model=payload.get("should_activate_model", True),
+                    infer_on_pipeline=payload.get("infer_on_pipeline", True),
+                    from_scratch=payload.get("from_scratch", False),
+                    retain_training_artifacts=payload.get("retain_training_artifacts", False),
+                )
             return
 
         lock_project(job_type="train", project_id=ID(payload["project_id"]))
@@ -154,10 +215,16 @@ def run() -> None:
     job_type = os.environ["WORKFLOW_JOB_TYPE"]
     payload = _load_payload()
 
+    metadata_patch = (
+        patch("jobs_common.tasks.utils.progress.publish_metadata_update", lambda m: None)
+        if _WORKFLOW_EVALUATE_STUB
+        else nullcontext()
+    )
+
     with (
         patch("jobs_common.tasks.utils.secrets.set_env_vars", lambda: None),
         patch("jobs_common.tasks.utils.progress.report_progress", lambda *a, **k: None),
-        patch("jobs_common.tasks.utils.progress.publish_metadata_update", lambda m: None),
+        metadata_patch,
     ):
         _run_job_type(job_type=job_type, payload=payload)
 

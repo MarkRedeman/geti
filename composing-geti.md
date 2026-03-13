@@ -538,11 +538,12 @@ Celery execution status (current):
   - pre-train model/output preparation (`prepare_train`)
 - train bridge now also launches the trainer runtime container step (OTX runtime image command execution).
 - train bridge now also runs a post-trainer finalize stage (`finalize_train`) using the train workflow runtime container.
+- train bridge now includes a compose-safe evaluate stage hook using the train workflow runtime container.
 - optimize job type still uses simulation fallback while dedicated execution runner is being integrated.
 
 Train status caveat:
 
-- current train Celery path still does not run the full evaluate/infer post-training sequence and currently stops after finalize.
+- current train Celery path includes a stubbed evaluate/infer bridge in compose mode (registration/inference-heavy substeps are still bypassed).
 
 Important note on current scope:
 

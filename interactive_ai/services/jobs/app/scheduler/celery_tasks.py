@@ -139,14 +139,48 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
     cmd += ["--env", "WORKFLOW_JOB_STAGE=finalize"]
     cmd += ["--env", f"TRAIN_PREP_RESULT_JSON={json.dumps(prep_result)}"]
     cmd += [image, *_workflow_runner_command()]
-    subprocess.run(cmd, check=True, timeout=3600)  # noqa: S603
+    _ = subprocess.run(cmd, check=True, timeout=3600)  # noqa: S603
+
+
+def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
+    image = _train_workflow_image()
+    if not image:
+        raise RuntimeError("Missing TRAIN_WORKFLOW_IMAGE for train evaluate stage")
+
+    cmd = ["docker", "run", "--rm", "--network", "host"]
+    _forward_prefixes = (
+        "DATABASE_",
+        "MONGODB_",
+        "KAFKA_",
+        "SPICEDB_",
+        "S3_",
+        "SESSION_",
+        "JOB_METADATA_",
+        "JOBS_SCHEDULER",
+        "SIGNING_IE_PRIVKEY",
+        "CELERY_",
+        "OTEL_",
+        "ENABLE_",
+        "FEATURE_FLAG_",
+    )
+    for key in os.environ:
+        if any(key.startswith(p) for p in _forward_prefixes):
+            cmd += ["--env", key]
+
+    cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
+    cmd += ["--env", "WORKFLOW_JOB_TYPE=train"]
+    cmd += ["--env", "WORKFLOW_JOB_STAGE=evaluate"]
+    cmd += ["--env", "WORKFLOW_EVALUATE_STUB=true"]
+    cmd += ["--env", f"TRAIN_PREP_RESULT_JSON={json.dumps(prep_result)}"]
+    cmd += [image, *_workflow_runner_command()]
+    _ = subprocess.run(cmd, check=True, timeout=3600)  # noqa: S603
 
 
 def _workflow_runner_command() -> list[str]:
     return ["python", "-m", "scheduler.workflow_runner"]
 
 
-def _run_import_export_in_container(job_type: str, payload: dict) -> None:
+def _run_import_export_in_container(job_type: str, payload: dict) -> str:
     if job_type in _DATASET_IE_CONTAINER_JOB_TYPES:
         image = _dataset_ie_image()
     elif job_type in _MODEL_TEST_JOB_TYPES:
@@ -213,6 +247,7 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
             raise RuntimeError("Train prep stage did not emit TRAIN_PREP_RESULT")
         _run_train_trainer_container(payload=payload)
         _run_train_finalize_stage(payload=payload, prep_result=prep_result)
+        _run_train_evaluate_stage(payload=payload, prep_result=prep_result)
     else:
         duration = float(payload.get("sim_duration_sec", 2))
         time.sleep(duration)
