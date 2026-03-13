@@ -300,6 +300,7 @@ Traefik smoke validation command:
   - `/api/v1/healthz`
   - `/api/v1/organizations/test/workspaces/test/jobs`
   - `/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/pipelines/active/status`
+  - `/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/models/active/status`
 - Smoke script now supports status-aware checks via `SMOKE_CHECKS` (format: `path|expected`):
   - exact status code, e.g. `.../status|200`
   - wildcard status class, e.g. `...|2xx`
@@ -632,6 +633,7 @@ New files:
 - Updated smoke script to support configurable path lists via `SMOKE_PATHS` env (used by CI).
 - Expanded default smoke route coverage with inference status path through Traefik to validate compose OVMS bridge routing.
 - CI compose smoke now uses `SMOKE_CHECKS` and enforces `200` for inference status endpoint.
+- CI compose smoke now enforces `200` for both pipeline and model status endpoints in inference gateway.
 
 ---
 

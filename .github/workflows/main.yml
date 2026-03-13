@@ -275,7 +275,7 @@ jobs:
 
       - name: Run compose smoke
         env:
-          SMOKE_CHECKS: /|not_404,/dex|not_404,/api/v1/healthz|not_404,/api/v1/onboarding/user|not_404,/api/v1/admin/onboarding/tokens|not_404,/api/v1/users/reset_password|not_404,/api/v1/organizations/test/workspaces/test/jobs|not_404,/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/pipelines/active/status|200
+          SMOKE_CHECKS: /|2xx,/dex|not_404,/api/v1/healthz|not_404,/api/v1/onboarding/user|not_404,/api/v1/admin/onboarding/tokens|not_404,/api/v1/users/reset_password|not_404,/api/v1/organizations/test/workspaces/test/jobs|not_404,/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/pipelines/active/status|200,/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/models/active/status|200
         run: make compose-smoke
 
       - name: Tear down compose stack
