@@ -7,6 +7,7 @@ from contextlib import nullcontext
 from unittest.mock import patch
 
 _TRAIN_PREP_RESULT_PREFIX = "TRAIN_PREP_RESULT="
+_OPTIMIZE_PREP_RESULT_PREFIX = "OPTIMIZE_PREP_RESULT="
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -240,6 +241,66 @@ def _run_job_type(job_type: str, payload: dict) -> None:
             "train_output_model_ids_json": output_models.to_train_output_model_ids().to_json(),
         }
         print(f"{_TRAIN_PREP_RESULT_PREFIX}{json.dumps(prep_result)}")
+        return
+
+    if job_type == "optimize_pot":
+        from job.models import OptimizationTrainerContext
+        from job.tasks.constants import NULL_COMPILED_DATASET_SHARDS_ID
+        from job.tasks.evaluation_task import _evaluate_optimized_model
+        from job.tasks.helpers import finalize_optimize, prepare_optimize
+
+        stage = os.environ.get("WORKFLOW_JOB_STAGE", "prepare")
+
+        if stage == "finalize":
+            serialized = os.environ.get("OPTIMIZE_PREP_RESULT_JSON")
+            if not serialized:
+                raise RuntimeError("OPTIMIZE_PREP_RESULT_JSON is required for optimize finalize stage")
+            prep = json.loads(serialized)
+            trainer_ctx = OptimizationTrainerContext.from_json(prep["trainer_ctx_json"])
+            finalize_optimize(
+                trainer_ctx=trainer_ctx,
+                retain_training_artifacts=payload.get("retain_training_artifacts", False),
+            )
+            return
+
+        if stage == "evaluate":
+            serialized = os.environ.get("OPTIMIZE_PREP_RESULT_JSON")
+            if not serialized:
+                raise RuntimeError("OPTIMIZE_PREP_RESULT_JSON is required for optimize evaluate stage")
+            prep = json.loads(serialized)
+            trainer_ctx = OptimizationTrainerContext.from_json(prep["trainer_ctx_json"])
+            if _bool_env("WORKFLOW_OPTIMIZE_STUB_EVALUATE", True):
+                return
+
+            _evaluate_optimized_model(
+                project_id=trainer_ctx.project_id,
+                dataset_storage_id=prep["dataset_storage_id"],
+                model_storage_id=trainer_ctx.model_storage_id,
+                model_id=prep["model_id"],
+                optimized_model_id=trainer_ctx.model_to_optimize_id,
+                min_annotation_size=payload.get("min_annotation_size"),
+                max_annotation_size=payload.get("max_annotation_size"),
+                min_number_of_annotations=payload.get("min_number_of_annotations"),
+                max_number_of_annotations=payload.get("max_number_of_annotations"),
+            )
+            return
+
+        trainer_ctx = prepare_optimize(
+            project_id=payload["project_id"],
+            model_storage_id=payload["model_storage_id"],
+            model_id=payload["model_id"],
+            compiled_dataset_shards_id=NULL_COMPILED_DATASET_SHARDS_ID,
+            min_annotation_size=payload.get("min_annotation_size"),
+            max_annotation_size=payload.get("max_annotation_size"),
+            min_number_of_annotations=payload.get("min_number_of_annotations"),
+            max_number_of_annotations=payload.get("max_number_of_annotations"),
+        )
+        prep_result = {
+            "trainer_ctx_json": trainer_ctx.to_json(),
+            "dataset_storage_id": payload["dataset_storage_id"],
+            "model_id": payload["model_id"],
+        }
+        print(f"{_OPTIMIZE_PREP_RESULT_PREFIX}{json.dumps(prep_result)}")
         return
 
     raise RuntimeError(f"Unsupported workflow runner job type: {job_type}")

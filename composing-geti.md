@@ -485,8 +485,8 @@ Phase 7 completion status refinement:
 
 - **Completed for compose local runnability:** scheduler/worker orchestration and job-type bridges are operational without Flyte.
 - **Completed train milestone boundary:** train now runs staged compose flow with real prepare/trainer/finalize/evaluate and real registration/acceptance.
+- **Completed optimize milestone boundary:** optimize_pot now runs staged compose flow with real prepare/trainer/finalize/evaluate.
 - **Intentional remaining boundary:** train inference sub-steps (`task_infer_on_unannotated`, `pipeline_infer_on_unannotated`) remain stubbed until inference replacement is complete.
-- **Out-of-boundary remaining item:** optimize real execution path still pending (lower priority by request).
 
 ### Phase 7 implementation notes (completed)
 
@@ -547,6 +547,11 @@ Celery execution status (current):
 - train bridge now also runs a post-trainer finalize stage (`finalize_train`) using the train workflow runtime container.
 - train bridge now includes a compose-safe evaluate stage hook using the train workflow runtime container.
 - optimize job type still uses simulation fallback while dedicated execution runner is being integrated.
+- optimize_pot now runs a staged Celery workflow-container bridge:
+  - optimize prepare (`prepare_optimize`)
+  - trainer runtime stage (`JOB_TYPE=optimize_pot`)
+  - optimize finalize (`finalize_optimize`)
+  - optimize evaluate (`_evaluate_optimized_model`)
 
 Train status caveat:
 
