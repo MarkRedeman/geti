@@ -42,6 +42,19 @@ def reset_singletons() -> None:
 
 
 class TestJobUpdateService:
+    @patch("scheduler.grpc_api.job_update_service.ensure_flyte_available", side_effect=RuntimeError("compose-mode"))
+    def test_job_update_compose_mode_returns_unimplemented(
+        self, mock_ensure_flyte_available, fxt_job_update_service, fxt_grpc_context
+    ) -> None:
+        # Act
+        request = JobUpdateRequest(execution_id="execution_id", metadata='{"foo": "bar"}')
+        with pytest.raises(RuntimeError, match="compose-mode"):
+            fxt_job_update_service.job_update(request, fxt_grpc_context)
+
+        # Assert
+        mock_ensure_flyte_available.assert_called_once_with(operation="jobs.grpc_job_update")
+        fxt_grpc_context.abort.assert_called_once_with(code=grpc.StatusCode.UNIMPLEMENTED, details="compose-mode")
+
     @patch.object(Flyte, "fetch_workflow_execution")
     @patch.object(Flyte, "__init__", new=mock_flyte_client)
     def test_job_update_no_execution(

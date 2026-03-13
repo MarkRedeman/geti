@@ -13,7 +13,7 @@ from flytekit.remote import FlyteWorkflowExecution
 from model.job import Job, JobConsumedResource, JobCost
 from model.job_state import JobTaskState
 from scheduler.context import job_context
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.state_machine import StateMachine
 
@@ -59,6 +59,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @staticmethod
     @unified_tracing
     def on_flyte_event(raw_message: KafkaRawMessage) -> None:
+        ensure_flyte_available(operation="jobs.on_flyte_event")
         event = raw_message.value["event"] if raw_message.value is not None and "event" in raw_message.value else None
         if event is None:
             return
@@ -294,6 +295,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_step_details(raw_message: KafkaRawMessage) -> None:
+        ensure_flyte_available(operation="jobs.on_job_step_details")
         value: dict = raw_message.value
 
         if "execution_id" not in value:
@@ -309,6 +311,9 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
 
         job_id = Flyte.get_execution_job_id(execution)
         job = StateMachine().get_by_id(job_id=ID(job_id))
+        if job is None:
+            logger.error(f"Unable to find job by it's ID {job_id}")
+            return
         if job.cancellation_info.is_cancelled:
             return
 
@@ -329,6 +334,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_update(raw_message: KafkaRawMessage) -> None:
+        ensure_flyte_available(operation="jobs.on_job_update")
         value: dict = raw_message.value
 
         if "execution_id" not in value:

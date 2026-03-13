@@ -17,7 +17,7 @@ import grpc
 from pymongo.errors import AutoReconnect
 
 from model.job import JobConsumedResource
-from scheduler.flyte import Flyte
+from scheduler.flyte import Flyte, ensure_flyte_available
 from scheduler.state_machine import StateMachine
 
 from geti_telemetry_tools import unified_tracing
@@ -58,6 +58,11 @@ class JobUpdateService(JobUpdateServiceServicer):
         :raises: JobPayloadNotDeserializableException if the payload is not deserializable
         """
         logger.info(f"Job update request received: {request}")
+        try:
+            ensure_flyte_available(operation="jobs.grpc_job_update")
+        except RuntimeError as err:
+            context.abort(code=grpc.StatusCode.UNIMPLEMENTED, details=str(err))
+
         execution = Flyte().fetch_workflow_execution(execution_name=request.execution_id)
 
         if execution is None:

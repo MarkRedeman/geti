@@ -396,6 +396,20 @@ Current status: **partial** (first high-impact subset implemented).
   - `interactive_ai/services/model_registration/tests/unit/test_model_registration.py::test_register_new_pipelines_compose_mode_aborts`
   - `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_recovery.py::test_check_and_recover_workspace_jobs_if_needed_compose_mode`
 
+Additional unavailable-path guard coverage added:
+
+- jobs scheduler API/event boundaries now fail-fast in compose mode:
+  - `interactive_ai/services/jobs/app/scheduler/grpc_api/job_update_service.py`
+  - `interactive_ai/services/jobs/app/scheduler/kafka_handler.py`
+- cancellation path guard standardized to raising behavior:
+  - `interactive_ai/services/jobs/app/scheduler/loops/cancellation.py`
+
+Additional tests added:
+
+- `interactive_ai/services/jobs/tests/unit/scheduler/grpc_api/test_job_update_service.py::test_job_update_compose_mode_returns_unimplemented`
+- `interactive_ai/services/jobs/tests/unit/scheduler/test_kafka_handler.py::test_on_flyte_event_compose_mode_raises`
+- `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_cancellation.py::test_cancel_execution_compose_mode_raises`
+
 ## Phase 6 — Replace KServe model registration path
 
 - [ ] Introduce Docker-native model serving control path.

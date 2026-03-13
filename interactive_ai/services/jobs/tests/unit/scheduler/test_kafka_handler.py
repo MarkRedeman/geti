@@ -110,6 +110,44 @@ def test_on_flyte_event_wrong_event_type(
     mock_handle_task_event.assert_not_called()
 
 
+@patch("scheduler.kafka_handler.ensure_flyte_available", side_effect=RuntimeError("compose-mode"))
+@patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
+@patch.object(Flyte, "fetch_workflow_execution")
+@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(StateMachine, "get_by_id")
+@patch.object(StateMachine, "__init__", new=mock_job_service)
+@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
+def test_on_flyte_event_compose_mode_raises(
+    mock_sm_get_by_id,
+    mock_flyte_fetch_workflow_execution,
+    mock_make_session,
+    mock_ensure_flyte_available,
+    request,
+) -> None:
+    request.addfinalizer(lambda: reset_singletons())
+
+    # Arrange
+    message: KafkaRawMessage = KafkaRawMessage(
+        "test_topic",
+        0,
+        0,
+        int(now().timestamp()),
+        0,
+        "key",
+        {"event": {"executionId": {"name": "ex-workspace-job"}}},
+        [("ce_type", b"com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest")],
+    )
+
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="compose-mode"):
+        ProgressHandler().on_flyte_event(message)
+
+    mock_ensure_flyte_available.assert_called_once_with(operation="jobs.on_flyte_event")
+    mock_make_session.assert_not_called()
+    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_sm_get_by_id.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "value",
     [

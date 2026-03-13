@@ -383,3 +383,24 @@ def test_cancel_execution_terminated_or_terminating(
     # Assert
     mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
     mock_flyte_cancel_workflow_execution.assert_not_called()
+
+
+@patch("scheduler.loops.cancellation.ensure_flyte_available", side_effect=RuntimeError("compose-unsupported"))
+@patch.object(Flyte, "cancel_workflow_execution")
+@patch.object(Flyte, "fetch_workflow_execution")
+@patch.object(Flyte, "__init__", new=mock_flyte_client)
+def test_cancel_execution_compose_mode_raises(
+    mock_flyte_fetch_workflow_execution,
+    mock_flyte_cancel_workflow_execution,
+    mock_ensure_flyte_available,
+    request,
+) -> None:
+    request.addfinalizer(reset_singletons)
+
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="compose-unsupported"):
+        cancel_execution(execution_name="execution_name")
+
+    mock_ensure_flyte_available.assert_called_once_with(operation="jobs.cancel_execution")
+    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_flyte_cancel_workflow_execution.assert_not_called()
