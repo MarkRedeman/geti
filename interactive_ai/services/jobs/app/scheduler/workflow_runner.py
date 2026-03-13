@@ -7,7 +7,13 @@ from contextlib import nullcontext
 from unittest.mock import patch
 
 _TRAIN_PREP_RESULT_PREFIX = "TRAIN_PREP_RESULT="
-_WORKFLOW_EVALUATE_STUB = os.environ.get("WORKFLOW_EVALUATE_STUB", "true").lower() == "true"
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() == "true"
 
 
 def _is_train_ready_for_evaluate(train_data, train_output_model_ids) -> bool:  # noqa: ANN001
@@ -160,7 +166,7 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                     "job.tasks.evaluate_and_infer.evaluate_and_infer.evaluate",
                     lambda *a, **k: (True, "compose-train-inference-placeholder"),
                 )
-                if _WORKFLOW_EVALUATE_STUB
+                if _bool_env("WORKFLOW_EVALUATE_STUB_EVALUATE", True)
                 else nullcontext()
             )
             # finalize_train is already executed in a dedicated preceding stage.
@@ -170,17 +176,17 @@ def _run_job_type(job_type: str, payload: dict) -> None:
             )
             register_patch = (
                 patch("job.tasks.evaluate_and_infer.evaluate_and_infer.register_models", lambda *a, **k: None)
-                if _WORKFLOW_EVALUATE_STUB
+                if _bool_env("WORKFLOW_EVALUATE_STUB_REGISTER", True)
                 else nullcontext()
             )
             acceptance_patch = (
                 patch("job.tasks.evaluate_and_infer.evaluate_and_infer.post_model_acceptance", lambda *a, **k: None)
-                if _WORKFLOW_EVALUATE_STUB
+                if _bool_env("WORKFLOW_EVALUATE_STUB_ACCEPTANCE", True)
                 else nullcontext()
             )
             task_infer_patch = (
                 patch("job.tasks.evaluate_and_infer.evaluate_and_infer.task_infer_on_unannotated", lambda *a, **k: None)
-                if _WORKFLOW_EVALUATE_STUB
+                if _bool_env("WORKFLOW_EVALUATE_STUB_TASK_INFER", True)
                 else nullcontext()
             )
             pipeline_infer_patch = (
@@ -188,7 +194,7 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                     "job.tasks.evaluate_and_infer.evaluate_and_infer.pipeline_infer_on_unannotated",
                     lambda *a, **k: None,
                 )
-                if _WORKFLOW_EVALUATE_STUB
+                if _bool_env("WORKFLOW_EVALUATE_STUB_PIPELINE_INFER", True)
                 else nullcontext()
             )
 
@@ -245,7 +251,7 @@ def run() -> None:
 
     metadata_patch = (
         patch("jobs_common.tasks.utils.progress.publish_metadata_update", lambda m: None)
-        if _WORKFLOW_EVALUATE_STUB
+        if _bool_env("WORKFLOW_EVALUATE_STUB_METADATA", True)
         else nullcontext()
     )
 

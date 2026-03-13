@@ -552,6 +552,17 @@ Train safety safeguards added:
 - evaluate stub mode is now explicit via `WORKFLOW_EVALUATE_STUB` env in jobs worker compose config.
 - evaluate stage now always no-ops embedded `finalize_train` call because finalize is executed in a dedicated prior stage.
 
+Evaluate stub control is now split per sub-step:
+
+- `WORKFLOW_EVALUATE_STUB_METADATA`
+- `WORKFLOW_EVALUATE_STUB_EVALUATE`
+- `WORKFLOW_EVALUATE_STUB_REGISTER`
+- `WORKFLOW_EVALUATE_STUB_ACCEPTANCE`
+- `WORKFLOW_EVALUATE_STUB_TASK_INFER`
+- `WORKFLOW_EVALUATE_STUB_PIPELINE_INFER`
+
+This allows incremental de-stubbing of evaluate flow without all-or-nothing risk.
+
 Important note on current scope:
 
 - train / optimize / model-test jobs are **not** yet moved to real Celery workflow execution.
