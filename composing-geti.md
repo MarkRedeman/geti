@@ -484,7 +484,9 @@ Validation scope for this phase:
 Phase 7 completion status refinement:
 
 - **Completed for compose local runnability:** scheduler/worker orchestration and job-type bridges are operational without Flyte.
-- **Remaining for full parity:** optimize real execution and train inference sub-steps (`task_infer_on_unannotated`, `pipeline_infer_on_unannotated`) after inference service replacement.
+- **Completed train milestone boundary:** train now runs staged compose flow with real prepare/trainer/finalize/evaluate and real registration/acceptance.
+- **Intentional remaining boundary:** train inference sub-steps (`task_infer_on_unannotated`, `pipeline_infer_on_unannotated`) remain stubbed until inference replacement is complete.
+- **Out-of-boundary remaining item:** optimize real execution path still pending (lower priority by request).
 
 ### Phase 7 implementation notes (completed)
 
