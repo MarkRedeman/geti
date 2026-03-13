@@ -57,19 +57,17 @@ def test_run_revert_scheduling_loop_none(
     mock_schedule_revert_job.assert_not_called()
 
 
-@patch("scheduler.loops.revert_scheduling.is_compose_mode", return_value=True)
 @patch(
     "scheduler.loops.revert_scheduling.schedule_revert_job",
 )
 @patch.object(StateMachine, "find_and_lock_job_for_reverting")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
-def test_run_revert_scheduling_loop_compose_mode_works(
+def test_run_revert_scheduling_loop_works(
     mock_find_and_lock_job_for_reverting,
     mock_schedule_revert_job,
-    mock_is_compose_mode,
     request,
 ) -> None:
-    """In compose mode the revert scheduling loop should still run (no early-return)."""
+    """The revert scheduling loop should run and try to find a job."""
     request.addfinalizer(reset_singletons)
 
     # Arrange: no jobs to revert
@@ -395,10 +393,7 @@ def test_start_revert_execution_no_workflow_env_vars(
 
     # Arrange
     mock_get_revert_execution_name.return_value = "execution_name"
-    with (
-        patch("scheduler.loops.revert_scheduling.is_compose_mode", return_value=True),
-        patch("scheduler.loops.revert_scheduling.resolve_revert_job", return_value=None) as mock_resolve_revert_job,
-    ):
+    with patch("scheduler.loops.revert_scheduling.resolve_revert_job", return_value=None) as mock_resolve_revert_job:
         # Act
         result = start_revert_execution(job=fxt_job)
 
@@ -410,65 +405,53 @@ def test_start_revert_execution_no_workflow_env_vars(
         assert result is None
 
 
-@patch(
-    "scheduler.loops.revert_scheduling.start_execution",
-)
+@patch("scheduler.loops.revert_scheduling.LocalExecutor")
 @patch(
     "scheduler.loops.revert_scheduling.get_revert_execution_name",
 )
-@patch.object(Flyte, "fetch_workflow")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 def test_start_revert_execution_no_workflow(
-    mock_flyte_fetch_workflow,
     mock_get_revert_execution_name,
-    mock_start_execution,
+    mock_local_executor_cls,
     fxt_job,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
 
-    # Arrange
+    # Arrange: resolve_revert_job returns None → no execution started
     mock_get_revert_execution_name.return_value = "execution_name"
-    with patch(
-        "scheduler.loops.revert_scheduling.resolve_revert_job", return_value=("workflow_name", "workflow_version")
-    ):
-        # Act / Assert
-        with pytest.raises(RuntimeError, match="outside compose mode"):
-            start_revert_execution(job=fxt_job)
+    with patch("scheduler.loops.revert_scheduling.resolve_revert_job", return_value=None):
+        # Act
+        result = start_revert_execution(job=fxt_job)
 
     mock_get_revert_execution_name.assert_called_once_with(job_id=fxt_job.id)
-    mock_flyte_fetch_workflow.assert_not_called()
-    mock_start_execution.assert_not_called()
+    mock_local_executor_cls.return_value.start_execution.assert_not_called()
+    assert result is None
 
 
-@patch(
-    "scheduler.loops.revert_scheduling.start_execution",
-)
+@patch("scheduler.loops.revert_scheduling.LocalExecutor")
 @patch(
     "scheduler.loops.revert_scheduling.get_revert_execution_name",
 )
-@patch.object(Flyte, "fetch_workflow")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 def test_start_revert_execution(
-    mock_flyte_fetch_workflow,
     mock_get_revert_execution_name,
-    mock_start_execution,
+    mock_local_executor_cls,
     fxt_job,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
 
-    # Arrange
+    # Arrange: resolve_revert_job returns a value → execution is started
     mock_get_revert_execution_name.return_value = "execution_name"
+    mock_local_executor_cls.return_value.start_execution.return_value = "container_id"
     with patch(
         "scheduler.loops.revert_scheduling.resolve_revert_job", return_value=("workflow_name", "workflow_version")
     ):
-        with pytest.raises(RuntimeError, match="outside compose mode"):
-            start_revert_execution(job=fxt_job)
+        # Act
+        result = start_revert_execution(job=fxt_job)
 
-    mock_flyte_fetch_workflow.assert_not_called()
     mock_get_revert_execution_name.assert_called_once_with(job_id=fxt_job.id)
-    mock_start_execution.assert_not_called()
+    mock_local_executor_cls.return_value.start_execution.assert_called_once()
+    assert result == "execution_name"
 
 
 @patch.object(Flyte, "start_workflow_execution")

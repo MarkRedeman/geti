@@ -33,12 +33,10 @@ def reset_singletons() -> None:
 @patch(
     "scheduler.loops.recovery.check_and_recover_organization_if_needed",
 )
-@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch.object(StateMachine, "get_session_ids_with_jobs_not_in_final_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_run_recovery_loop_none(
     mock_get_session_ids_with_jobs_not_in_final_state,
-    mock_is_compose_mode,
     mock_check_and_recover_organization_if_needed,
     request,
 ) -> None:
@@ -51,19 +49,16 @@ def test_run_recovery_loop_none(
     run_recovery_loop()
 
     # Assert
-    mock_is_compose_mode.assert_called_once_with()
     mock_check_and_recover_organization_if_needed.assert_not_called()
 
 
 @patch(
     "scheduler.loops.recovery.check_and_recover_organization_if_needed",
 )
-@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch.object(StateMachine, "get_session_ids_with_jobs_not_in_final_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_run_recovery_loop_org(
     mock_get_session_ids_with_jobs_not_in_final_state,
-    mock_is_compose_mode,
     mock_check_and_recover_organization_if_needed,
     request,
 ) -> None:
@@ -76,11 +71,9 @@ def test_run_recovery_loop_org(
     run_recovery_loop()
 
     # Assert
-    mock_is_compose_mode.assert_called_once_with()
     mock_check_and_recover_organization_if_needed.assert_called_once_with(organization_id=ORG, workspace_id=WORK)
 
 
-@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch(
     "scheduler.loops.recovery.check_and_recover_organization_if_needed",
 )
@@ -89,7 +82,6 @@ def test_run_recovery_loop_org(
 def test_run_recovery_loop_compose_uses_org_recovery(
     mock_get_session_ids_with_jobs_not_in_final_state,
     mock_check_and_recover_organization_if_needed,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -101,30 +93,8 @@ def test_run_recovery_loop_compose_uses_org_recovery(
     run_recovery_loop()
 
     # Assert
-    mock_is_compose_mode.assert_called_once_with()
     mock_get_session_ids_with_jobs_not_in_final_state.assert_called_once_with()
     mock_check_and_recover_organization_if_needed.assert_called_once_with(organization_id=ORG, workspace_id=WORK)
-
-
-@patch("scheduler.loops.recovery.is_compose_mode", return_value=False)
-@patch(
-    "scheduler.loops.recovery.check_and_recover_organization_if_needed",
-)
-@patch.object(StateMachine, "get_session_ids_with_jobs_not_in_final_state")
-@patch.object(StateMachine, "__init__", new=mock_state_machine)
-def test_run_recovery_loop_non_compose_logs_and_skips(
-    mock_get_session_ids_with_jobs_not_in_final_state,
-    mock_check_and_recover_organization_if_needed,
-    mock_is_compose_mode,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    run_recovery_loop()
-
-    mock_is_compose_mode.assert_called_once_with()
-    mock_get_session_ids_with_jobs_not_in_final_state.assert_not_called()
-    mock_check_and_recover_organization_if_needed.assert_not_called()
 
 
 @patch("scheduler.loops.recovery.check_and_recover_organization_jobs_if_needed")

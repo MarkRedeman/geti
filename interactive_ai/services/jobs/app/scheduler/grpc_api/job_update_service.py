@@ -17,7 +17,6 @@ import grpc
 from pymongo.errors import AutoReconnect
 
 from model.job import JobConsumedResource
-from scheduler.flyte import is_compose_mode
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
@@ -59,16 +58,6 @@ class JobUpdateService(JobUpdateServiceServicer):
         :raises: JobPayloadNotDeserializableException if the payload is not deserializable
         """
         logger.info(f"Job update request received: {request}")
-
-        if not is_compose_mode():
-            context.abort(
-                code=grpc.StatusCode.UNIMPLEMENTED,
-                details=(
-                    "Feature unavailable outside compose mode: jobs.grpc_job_update. "
-                    "Flyte-backed grpc update path has been removed."
-                ),
-            )
-            return JobUpdateResponse(empty=Empty())
 
         record = LocalExecutor().get_execution_metadata(request.execution_id)
         if record is None:

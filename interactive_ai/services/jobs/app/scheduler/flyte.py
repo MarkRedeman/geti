@@ -82,12 +82,8 @@ class FlyteUnavailableInComposeError(RuntimeError):
     """Raised when Flyte/Kubernetes-backed execution is requested in compose mode."""
 
 
-def is_compose_mode() -> bool:
-    return DEPLOYMENT_MODE == "compose"
-
-
 def ensure_flyte_available(operation: str) -> None:
-    if not is_compose_mode():
+    if DEPLOYMENT_MODE != "compose":
         return
     message = f"Feature unavailable in compose mode: {operation}. This path currently requires Kubernetes/Flyte."
     logger.error(message)

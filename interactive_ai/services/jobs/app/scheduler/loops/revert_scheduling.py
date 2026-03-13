@@ -5,7 +5,7 @@ import logging
 import os
 
 from model.job import Job
-from scheduler.flyte import ExecutionType, is_compose_mode
+from scheduler.flyte import ExecutionType
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_revert_execution_name, resolve_revert_job
@@ -92,20 +92,13 @@ def start_revert_execution(job: Job) -> str | None:
     """
     Starts jobs revert execution.
 
-    In compose mode, launches via LocalExecutor (Docker) and returns the
-    execution_name string.
-    Outside compose mode this path is not supported.
+    Launches via LocalExecutor (Docker/Celery compose runtime) and returns
+    the execution_name string.
 
     :param job: Job to start revert execution for
     :return: execution_name (compose) | None
     """
     execution_name = get_revert_execution_name(job_id=job.id)
-
-    if not is_compose_mode():
-        raise RuntimeError(
-            "Feature unavailable outside compose mode: jobs.start_revert_execution. "
-            "Flyte-backed revert scheduling path has been removed."
-        )
 
     # Resolving revert workflow/image for this job type
     resolved = resolve_revert_job(job_type=job.type)

@@ -5,7 +5,6 @@ import logging
 import os
 
 from model.job import Job
-from scheduler.flyte import is_compose_mode
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
@@ -23,13 +22,6 @@ def run_recovery_loop() -> None:
     """
 
     try:
-        if not is_compose_mode():
-            logger.error(
-                "Feature unavailable outside compose mode: jobs.recovery_loop. "
-                "Flyte-backed recovery path has been removed."
-            )
-            return
-
         logger.debug("[COMPOSE MODE] Running compose-native recovery loop")
         ids = StateMachine().get_session_ids_with_jobs_not_in_final_state()
         for organization_id, workspace_id in ids.items():

@@ -6,7 +6,7 @@ import os
 
 from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType, is_compose_mode
+from scheduler.flyte import ExecutionType
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
@@ -109,20 +109,13 @@ def start_main_execution(job: Job) -> tuple[str, str]:
     """
     Starts jobs main execution.
 
-    In compose mode, launches via LocalExecutor (Docker).
-    Outside compose mode this path is not supported.
+    Launches via LocalExecutor (Docker/Celery compose runtime).
 
     :param job: Job to start main execution for
     :return: Tuple of (execution_name, launch_plan_id).
              In compose mode launch_plan_id equals execution_name.
     """
     execution_name = get_main_execution_name(job_id=job.id)
-
-    if not is_compose_mode():
-        raise RuntimeError(
-            "Feature unavailable outside compose mode: jobs.start_main_execution. "
-            "Flyte-backed scheduling path has been removed."
-        )
 
     container_id = LocalExecutor().start_execution(
         execution_name=execution_name,

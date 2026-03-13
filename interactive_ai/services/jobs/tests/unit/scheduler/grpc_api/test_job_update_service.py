@@ -32,22 +32,9 @@ def fxt_grpc_context():
 
 
 class TestJobUpdateService:
-    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=False)
-    def test_job_update_non_compose_returns_unimplemented(
-        self, mock_is_compose_mode, fxt_job_update_service, fxt_grpc_context
-    ) -> None:
-        # Act
-        request = JobUpdateRequest(execution_id="execution_id", metadata='{"foo": "bar"}')
-        fxt_job_update_service.job_update(request, fxt_grpc_context)
-
-        # Assert
-        mock_is_compose_mode.assert_called_once_with()
-        fxt_grpc_context.abort.assert_called_once()
-
     @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
-    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     def test_job_update_no_execution(
-        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
+        self, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
     ) -> None:
         mock_local_executor.return_value.get_execution_metadata.return_value = None
 
@@ -56,16 +43,14 @@ class TestJobUpdateService:
         response = fxt_job_update_service.job_update(request, fxt_grpc_context)
 
         # Assert
-        mock_is_compose_mode.assert_called_once_with()
         mock_local_executor.return_value.get_execution_metadata.assert_called_once_with("execution_id")
         assert (
             response.HasField("error") and response.error.code == EXECUTION_NOT_FOUND and not response.HasField("empty")
         )
 
     @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
-    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     def test_job_update_corrupted_metadata(
-        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
+        self, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
     ) -> None:
         record = MagicMock()
         record.job_id = "job_id"
@@ -91,11 +76,8 @@ class TestJobUpdateService:
         )
 
     @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
-    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     @pytest.mark.freeze_time("2024-01-01 00:00:01")
-    def test_job_update(
-        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
-    ) -> None:
+    def test_job_update(self, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context) -> None:
         record = MagicMock()
         record.job_id = "job_id"
         mock_local_executor.return_value.get_execution_metadata.return_value = record
@@ -138,10 +120,9 @@ class TestJobUpdateService:
         assert response.HasField("empty") and not response.HasField("error")
 
     @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
-    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     @pytest.mark.freeze_time("2024-01-01 00:00:01")
     def test_job_update_mongo_not_available(
-        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
+        self, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
     ) -> None:
         record = MagicMock()
         record.job_id = "job_id"

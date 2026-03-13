@@ -5,7 +5,6 @@ import logging
 import os
 
 from model.job_state import JobState
-from scheduler.flyte import is_compose_mode
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
@@ -99,16 +98,9 @@ def cancel_execution(execution_name: str) -> None:
     """
     Cancels job execution.
 
-    In compose mode, stops the Docker/Celery execution via LocalExecutor.
-    Outside compose mode this path is not supported.
+    Stops the Docker/Celery execution via LocalExecutor.
 
     :param execution_name: Execution name
     """
-    if not is_compose_mode():
-        raise RuntimeError(
-            "Feature unavailable outside compose mode: jobs.cancel_execution. "
-            "Flyte-backed cancellation path has been removed."
-        )
-
     logger.info(f"Cancelling local execution {execution_name} (compose mode)")
     LocalExecutor().cancel_execution(execution_name=execution_name)

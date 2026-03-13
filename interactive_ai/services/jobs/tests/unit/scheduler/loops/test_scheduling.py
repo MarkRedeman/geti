@@ -11,6 +11,7 @@ from model.job import JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
 from scheduler.flyte import ExecutionType, Flyte
 from scheduler.jobs_templates import JobsTemplates, JobTemplateStep
+from scheduler.local_executor import LocalExecutor
 from scheduler.loops.scheduling import (
     run_scheduling_loop,
     schedule_main_job,
@@ -66,19 +67,17 @@ def test_run_revert_scheduling_loop_none(
     mock_schedule_main_job.assert_not_called()
 
 
-@patch("scheduler.loops.scheduling.is_compose_mode", return_value=True)
 @patch(
     "scheduler.loops.scheduling.schedule_main_job",
 )
 @patch.object(StateMachine, "find_and_lock_job_for_scheduling")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
-def test_run_scheduling_loop_compose_mode_works(
+def test_run_scheduling_loop_works(
     mock_find_and_lock_job_for_scheduling,
     mock_schedule_main_job,
-    mock_is_compose_mode,
     request,
 ) -> None:
-    """In compose mode the scheduling loop should still run (no early-return)."""
+    """The scheduling loop should run and try to find a job."""
     request.addfinalizer(reset_singletons)
 
     # Arrange: no jobs to schedule
@@ -307,14 +306,13 @@ def test_schedule_main_job_max_retry_counter(
     mock_get_job_steps.assert_not_called()
 
 
+@patch("scheduler.loops.scheduling.LocalExecutor")
 @patch(
     "scheduler.loops.scheduling.get_main_execution_name",
 )
-@patch.object(Flyte, "fetch_workflow")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 def test_start_main_execution_no_workflow(
-    mock_flyte_fetch_workflow,
     mock_get_main_execution_name,
+    mock_local_executor_cls,
     fxt_job,
     request,
 ) -> None:
@@ -322,25 +320,24 @@ def test_start_main_execution_no_workflow(
 
     # Arrange
     mock_get_main_execution_name.return_value = "execution_name"
-    mock_flyte_fetch_workflow.return_value = None
+    mock_local_executor_cls.return_value.start_execution.return_value = "container_id"
 
     # Act
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        start_main_execution(job=fxt_job)
+    result = start_main_execution(job=fxt_job)
 
     # Assert
     mock_get_main_execution_name.assert_called_once_with(job_id=fxt_job.id)
-    mock_flyte_fetch_workflow.assert_not_called()
+    mock_local_executor_cls.return_value.start_execution.assert_called_once()
+    assert result == ("execution_name", "execution_name")
 
 
+@patch("scheduler.loops.scheduling.LocalExecutor")
 @patch(
     "scheduler.loops.scheduling.get_main_execution_name",
 )
-@patch.object(Flyte, "fetch_workflow")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 def test_start_main_execution(
-    mock_flyte_fetch_workflow,
     mock_get_main_execution_name,
+    mock_local_executor_cls,
     fxt_job,
     request,
 ) -> None:
@@ -348,17 +345,15 @@ def test_start_main_execution(
 
     # Arrange
     mock_get_main_execution_name.return_value = "execution_name"
-
-    workflow = MagicMock()
-    mock_flyte_fetch_workflow.return_value = workflow
+    mock_local_executor_cls.return_value.start_execution.return_value = "container_id"
 
     # Act
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        start_main_execution(job=fxt_job)
+    result = start_main_execution(job=fxt_job)
 
     # Assert
     mock_get_main_execution_name.assert_called_once_with(job_id=fxt_job.id)
-    mock_flyte_fetch_workflow.assert_not_called()
+    mock_local_executor_cls.return_value.start_execution.assert_called_once()
+    assert result == ("execution_name", "execution_name")
 
 
 @patch.object(Flyte, "start_workflow_execution")

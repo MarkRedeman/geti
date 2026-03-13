@@ -90,7 +90,7 @@ class LocalExecutor(metaclass=Singleton):
     Thin Docker-based executor for compose-mode.
 
     All public methods mirror the ``Flyte`` singleton's interface where needed
-    so call-sites can dispatch with a simple ``if is_compose_mode()`` guard.
+    to keep scheduler integration points stable during migration.
     """
 
     def __init__(self) -> None:

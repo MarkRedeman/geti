@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from model.job import Job, JobConsumedResource, JobCost
 from model.job_state import JobTaskState
 from scheduler.context import job_context
-from scheduler.flyte import ExecutionType, Flyte, is_compose_mode
+from scheduler.flyte import ExecutionType, Flyte
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
@@ -62,13 +62,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @staticmethod
     @unified_tracing
     def on_flyte_event(raw_message: KafkaRawMessage) -> None:
-        if not is_compose_mode():
-            logger.error(
-                "Feature unavailable outside compose mode: jobs.on_flyte_event. "
-                "Flyte-backed kafka handler path has been removed."
-            )
-            return
-
         event = raw_message.value["event"] if raw_message.value is not None and "event" in raw_message.value else None
         if event is None:
             return
@@ -140,22 +133,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         if event_type == TASK_EXECUTION_EVENT_REQUEST:
             return event["parentNodeExecutionId"]["executionId"]["name"]
         return event["id"]["executionId"]["name"]
-
-    @staticmethod
-    def handle_workflow_event(event: dict, execution: "FlyteWorkflowExecution", job: Job) -> None:
-        logger.info(f"Handling workflow event {event}")
-
-        if "phase" not in event:
-            logger.error("Unable to obtain execution phase from event")
-            return
-
-        execution_type = Flyte.get_execution_type(execution)
-        ProgressHandler.handle_workflow_event_by_type(
-            event=event,
-            execution=execution,
-            execution_type=execution_type,
-            job=job,
-        )
 
     @staticmethod
     def handle_workflow_event_by_type(
@@ -344,13 +321,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_step_details(raw_message: KafkaRawMessage) -> None:
-        if not is_compose_mode():
-            logger.error(
-                "Feature unavailable outside compose mode: jobs.on_job_step_details. "
-                "Flyte-backed kafka handler path has been removed."
-            )
-            return
-
         value: dict = raw_message.value
 
         if "execution_id" not in value:
@@ -389,13 +359,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_update(raw_message: KafkaRawMessage) -> None:
-        if not is_compose_mode():
-            logger.error(
-                "Feature unavailable outside compose mode: jobs.on_job_update. "
-                "Flyte-backed kafka handler path has been removed."
-            )
-            return
-
         value: dict = raw_message.value
 
         if "execution_id" not in value:

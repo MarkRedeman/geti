@@ -67,7 +67,6 @@ def reset_singletons() -> None:
         [("ce_type")],
     ],
 )
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -86,7 +85,6 @@ def test_on_flyte_event_wrong_event_type(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     headers,
     request,
 ) -> None:
@@ -116,47 +114,6 @@ def test_on_flyte_event_wrong_event_type(
     mock_handle_task_event.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=False)
-@patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(LocalExecutor, "get_execution_metadata")
-@patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-@patch.object(StateMachine, "get_by_id")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_on_flyte_event_non_compose_returns_early(
-    mock_sm_get_by_id,
-    mock_local_executor_init,
-    mock_local_executor_get_metadata,
-    mock_make_session,
-    mock_is_compose_mode,
-    request,
-) -> None:
-    """When not in compose mode, on_flyte_event must return immediately without any state mutations."""
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    message: KafkaRawMessage = KafkaRawMessage(
-        "test_topic",
-        0,
-        0,
-        int(now().timestamp()),
-        0,
-        "key",
-        {"event": {"executionId": {"name": "ex-workspace-job"}}},
-        [("ce_type", b"com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest")],
-    )
-
-    # Act
-    ProgressHandler().on_flyte_event(message)
-
-    # Assert – no side effects
-    mock_is_compose_mode.assert_called_once()
-    mock_make_session.assert_not_called()
-    mock_local_executor_get_metadata.assert_not_called()
-    mock_sm_get_by_id.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "value",
     [
@@ -167,7 +124,6 @@ def test_on_flyte_event_non_compose_returns_early(
         ["test"],
     ],
 )
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -186,7 +142,6 @@ def test_on_flyte_event_missing_event(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     value,
     request,
 ) -> None:
@@ -221,7 +176,6 @@ def test_on_flyte_event_missing_event(
     mock_handle_task_event.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -240,7 +194,6 @@ def test_on_flyte_event_no_execution(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -275,7 +228,6 @@ def test_on_flyte_event_no_execution(
     mock_handle_task_event.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -294,7 +246,6 @@ def test_on_flyte_event_no_job(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -339,7 +290,6 @@ def test_on_flyte_event_no_job(
     mock_handle_task_event.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -358,7 +308,6 @@ def test_on_flyte_workflow_event(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -411,7 +360,6 @@ def test_on_flyte_workflow_event(
     mock_handle_task_event.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -430,10 +378,9 @@ def test_on_flyte_node_event(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     request,
 ) -> None:
-    """In compose mode, NODE_EXECUTION_EVENT_REQUEST returns early – no handlers called."""
+    """NODE_EXECUTION_EVENT_REQUEST returns early – no handlers called."""
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
@@ -469,7 +416,6 @@ def test_on_flyte_node_event(
     mock_handle_task_event.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
@@ -488,10 +434,9 @@ def test_on_flyte_task_event(
     mock_local_executor_init,
     mock_local_executor_get_metadata,
     mock_make_session,
-    mock_is_compose_mode,
     request,
 ) -> None:
-    """In compose mode, TASK_EXECUTION_EVENT_REQUEST returns early – no handlers called."""
+    """TASK_EXECUTION_EVENT_REQUEST returns early – no handlers called."""
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
@@ -538,7 +483,7 @@ def test_on_flyte_task_event(
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_wrong_event(
+def test_handle_workflow_event_by_type_wrong_event(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     event,
@@ -547,11 +492,12 @@ def test_handle_workflow_event_wrong_event(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(event=event, execution=execution, job=job)
+    ProgressHandler().handle_workflow_event_by_type(
+        event=event, execution=None, execution_type=ExecutionType.MAIN, job=job
+    )
 
     # Assert
     mock_ph_handle_main_workflow_event.assert_not_called()
@@ -562,7 +508,7 @@ def test_handle_workflow_event_wrong_event(
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_no_phase(
+def test_handle_workflow_event_by_type_no_phase(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     request,
@@ -570,13 +516,13 @@ def test_handle_workflow_event_no_phase(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(
+    ProgressHandler().handle_workflow_event_by_type(
         event={"executionId": {"name": "ex-workspace-job"}},
-        execution=execution,
+        execution=None,
+        execution_type=ExecutionType.MAIN,
         job=job,
     )
 
@@ -591,7 +537,7 @@ def test_handle_workflow_event_no_phase(
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_main_execution(
+def test_handle_workflow_event_by_type_main_execution(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     request,
@@ -600,19 +546,13 @@ def test_handle_workflow_event_main_execution(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(
+    ProgressHandler().handle_workflow_event_by_type(
         event={"executionId": {"name": "ex-workspace-job"}, "phase": phase},
-        execution=execution,
+        execution=None,
+        execution_type=ExecutionType.MAIN,
         job=job,
     )
 
@@ -626,7 +566,7 @@ def test_handle_workflow_event_main_execution(
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_revert_execution(
+def test_handle_workflow_event_by_type_revert_execution(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     request,
@@ -635,19 +575,13 @@ def test_handle_workflow_event_revert_execution(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "REVERT",
-    }
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(
+    ProgressHandler().handle_workflow_event_by_type(
         event={"executionId": {"name": "ex-workspace-job"}, "phase": phase},
-        execution=execution,
+        execution=None,
+        execution_type=ExecutionType.REVERT,
         job=job,
     )
 
@@ -1322,7 +1256,6 @@ def test_handle_node_event_main_set_step_details(
     )
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1332,7 +1265,6 @@ def test_on_job_step_details_missing_execution_id(
     mock_sm_set_step_details,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1360,7 +1292,6 @@ def test_on_job_step_details_missing_execution_id(
     mock_sm_set_step_details.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1370,7 +1301,6 @@ def test_on_job_step_details_missing_execution(
     mock_sm_set_step_details,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1400,7 +1330,6 @@ def test_on_job_step_details_missing_execution(
     mock_sm_set_step_details.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1412,7 +1341,6 @@ def test_on_job_step_details(
     mock_sm_set_step_details,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1460,7 +1388,6 @@ def test_on_job_step_details(
     )
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1472,7 +1399,6 @@ def test_on_job_step_details_cancelled(
     mock_sm_set_step_details,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1513,47 +1439,6 @@ def test_on_job_step_details_cancelled(
     mock_sm_set_step_details.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=False)
-@patch.object(LocalExecutor, "get_execution_metadata")
-@patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-def test_on_job_step_details_non_compose_returns_early(
-    mock_sm_set_step_details,
-    mock_local_executor_init,
-    mock_local_executor_get_metadata,
-    mock_is_compose_mode,
-    request,
-) -> None:
-    """When not in compose mode, on_job_step_details must return immediately without any state mutations."""
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    message: KafkaRawMessage = KafkaRawMessage(
-        "test_topic",
-        0,
-        0,
-        int(now().timestamp()),
-        0,
-        "key",
-        {"execution_id": "execution", "task_id": "task_id", "progress": 45},
-        [
-            ("organization_id", b"000000000000000000000001"),
-            ("workspace_id", b"63b183d00000000000000001"),
-        ],
-    )
-
-    # Act
-    ProgressHandler().on_job_step_details(message)
-
-    # Assert – no side effects
-    mock_is_compose_mode.assert_called_once()
-    mock_local_executor_get_metadata.assert_not_called()
-    mock_sm_set_step_details.assert_not_called()
-
-
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1563,7 +1448,6 @@ def test_on_job_update_missing_execution_id(
     mock_sm_update_metadata,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1591,7 +1475,6 @@ def test_on_job_update_missing_execution_id(
     mock_sm_update_metadata.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1601,7 +1484,6 @@ def test_on_job_update_missing_execution(
     mock_sm_update_metadata,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1631,7 +1513,6 @@ def test_on_job_update_missing_execution(
     mock_sm_update_metadata.assert_not_called()
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1641,7 +1522,6 @@ def test_on_job_update_metadata(
     mock_sm_update_metadata,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1676,7 +1556,6 @@ def test_on_job_update_metadata(
     )
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1686,7 +1565,6 @@ def test_on_job_update_consumed_cost(
     mock_sm_update_cost_consumed,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1740,7 +1618,6 @@ def test_on_job_update_consumed_cost(
     )
 
 
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=True)
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
@@ -1750,7 +1627,6 @@ def test_on_job_update_release_gpu(
     mock_sm_set_gpu_state_released,
     mock_local_executor_init,
     mock_local_executor_get_metadata,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
@@ -1780,46 +1656,6 @@ def test_on_job_update_release_gpu(
     # Assert
     mock_local_executor_get_metadata.assert_called_once_with("execution")
     mock_sm_set_gpu_state_released.assert_called_once_with(job_id=ID("job_id"))
-
-
-@patch("scheduler.kafka_handler.is_compose_mode", return_value=False)
-@patch.object(LocalExecutor, "get_execution_metadata")
-@patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "update_metadata")
-def test_on_job_update_non_compose_returns_early(
-    mock_sm_update_metadata,
-    mock_local_executor_init,
-    mock_local_executor_get_metadata,
-    mock_is_compose_mode,
-    request,
-) -> None:
-    """When not in compose mode, on_job_update must return immediately without any state mutations."""
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    message: KafkaRawMessage = KafkaRawMessage(
-        "test_topic",
-        0,
-        0,
-        int(now().timestamp()),
-        0,
-        "key",
-        {"execution_id": "execution", "metadata": {"key": "value"}},
-        [
-            ("organization_id", b"000000000000000000000001"),
-            ("workspace_id", b"63b183d00000000000000001"),
-        ],
-    )
-
-    # Act
-    ProgressHandler().on_job_update(message)
-
-    # Assert – no side effects
-    mock_is_compose_mode.assert_called_once()
-    mock_local_executor_get_metadata.assert_not_called()
-    mock_sm_update_metadata.assert_not_called()
 
 
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)

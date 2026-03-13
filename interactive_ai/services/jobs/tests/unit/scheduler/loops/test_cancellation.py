@@ -3,7 +3,6 @@
 
 from unittest.mock import MagicMock, call, patch
 
-import pytest
 from flytekit.exceptions.user import FlyteUserException
 
 from model.job_state import JobState
@@ -272,26 +271,13 @@ def test_cancel_main_job_max_retry_counter(
     mock_cancel_execution.assert_not_called()
 
 
-@patch("scheduler.loops.cancellation.is_compose_mode", return_value=True)
 @patch("scheduler.loops.cancellation.LocalExecutor")
-def test_cancel_execution_compose_mode_uses_local_executor(
+def test_cancel_execution_uses_local_executor(
     mock_local_executor_cls,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
 
     cancel_execution(execution_name="execution_name")
 
-    mock_is_compose_mode.assert_called_once_with()
     mock_local_executor_cls.return_value.cancel_execution.assert_called_once_with(execution_name="execution_name")
-
-
-@patch("scheduler.loops.cancellation.is_compose_mode", return_value=False)
-def test_cancel_execution_non_compose_raises(mock_is_compose_mode, request) -> None:
-    request.addfinalizer(reset_singletons)
-
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        cancel_execution(execution_name="execution_name")
-
-    mock_is_compose_mode.assert_called_once_with()
