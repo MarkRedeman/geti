@@ -96,6 +96,7 @@ def _run_train_trainer_container(payload: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "MODEL_REGISTRATION_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -131,6 +132,7 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "MODEL_REGISTRATION_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -179,6 +181,7 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "MODEL_REGISTRATION_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -230,6 +233,7 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
         "OTEL_",
         "ENABLE_",
         "WORKFLOW_",
+        "MODEL_REGISTRATION_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):

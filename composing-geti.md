@@ -484,7 +484,7 @@ Validation scope for this phase:
 Phase 7 completion status refinement:
 
 - **Completed for compose local runnability:** scheduler/worker orchestration and job-type bridges are operational without Flyte.
-- **Remaining for full parity:** optimize real execution and full non-stubbed train post-processing (registration/inference chain).
+- **Remaining for full parity:** optimize real execution and train inference sub-steps (`task_infer_on_unannotated`, `pipeline_infer_on_unannotated`) after inference service replacement.
 
 ### Phase 7 implementation notes (completed)
 
@@ -571,7 +571,13 @@ This allows incremental de-stubbing of evaluate flow without all-or-nothing risk
 Current de-stub progression:
 
 - `WORKFLOW_EVALUATE_STUB_EVALUATE=false` in compose worker (real evaluate path enabled)
-- registration/acceptance/task-infer/pipeline-infer remain stubbed until their dependencies are fully compose-ready.
+- `WORKFLOW_EVALUATE_STUB_REGISTER=false` and `WORKFLOW_EVALUATE_STUB_ACCEPTANCE=false` (real registration + acceptance enabled)
+- `WORKFLOW_EVALUATE_STUB_TASK_INFER=true` and `WORKFLOW_EVALUATE_STUB_PIPELINE_INFER=true` remain stubbed until inference path replacement is complete.
+
+Required compose wiring for real registration path:
+
+- `MODEL_REGISTRATION_SERVICE=interactive_ai_model_registration:5555` added to jobs worker env.
+- `MODEL_REGISTRATION_*` forwarding added in Celery stage container launches.
 
 Important note on current scope:
 
