@@ -4,6 +4,7 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost}"
 HOST_HEADER="${HOST_HEADER:-geti.localhost}"
+SMOKE_PATHS="${SMOKE_PATHS:-/,/dex,/api/v1/healthz,/api/v1/onboarding/user,/api/v1/admin/onboarding/tokens,/api/v1/users/reset_password,/api/v1/organizations/test/workspaces/test/jobs}"
 
 curl_check() {
 	local path="$1"
@@ -36,20 +37,9 @@ curl_check_not_404() {
 
 echo "Running Traefik smoke checks against ${BASE_URL} (Host: ${HOST_HEADER})"
 
-# Web route via Traefik
-curl_check_not_404 "/"
-
-# Dex route should be routed by Traefik (code may vary by Dex state, route must not be 404)
-curl_check_not_404 "/dex"
-
-# Representative API paths that should route away from web catch-all
-curl_check_not_404 "/api/v1/healthz"
-
-# Platform endpoints routed via Traefik
-curl_check_not_404 "/api/v1/onboarding/user"
-curl_check_not_404 "/api/v1/admin/onboarding/tokens"
-curl_check_not_404 "/api/v1/users/reset_password"
-
-curl_check_not_404 "/api/v1/organizations/test/workspaces/test/jobs"
+IFS=',' read -r -a paths <<<"${SMOKE_PATHS}"
+for path in "${paths[@]}"; do
+	curl_check_not_404 "${path}"
+done
 
 echo "Traefik smoke checks completed successfully."

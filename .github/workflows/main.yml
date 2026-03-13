@@ -249,6 +249,39 @@ jobs:
       publish_binaries: ${{ fromJSON(needs.get-vars.outputs.publish_binaries) }} # fromJSON is required to cast string to boolean
       registry: ${{ needs.get-vars.outputs.registry }}
 
+  compose-smoke:
+    name: Compose smoke
+    needs: get-vars
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Docker compose config
+        run: make compose-config
+
+      - name: Start compose stack
+        run: docker compose up -d --build
+
+      - name: Wait for startup
+        run: sleep 30
+
+      - name: Run compose smoke
+        env:
+          SMOKE_PATHS: /,/dex,/api/v1/healthz,/api/v1/onboarding/user,/api/v1/admin/onboarding/tokens,/api/v1/users/reset_password,/api/v1/organizations/test/workspaces/test/jobs
+        run: make compose-smoke
+
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose down -v
+
   success:
     name: Required status checks
     needs:
@@ -256,6 +289,7 @@ jobs:
       - component-workflow
       - web-ui-workflow
       - package-distribution-workflow
+      - compose-smoke
     permissions:
       discussions: write # to publish discussion/daily build
     runs-on: ubuntu-latest

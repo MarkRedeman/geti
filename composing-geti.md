@@ -511,12 +511,26 @@ Can be switched to Docker-backed execution in a follow-up (`LOCAL_EXECUTOR_MODE=
 
 ## Phase 8 — Cutover + docs
 
-- [ ] Make compose path default in onboarding docs.
-- [ ] Document mock-auth behavior and limitations.
-- [ ] Document unsupported/placeholder features and migration status.
-- [ ] Add CI compose smoke target.
+- [x] Make compose path default in onboarding docs.
+- [x] Document mock-auth behavior and limitations.
+- [x] Document unsupported/placeholder features and migration status.
+- [x] Add CI compose smoke target.
 
 **Acceptance:** New developer can follow docs and run platform locally with compose only.
+
+### Phase 8 implementation notes (completed)
+
+- Updated onboarding docs to make compose the default local path:
+  - `CONTRIBUTING.md` (compose-first setup and commands)
+  - `README.md` (compose local development entry in Getting Started)
+- Added explicit mock-auth local-only documentation and limitations in `CONTRIBUTING.md`.
+- Added explicit compose-mode unsupported/placeholder features section in `CONTRIBUTING.md` and linked migration status to this document.
+- Added CI compose smoke job in `.github/workflows/main.yml`:
+  - validates `make compose-config`
+  - starts compose stack
+  - runs `make compose-smoke`
+  - always tears down stack
+- Updated smoke script to support configurable path lists via `SMOKE_PATHS` env (used by CI).
 
 ---
 
