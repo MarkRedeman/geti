@@ -545,6 +545,12 @@ Train status caveat:
 
 - current train Celery path includes a stubbed evaluate/infer bridge in compose mode (registration/inference-heavy substeps are still bypassed).
 
+Train safety safeguards added:
+
+- evaluate stage now checks that base model status is in `TRAINED_NO_STATS`/`SUCCESS` before running.
+- finalize stage is skipped on retry if model status is no longer `NOT_READY`, to avoid double-finalize state corruption.
+- evaluate stub mode is now explicit via `WORKFLOW_EVALUATE_STUB` env in jobs worker compose config.
+
 Important note on current scope:
 
 - train / optimize / model-test jobs are **not** yet moved to real Celery workflow execution.

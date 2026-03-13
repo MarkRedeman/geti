@@ -532,6 +532,7 @@ services:
       BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
       WEIGHTS_URL: https://storage.geti.intel.com/weights
       MODEL_CACHE_DIR: /home/non-root/.cache/torch/hub/checkpoints
+      WORKFLOW_EVALUATE_STUB: "true"
       DATABASE_ADDRESS: ${DATABASE_ADDRESS}
       DATABASE_USERNAME: ${DATABASE_USERNAME}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}

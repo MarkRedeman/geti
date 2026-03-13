@@ -142,6 +142,20 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
     _ = subprocess.run(cmd, check=True, timeout=3600)  # noqa: S603
 
 
+def _should_run_train_finalize(prep_result: dict) -> bool:
+    from geti_types import ID
+    from iai_core.entities.model import ModelStatus
+    from iai_core.repos import ModelRepo
+    from job.utils.train_workflow_data import TrainWorkflowData
+    from jobs_common_extras.experiments.utils.train_output_models import TrainOutputModelIds
+
+    train_data = TrainWorkflowData.from_json(prep_result["train_data_json"])
+    train_output_model_ids = TrainOutputModelIds.from_json(prep_result["train_output_model_ids_json"])
+    model_repo = ModelRepo(train_data.get_model_storage_identifier())
+    base_model = model_repo.get_by_id(ID(train_output_model_ids.base))
+    return base_model.model_status == ModelStatus.NOT_READY
+
+
 def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
     image = _train_workflow_image()
     if not image:
@@ -246,7 +260,8 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
         if prep_result is None:
             raise RuntimeError("Train prep stage did not emit TRAIN_PREP_RESULT")
         _run_train_trainer_container(payload=payload)
-        _run_train_finalize_stage(payload=payload, prep_result=prep_result)
+        if _should_run_train_finalize(prep_result=prep_result):
+            _run_train_finalize_stage(payload=payload, prep_result=prep_result)
         _run_train_evaluate_stage(payload=payload, prep_result=prep_result)
     else:
         duration = float(payload.get("sim_duration_sec", 2))

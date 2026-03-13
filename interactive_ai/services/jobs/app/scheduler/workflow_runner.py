@@ -10,6 +10,16 @@ _TRAIN_PREP_RESULT_PREFIX = "TRAIN_PREP_RESULT="
 _WORKFLOW_EVALUATE_STUB = os.environ.get("WORKFLOW_EVALUATE_STUB", "true").lower() == "true"
 
 
+def _is_train_ready_for_evaluate(train_data, train_output_model_ids) -> bool:  # noqa: ANN001
+    from geti_types import ID
+    from iai_core.entities.model import ModelStatus
+    from iai_core.repos import ModelRepo
+
+    model_repo = ModelRepo(train_data.get_model_storage_identifier())
+    base_model = model_repo.get_by_id(ID(train_output_model_ids.base))
+    return base_model.model_status in {ModelStatus.TRAINED_NO_STATS, ModelStatus.SUCCESS}
+
+
 def _load_payload() -> dict:
     return json.loads(os.environ["WORKFLOW_PAYLOAD_JSON"])
 
@@ -138,6 +148,12 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                 job_id=os.environ.get("JOB_METADATA_ID", prep.get("job_id", "")),
                 train_output_model_ids=train_output_model_ids,
             )
+
+            if not _is_train_ready_for_evaluate(train_data=train_data, train_output_model_ids=train_output_model_ids):
+                raise RuntimeError(
+                    "Evaluate stage started before training finalization. "
+                    "Base model is not in TRAINED_NO_STATS/SUCCESS state."
+                )
 
             evaluate_patch = (
                 patch(
