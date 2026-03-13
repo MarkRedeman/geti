@@ -72,6 +72,11 @@ services:
       additional_contexts:
         - credit_system=./libs/grpc_interfaces/src/grpc_interfaces/credit_system/go
         - account_service_grpc=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.platform-account.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/logout/?$`) || PathRegexp(`^/api/v[0-9]+/profile/?$`) || PathRegexp(`^/api/v[0-9]+/personal_access_tokens(/.*)?$`))"
+      - "traefik.http.routers.platform-account.priority=90"
+      - "traefik.http.services.platform-account.loadbalancer.server.port=5002"
 
   platform_auth_proxy:
     image: ${REGISTRY-ghcr.io/geti}/platform_auth_proxy:${TAG-main}
@@ -93,6 +98,11 @@ services:
       #AUD_EXTERNAL: ...
       #REQUIRED_ROLES: ...
       #HTTP_SERVER_PORT: 7002
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.platform-auth-proxy.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/set_cookie/?$`)"
+      - "traefik.http.routers.platform-auth-proxy.priority=100"
+      - "traefik.http.services.platform-auth-proxy.loadbalancer.server.port=7002"
 
   platform_credit:
     image: ${REGISTRY-ghcr.io/geti}/platform_credit:${TAG-main}
@@ -117,6 +127,11 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.platform-observability.rule=Host(`geti.localhost`) && PathPrefix(`/api/v1/logs`)"
+      - "traefik.http.routers.platform-observability.priority=55"
+      - "traefik.http.services.platform-observability.loadbalancer.server.port=9000"
 
   platform_onboarding:
     image: ${REGISTRY-ghcr.io/geti}/platform_onboarding:${TAG-main}
@@ -143,6 +158,11 @@ services:
       additional_contexts:
         - libs=./libs
         - platform_libs=./platform/libs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.platform-user-directory.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/users/reset_password/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/create/?$`) || PathRegexp(`^/api/v[0-9]+/users/.*/update_password/?$`) || PathRegexp(`^/api/v[0-9]+/users/confirm_registration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/invitations/?$`) || PathPrefix(`/confirm-action/registration/reset-password`))"
+      - "traefik.http.routers.platform-user-directory.priority=85"
+      - "traefik.http.services.platform-user-directory.loadbalancer.server.port=9000"
 
   # IAI Services
   # 
@@ -163,6 +183,11 @@ services:
       additional_contexts:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`))"
+      - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
+      - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
 
   interactive_ai_director:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/director:${TAG-main}
@@ -174,6 +199,11 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - supported_models=./interactive_ai/supported_models/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
+      - "traefik.http.routers.interactive-ai-director.priority=65"
+      - "traefik.http.services.interactive-ai-director.loadbalancer.server.port=4999"
 
   interactive_ai_inference_gateway:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/inference_gateway:${TAG-main}
@@ -185,6 +215,11 @@ services:
         - modelmesh=./libs/grpc_interfaces/src/grpc_interfaces/model_mesh/go/pb
         - modelregistration=./libs/grpc_interfaces/src/grpc_interfaces/model_registration/go/pb
         - predict=./libs/grpc_interfaces/src/grpc_interfaces/predict/go/pb
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-inference-gateway.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`))"
+      - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
+      - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
 
   interactive_ai_jobs:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -194,6 +229,11 @@ services:
       additional_contexts:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`)"
+      - "traefik.http.routers.interactive-ai-jobs.priority=70"
+      - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
 
   interactive_ai_media:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/media:${TAG-main}
@@ -202,6 +242,11 @@ services:
       <<: *proxies
       additional_contexts:
         - iai_core=./interactive_ai/libs/iai_core_go/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-media.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/media/images/.*/display/(full|thumb)$`)"
+      - "traefik.http.routers.interactive-ai-media.priority=70"
+      - "traefik.http.services.interactive-ai-media.loadbalancer.server.port=5002"
 
   interactive_ai_mlflow_geti_store:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/mlflow_geti_store:${TAG-main}
@@ -225,6 +270,11 @@ services:
       additional_contexts:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
+      - "traefik.http.routers.interactive-ai-project-ie.priority=75"
+      - "traefik.http.services.interactive-ai-project-ie.loadbalancer.server.port=8000"
 
   interactive_ai_resource:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/resource:${TAG-main}
@@ -236,6 +286,11 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathPrefix(`/api/`))"
+      - "traefik.http.routers.interactive-ai-resource.priority=50"
+      - "traefik.http.services.interactive-ai-resource.loadbalancer.server.port=5000"
 
   interactive_ai_visual_prompt:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/visual_prompt:${TAG-main}
@@ -246,6 +301,11 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-visual-prompt.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:prompt$`)"
+      - "traefik.http.routers.interactive-ai-visual-prompt.priority=80"
+      - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
 
   # IAI Workflows
   # 
@@ -338,6 +398,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.geti-web.rule=(Host(`geti.localhost`) && !(PathPrefix(`/dex`))) || Host(`web.geti.localhost`)"
+      - "traefik.http.routers.geti-web.priority=1"
       - "traefik.http.services.geti-web.loadbalancer.server.port=3000"
 
 
@@ -440,6 +501,13 @@ services:
       - "8333:8333"
     volumes:
       - s3_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fileservice.rule=Host(`geti.localhost`) && PathPrefix(`/api/v1/fileservice/`)"
+      - "traefik.http.routers.fileservice.priority=60"
+      - "traefik.http.routers.fileservice.middlewares=fileservice-strip@docker"
+      - "traefik.http.middlewares.fileservice-strip.stripprefix.prefixes=/api/v1/fileservice"
+      - "traefik.http.services.fileservice.loadbalancer.server.port=8333"
 
   spicedb:
     image: authzed/spicedb:v1.34.0

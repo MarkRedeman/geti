@@ -256,14 +256,39 @@ Use this as the operational checklist for the current migration branch.
 
 ## Phase 2.1 — Reverse proxy and ingress parity (Traefik)
 
-- [ ] Define Traefik as the single entrypoint for local compose (HTTP first, TLS optional).
-- [ ] Add/verify router rules for all externally reachable APIs and web paths.
-- [ ] Mirror key ingress path behavior from Kubernetes (host/path routing expectations).
-- [ ] Ensure auth/mock-auth related routes are reachable through Traefik (including onboarding/user flows).
+- [x] Define Traefik as the single entrypoint for local compose (HTTP first, TLS optional).
+- [x] Add/verify router rules for all externally reachable APIs and web paths.
+- [x] Mirror key ingress path behavior from Kubernetes (host/path routing expectations).
+- [x] Ensure auth/mock-auth related routes are reachable through Traefik (including onboarding/user flows).
 - [ ] Add health and smoke checks through Traefik endpoints (not direct container ports).
-- [ ] Document route map (`host/path -> service:port`) in compose migration docs.
+- [x] Document route map (`host/path -> service:port`) in compose migration docs.
 
 **Acceptance:** Core UI/API flows work end-to-end through Traefik exactly as the local ingress layer.
+
+### Phase 2.1 route map (implemented in compose labels)
+
+Primary host: `geti.localhost`
+
+- `/dex` -> `dex:5556`
+- `/api/v*/set_cookie` -> `platform_auth_proxy:7002`
+- account API paths (`/api/v*/organizations*`, `/logout`, `/profile`, `/personal_access_tokens*`) -> `platform_account:5002`
+- user-directory paths (`/api/v*/users/reset_password`, `/users/*/update_password`, `/users/confirm_registration`, `/organizations/*/users/*`) -> `platform_user_directory:9000`
+- `/api/v1/logs*` -> `platform_observability:9000`
+- director API train/optimize/status/configuration paths -> `interactive_ai_director:4999`
+- jobs API (`/api/v*/.../workspaces/.../jobs*`) -> `interactive_ai_jobs:8000`
+- media display paths -> `interactive_ai_media:5002`
+- inference paths (`pipelines/models` predict/explain/status) -> `interactive_ai_inference_gateway:7000`
+- visual prompt path (`...:prompt`) -> `interactive_ai_visual_prompt:8000`
+- dataset import/export paths -> `interactive_ai_dataset_import_export:8000`
+- project import/export paths -> `interactive_ai_project_import_export:8000`
+- file service prefix `/api/v1/fileservice/` (with strip-prefix middleware) -> `s3:8333`
+- generic API fallback `/api/*` -> `interactive_ai_resource:5000`
+- web catch-all -> `web:3000`
+
+Auxiliary hosts:
+
+- `auth.geti.localhost` -> `authelia:9091`
+- `traefik.localhost` -> Traefik dashboard/API
 
 ## Phase 3 — MongoDB bootstrap automation
 
