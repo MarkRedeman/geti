@@ -353,8 +353,17 @@ Traefik smoke validation command:
 
 Remaining for full Phase 4 acceptance:
 
-- Provide/generate local JWT cert files for `platform_auth_proxy` mount at `./infrastructure/data/auth_proxy/certs/{tls.crt,tls.key}`.
-- Add a platform-focused smoke run proving account/onboarding/user-directory calls succeed end-to-end through Traefik.
+- [x] Provide/generate local JWT cert files for `platform_auth_proxy` mount at `./infrastructure/data/auth_proxy/certs/{tls.crt,tls.key}`.
+- [x] Add a platform-focused smoke run proving account/onboarding/user-directory calls succeed end-to-end through Traefik.
+
+Commands added:
+
+- `make compose-prepare-certs`
+- `make compose-bootstrap` (now prepares certs before running migration bootstrap)
+- `make compose-smoke` now includes platform-routed endpoints:
+  - `/api/v1/onboarding/user`
+  - `/api/v1/admin/onboarding/tokens`
+  - `/api/v1/users/reset_password`
 
 ## Phase 5 — Mark K8s/Flyte dependent features explicitly unavailable
 

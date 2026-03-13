@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+echo "Preparing local auth proxy certificates..."
+bash infrastructure/compose-prepare-certs.sh
+
 echo "Starting compose infra prerequisites..."
 docker compose up -d mongodb kafka s3
 

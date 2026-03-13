@@ -45,6 +45,11 @@ curl_check_not_404 "/dex"
 # Representative API paths that should route away from web catch-all
 curl_check_not_404 "/api/v1/healthz"
 
+# Platform endpoints routed via Traefik
+curl_check_not_404 "/api/v1/onboarding/user"
+curl_check_not_404 "/api/v1/admin/onboarding/tokens"
+curl_check_not_404 "/api/v1/users/reset_password"
+
 curl_check_not_404 "/api/v1/organizations/test/workspaces/test/jobs"
 
 echo "Traefik smoke checks completed successfully."
