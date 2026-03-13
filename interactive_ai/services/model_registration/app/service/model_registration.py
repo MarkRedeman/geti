@@ -252,6 +252,7 @@ class ModelRegistration(ModelRegistrationServicer):
         """
         List existing pipelines
         """
+        await _abort_if_compose_mode(context=context, operation="model_registration.list_pipelines")
         try:
             inference = InferenceManager()
             pipelines = await inference.list_inference(namespace=MODELMESH_NAMESPACE)

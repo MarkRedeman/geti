@@ -394,6 +394,7 @@ Current status: **partial** (first high-impact subset implemented).
   - gRPC model-registration endpoints now abort with `UNIMPLEMENTED` in compose mode.
 - Added tests for unavailable-path behavior:
   - `interactive_ai/services/model_registration/tests/unit/test_model_registration.py::test_register_new_pipelines_compose_mode_aborts`
+  - `interactive_ai/services/model_registration/tests/unit/test_model_registration.py::test_list_pipeline_compose_mode_aborts`
   - `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_recovery.py::test_check_and_recover_workspace_jobs_if_needed_compose_mode`
 
 Additional unavailable-path guard coverage added:

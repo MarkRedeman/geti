@@ -177,6 +177,25 @@ async def test_list_pipeline(list_inference, model_registration, servicer_contex
 
 
 @pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_list_pipeline_compose_mode_aborts(model_registration, servicer_context):
+    servicer_context.abort.side_effect = RuntimeError("aborted")
+
+    req = ListRequest()
+
+    with pytest.raises(RuntimeError, match="aborted"):
+        await model_registration.list_pipelines(req, servicer_context)
+
+    servicer_context.abort.assert_awaited_once_with(
+        grpc.StatusCode.UNIMPLEMENTED,
+        details=(
+            "Feature unavailable in compose mode: model_registration.list_pipelines. "
+            "This path currently requires Kubernetes/Flyte."
+        ),
+    )
+
+
+@pytest.mark.asyncio
 @patch("service.model_registration.InferenceManager.list_inference")
 async def test_list_pipeline_fail(list_inference, model_registration, servicer_context):
     list_inference.side_effect = ApiException()
