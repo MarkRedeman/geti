@@ -4,7 +4,6 @@
 import json
 import os
 import subprocess
-import time
 
 from scheduler.celery_app import celery_app
 
@@ -377,10 +376,10 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
 @celery_app.task(bind=True, name="scheduler.run_job_execution")
 def run_job_execution(self, execution_name: str, job_type: str, payload: dict):  # noqa: ANN001
     """
-    Transitional Celery task for compose mode.
+    Compose-mode Celery executor.
 
-    Dispatches import/export, model-test, and train-preflight job types to workflow runtime containers.
-    Other job types remain in simulation fallback for now.
+    Dispatches supported job types to workflow runtime containers.
+    Unsupported job types fail fast to avoid silent simulation fallback.
     """
     if job_type in _IMPORT_EXPORT_JOB_TYPES or job_type in _MODEL_TEST_JOB_TYPES:
         _run_import_export_in_container(job_type=job_type, payload=payload)
@@ -410,6 +409,8 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
         _run_optimize_finalize_stage(payload=payload, prep_result=prep_result)
         _run_optimize_evaluate_stage(payload=payload, prep_result=prep_result)
     else:
-        duration = float(payload.get("sim_duration_sec", 2))
-        time.sleep(duration)
+        raise RuntimeError(
+            f"Unsupported compose Celery job type: {job_type}. "
+            "No simulation fallback is enabled for unsupported job types."
+        )
     return {"execution_name": execution_name, "status": "succeeded"}

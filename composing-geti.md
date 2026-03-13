@@ -558,12 +558,16 @@ Celery execution status (current):
 - train bridge now also launches the trainer runtime container step (OTX runtime image command execution).
 - train bridge now also runs a post-trainer finalize stage (`finalize_train`) using the train workflow runtime container.
 - train bridge now includes a compose-safe evaluate stage hook using the train workflow runtime container.
-- optimize job type still uses simulation fallback while dedicated execution runner is being integrated.
 - optimize_pot now runs a staged Celery workflow-container bridge:
   - optimize prepare (`prepare_optimize`)
   - trainer runtime stage (`JOB_TYPE=optimize_pot`)
   - optimize finalize (`finalize_optimize`)
   - optimize evaluate (`_evaluate_optimized_model`)
+
+Celery compose fallback policy:
+
+- unsupported job types now fail fast with explicit runtime error in `celery_tasks`.
+- silent simulation fallback in Celery path has been removed to avoid hiding unported runtime behavior.
 
 Train status caveat:
 
@@ -600,8 +604,8 @@ Required compose wiring for real registration path:
 
 Important note on current scope:
 
-- train / optimize / model-test jobs are **not** yet moved to real Celery workflow execution.
-- they continue to run via compose simulation fallback until dedicated adapters are implemented and validated.
+- train / optimize / model-test / import-export run through real staged Celery workflow-container execution in compose.
+- any job type outside the supported set now fails fast in Celery mode until explicitly ported.
 
 New files:
 

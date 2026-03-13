@@ -156,3 +156,8 @@ def test_run_optimize_trainer_container_requires_runtime_image(monkeypatch):
 
     with pytest.raises(RuntimeError, match="TRAINER_RUNTIME_IMAGE"):
         celery_tasks._run_optimize_trainer_container(payload={"project_id": "project-1"})  # noqa: SLF001
+
+
+def test_run_job_execution_unsupported_type_fails_fast():
+    with pytest.raises(RuntimeError, match="Unsupported compose Celery job type"):
+        celery_tasks.run_job_execution.run("execution-1", "unknown_job_type", {})
