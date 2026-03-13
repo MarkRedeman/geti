@@ -96,6 +96,25 @@ class S3Client:
             logger.error(err)
             raise err
 
+    def download_folder(self, bucket_name: str, object_key: str, local_folder_path: str):  # noqa: ANN201
+        """Downloads all objects from a folder prefix to local path"""
+        prefix = object_key if object_key.endswith("/") else f"{object_key}/"
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    rel_key = key.removeprefix(prefix)
+                    if rel_key == "":
+                        continue
+                    local_path = os.path.join(local_folder_path, rel_key)
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    self.client.download_file(bucket_name, key, local_path)
+                    logger.info(f"Downloaded s3://{bucket_name}/{key} to {local_path}")
+        except ClientError as err:
+            logger.error(err)
+            raise err
+
     def delete_folder(self, bucket_name: str, object_key: str):  # noqa: ANN201
         """Deletes folder on s3"""
         try:

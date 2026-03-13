@@ -2,12 +2,13 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import logging
 import os
 import pathlib
 import shutil
 import sys
+import tempfile
 from collections.abc import AsyncGenerator
 from zipfile import BadZipFile
 
@@ -36,6 +37,7 @@ from kubernetes_asyncio.client.rest import ApiException
 from service.config import DEPLOYMENT_MODE, MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
 from service.inference_manager import InferenceManager
 from service.model_converter import GraphVariant, ModelConverter, UnsupportedModelType
+from service.ovms_config import OvmsConfigManager
 from service.responses import Responses
 from service.s3client import S3Client
 
@@ -59,6 +61,7 @@ class ModelRegistration(ModelRegistrationServicer):
     def __init__(self) -> None:
         self.s3 = S3Client()
         self.converter = ModelConverter(self.s3)
+        self.ovms = OvmsConfigManager()
         super().__init__()
 
     def make_error(self, code: ErrorCode.ValueType) -> Error:
@@ -80,7 +83,7 @@ class ModelRegistration(ModelRegistrationServicer):
         payload = {
             "pipeline_name": pipeline_name,
             "project_id": project_id,
-            "created_at": datetime.now(tz=UTC).isoformat(),
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
             "deployment_mode": DEPLOYMENT_MODE,
         }
         self.s3.put_json_object(bucket_name=S3_BUCKETNAME, object_key=_registry_key(pipeline_name), payload=payload)
@@ -106,8 +109,18 @@ class ModelRegistration(ModelRegistrationServicer):
 
                 if existing and req.override:
                     self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=pipeline_name)
+                    self.ovms.remove_model(pipeline_name=pipeline_name)
+                    self.ovms.remove_model_directory(pipeline_name=pipeline_name)
 
-                self.converter.process_model(name=pipeline_name, models=req.model, project=req.project)
+                export_dir = self.converter.prepare_graph(project=req.project, models=req.model)
+                try:
+                    self.s3.upload_folder(
+                        bucket_name=S3_BUCKETNAME, object_key=pipeline_name, local_folder_path=export_dir
+                    )
+                    self.ovms.sync_model_directory(pipeline_name=pipeline_name, source_dir=export_dir)
+                finally:
+                    self.converter._delete_dir(dir_path=export_dir)
+                self.ovms.add_model(pipeline_name=pipeline_name)
                 self._write_registry_record(pipeline_name=pipeline_name, project_id=req.project.id)
                 return StatusResponse(status=Responses.Created)
 
@@ -238,6 +251,8 @@ class ModelRegistration(ModelRegistrationServicer):
         try:
             if _is_compose_mode():
                 self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=request.name)
+                self.ovms.remove_model(pipeline_name=request.name)
+                self.ovms.remove_model_directory(pipeline_name=request.name)
                 return StatusResponse(status=Responses.Removed)
 
             inference = InferenceManager()
@@ -307,6 +322,15 @@ class ModelRegistration(ModelRegistrationServicer):
         if _is_compose_mode():
             pipeline_name = request.name
             if self.s3.check_folder_exists(bucket_name=S3_BUCKETNAME, object_key=pipeline_name):
+                export_dir = tempfile.mkdtemp(prefix="recover-", dir="/tmp")
+                try:
+                    self.s3.download_folder(
+                        bucket_name=S3_BUCKETNAME, object_key=pipeline_name, local_folder_path=export_dir
+                    )
+                    self.ovms.sync_model_directory(pipeline_name=pipeline_name, source_dir=export_dir)
+                finally:
+                    self.converter._delete_dir(dir_path=export_dir)
+                self.ovms.add_model(pipeline_name=pipeline_name)
                 self._write_registry_record(pipeline_name=pipeline_name)
                 logger.info(f"Model `{pipeline_name}` recovered successfully in compose mode")
                 return RecoverResponse(success=True)
@@ -356,6 +380,8 @@ class ModelRegistration(ModelRegistrationServicer):
             for folder_name in project_folder_names:
                 try:
                     self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=folder_name)
+                    self.ovms.remove_model(pipeline_name=folder_name)
+                    self.ovms.remove_model_directory(pipeline_name=folder_name)
                 except ClientError as err:
                     logger.error(
                         f"Failed to remove inference model artifact folder {folder_name}. "

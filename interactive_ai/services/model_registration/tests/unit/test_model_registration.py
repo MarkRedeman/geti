@@ -35,7 +35,12 @@ def converter(mocker):
 
 
 @pytest.fixture
-def model_registration(s3_client, converter):
+def ovms_manager(mocker):
+    return mocker.patch("service.model_registration.OvmsConfigManager")
+
+
+@pytest.fixture
+def model_registration(s3_client, converter, ovms_manager):
     return ModelRegistration()
 
 
@@ -115,6 +120,7 @@ async def test_register_new_pipelines_compose_mode_creates(model_registration, s
     req = RegisterRequest(name="test", override=False)
     response = await model_registration.register_new_pipelines(req, servicer_context)
     assert response.status == Responses.Created
+    s3_client.return_value.upload_folder.assert_called_once()
     s3_client.return_value.put_json_object.assert_called_once()
 
 
@@ -136,6 +142,7 @@ async def test_register_new_pipelines_compose_mode_override(model_registration, 
     response = await model_registration.register_new_pipelines(req, servicer_context)
     assert response.status == Responses.Created
     s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key="test")
+    s3_client.return_value.upload_folder.assert_called_once()
     s3_client.return_value.put_json_object.assert_called_once()
 
 
@@ -262,6 +269,7 @@ async def test_recover_pipelines_compose_success(model_registration, servicer_co
     req = RecoverRequest(name="test")
     response = await model_registration.recover_pipeline(req, servicer_context)
     assert response.success is True
+    s3_client.return_value.download_folder.assert_called_once()
     s3_client.return_value.put_json_object.assert_called_once()
 
 

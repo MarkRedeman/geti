@@ -134,3 +134,14 @@ def test_list_registry_folders(s3_client):
 
     names = s3_client.list_registry_folders("registry-bucket")
     assert names == ["p1", "p2"]
+
+
+def test_download_folder(s3_client, tmp_path):
+    s3_client.client.create_bucket(Bucket="download-bucket")
+    s3_client.client.put_object(Bucket="download-bucket", Key="pipeline/a.txt", Body="A")
+    s3_client.client.put_object(Bucket="download-bucket", Key="pipeline/sub/b.txt", Body="B")
+
+    s3_client.download_folder("download-bucket", "pipeline", str(tmp_path))
+
+    assert (tmp_path / "a.txt").read_text() == "A"
+    assert (tmp_path / "sub" / "b.txt").read_text() == "B"

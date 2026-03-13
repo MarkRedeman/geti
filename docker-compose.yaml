@@ -630,9 +630,12 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       BUCKET_NAME_MODELMESH: ${S3_BUCKET}
+      OVMS_MODELS_DIR: /ovms_models
     depends_on:
       migration_job:
         condition: service_completed_successfully
+    volumes:
+      - ./infrastructure/data/ovms:/ovms_models
 
   ovms:
     image: openvino/model_server:latest
