@@ -529,7 +529,9 @@ Celery execution status (current):
   - `perform_import_to_existing_project`
   - `export_project`
   - `import_project`
-- non-import/export job types still use simulation fallback while train/optimize/test execution runners are being integrated.
+- model-test job type is now routed through Celery workflow runtime container:
+  - `test`
+- train/optimize job types still use simulation fallback while dedicated execution runners are being integrated.
 
 Important note on current scope:
 
