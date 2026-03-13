@@ -115,13 +115,17 @@ async def test_register_new_pipelines_error(get_inference, model_registration, s
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_register_new_pipelines_compose_mode_creates(model_registration, servicer_context, s3_client):
+async def test_register_new_pipelines_compose_mode_creates(
+    model_registration, servicer_context, s3_client, ovms_manager
+):
     s3_client.return_value.get_json_object.return_value = None
     req = RegisterRequest(name="test", override=False)
     response = await model_registration.register_new_pipelines(req, servicer_context)
     assert response.status == Responses.Created
     s3_client.return_value.upload_folder.assert_called_once()
     s3_client.return_value.put_json_object.assert_called_once()
+    ovms_manager.return_value.sync_model_directory.assert_called_once()
+    ovms_manager.return_value.add_model.assert_called_once_with(pipeline_name="test")
 
 
 @pytest.mark.asyncio
@@ -136,7 +140,9 @@ async def test_register_new_pipelines_compose_mode_already_registered(model_regi
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_register_new_pipelines_compose_mode_override(model_registration, servicer_context, s3_client):
+async def test_register_new_pipelines_compose_mode_override(
+    model_registration, servicer_context, s3_client, ovms_manager
+):
     s3_client.return_value.get_json_object.return_value = {"pipeline_name": "test"}
     req = RegisterRequest(name="test", override=True)
     response = await model_registration.register_new_pipelines(req, servicer_context)
@@ -144,6 +150,10 @@ async def test_register_new_pipelines_compose_mode_override(model_registration, 
     s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key="test")
     s3_client.return_value.upload_folder.assert_called_once()
     s3_client.return_value.put_json_object.assert_called_once()
+    ovms_manager.return_value.remove_model.assert_called_once_with(pipeline_name="test")
+    ovms_manager.return_value.remove_model_directory.assert_called_once_with(pipeline_name="test")
+    ovms_manager.return_value.sync_model_directory.assert_called_once()
+    ovms_manager.return_value.add_model.assert_called_once_with(pipeline_name="test")
 
 
 @pytest.mark.asyncio
@@ -172,11 +182,13 @@ async def test_deregister_pipeline_faile(remove_inference, model_registration, s
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_deregister_pipeline_compose(model_registration, servicer_context, s3_client):
+async def test_deregister_pipeline_compose(model_registration, servicer_context, s3_client, ovms_manager):
     req = DeregisterRequest(name="test")
     response = await model_registration.deregister_pipeline(req, servicer_context)
     assert response.status == Responses.Removed
     s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key="test")
+    ovms_manager.return_value.remove_model.assert_called_once_with(pipeline_name="test")
+    ovms_manager.return_value.remove_model_directory.assert_called_once_with(pipeline_name="test")
 
 
 @pytest.mark.asyncio
@@ -264,23 +276,27 @@ async def test_recover_pipelines_no_recover(list_inference, model_registration, 
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_recover_pipelines_compose_success(model_registration, servicer_context, s3_client):
+async def test_recover_pipelines_compose_success(model_registration, servicer_context, s3_client, ovms_manager):
     s3_client.return_value.check_folder_exists.return_value = True
     req = RecoverRequest(name="test")
     response = await model_registration.recover_pipeline(req, servicer_context)
     assert response.success is True
     s3_client.return_value.download_folder.assert_called_once()
     s3_client.return_value.put_json_object.assert_called_once()
+    ovms_manager.return_value.sync_model_directory.assert_called_once()
+    ovms_manager.return_value.add_model.assert_called_once_with(pipeline_name="test")
 
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_recover_pipelines_compose_not_found(model_registration, servicer_context, s3_client):
+async def test_recover_pipelines_compose_not_found(model_registration, servicer_context, s3_client, ovms_manager):
     s3_client.return_value.check_folder_exists.return_value = False
     req = RecoverRequest(name="test")
     response = await model_registration.recover_pipeline(req, servicer_context)
     assert response.success is False
     s3_client.return_value.put_json_object.assert_not_called()
+    ovms_manager.return_value.sync_model_directory.assert_not_called()
+    ovms_manager.return_value.add_model.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -306,12 +322,14 @@ async def test_delete_project_pipelines(
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_delete_project_pipelines_compose(model_registration, servicer_context, s3_client):
+async def test_delete_project_pipelines_compose(model_registration, servicer_context, s3_client, ovms_manager):
     s3_client.return_value.list_folders.return_value = ["test-model1", "test-model2", "other-model"]
     req = PurgeProjectRequest(project_id="test")
     response = await model_registration.delete_project_pipelines(req, servicer_context)
     assert response.success is True
     assert s3_client.return_value.delete_folder.call_count == 2
+    assert ovms_manager.return_value.remove_model.call_count == 2
+    assert ovms_manager.return_value.remove_model_directory.call_count == 2
 
 
 @pytest.mark.asyncio
