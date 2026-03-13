@@ -367,17 +367,16 @@ Commands added:
 
 ## Phase 5 — Mark K8s/Flyte dependent features explicitly unavailable
 
-- [ ] Add compose-mode guards in all files listed under K8s/Flyte coupling sections.
-- [ ] Return 501/503 + explicit logs for unimplemented paths.
-- [ ] Ensure error messages are consistent and discoverable.
-- [ ] Add one integration smoke test covering unavailable-path response behavior.
+- [x] Add compose-mode guards in all files listed under K8s/Flyte coupling sections.
+- [x] Return 501/503 + explicit logs for unimplemented paths.
+- [x] Ensure error messages are consistent and discoverable.
 - [x] Add one integration smoke test covering unavailable-path response behavior.
 
 **Acceptance:** No hidden hangs/crashes; unsupported features fail fast with actionable logs.
 
-### Phase 5 implementation notes (in progress)
+### Phase 5 implementation notes (completed)
 
-Current status: **partial** (first high-impact subset implemented).
+Current status: **completed**.
 
 - Added compose-mode (`DEPLOYMENT_MODE=compose`) fail-fast guards for jobs scheduler Flyte paths:
   - `interactive_ai/services/jobs/app/scheduler/flyte.py`
@@ -411,6 +410,13 @@ Additional unavailable-path guard coverage added:
   - `platform/services/user_directory/app/service_connection/k8s_client/apis.py` (fail-fast K8s API init in compose)
   - `platform/services/observability/app/service_connection/k8s_client/apis.py` (fail-fast K8s API init in compose)
   - `platform/services/observability/app/service_connection/k8s_client/cluster_info.py` (fail-fast cluster dump path in compose)
+  - `interactive_ai/services/jobs/app/scheduler/loops/scheduling.py` (skip scheduling loop in compose)
+  - `interactive_ai/services/jobs/app/scheduler/loops/revert_scheduling.py` (skip revert scheduling loop in compose)
+
+Compose-compatible fallback added (instead of hard failure):
+
+- `platform/services/user_directory/app/service_connection/smtp_client.py`
+  - in compose mode, SMTP config now comes from environment variables instead of Kubernetes secrets.
 
 Additional tests added:
 
@@ -421,6 +427,9 @@ Additional tests added:
 - `platform/services/user_directory/tests/unit/service_connection/k8s_client/test_apis.py::test_create_k8s_apis_compose_mode_raises`
 - `platform/services/observability/tests/unit/service_connection/k8s_client/test_apis.py::test_create_k8s_apis_compose_mode_raises`
 - `platform/services/observability/tests/unit/service_connection/k8s_client/test_cluster_info.py::test_create_cluster_info_dump_compose_mode_raises`
+- `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_scheduling.py::test_run_scheduling_loop_compose_mode_skips`
+- `interactive_ai/services/jobs/tests/unit/scheduler/loops/test_revert_scheduling.py::test_run_revert_scheduling_loop_compose_mode_skips`
+- `platform/services/user_directory/tests/unit/service_connection/test_smtp_client.py::test_smtp_client_compose_mode_uses_env`
 
 ## Phase 6 — Replace KServe model registration path
 

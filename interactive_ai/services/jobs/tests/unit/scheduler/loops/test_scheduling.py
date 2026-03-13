@@ -67,6 +67,29 @@ def test_run_revert_scheduling_loop_none(
     mock_schedule_main_job.assert_not_called()
 
 
+@patch("scheduler.loops.scheduling.is_compose_mode", return_value=True)
+@patch(
+    "scheduler.loops.scheduling.schedule_main_job",
+)
+@patch.object(StateMachine, "find_and_lock_job_for_scheduling")
+@patch.object(StateMachine, "__init__", new=mock_state_machine)
+def test_run_scheduling_loop_compose_mode_skips(
+    mock_find_and_lock_job_for_scheduling,
+    mock_schedule_main_job,
+    mock_is_compose_mode,
+    request,
+) -> None:
+    request.addfinalizer(reset_singletons)
+
+    # Act
+    run_scheduling_loop()
+
+    # Assert
+    mock_is_compose_mode.assert_called_once_with()
+    mock_find_and_lock_job_for_scheduling.assert_not_called()
+    mock_schedule_main_job.assert_not_called()
+
+
 @patch(
     "scheduler.loops.scheduling.schedule_main_job",
 )

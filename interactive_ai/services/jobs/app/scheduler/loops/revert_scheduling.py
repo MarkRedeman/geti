@@ -7,7 +7,7 @@ import os
 from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
 
 from model.job import Job
-from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available
+from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_revert_execution_name, resolve_revert_job
 
@@ -24,6 +24,13 @@ def run_revert_scheduling_loop() -> None:
     """
     Runs the revert scheduling loop iteration for the job scheduler
     """
+
+    if is_compose_mode():
+        logger.error(
+            "Feature unavailable in compose mode: jobs.run_revert_scheduling_loop. "
+            "This path currently requires Kubernetes/Flyte."
+        )
+        return
 
     try:
         while True:

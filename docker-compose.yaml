@@ -312,6 +312,12 @@ services:
       LOGS_DIR: /logs
       LOGGING_CONFIG_DIR: /
       USE_KUBECONFIG: "true"
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_LOGIN: ${SMTP_LOGIN}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      INVITATION_FROM_ADDRESS: no-reply@geti.intel.com
+      INVITATION_FROM_NAME: Intel Geti
     depends_on:
       openldap:
         condition: service_started

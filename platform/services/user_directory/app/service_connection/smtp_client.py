@@ -5,6 +5,7 @@
 """This module contains the implementation of the SMTP Client."""
 
 import logging
+import os
 import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -58,6 +59,19 @@ class SMTPClient:
         """
         Loads SMTP server configuration stored in k8s secret.
         """
+        if os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+            logger.warning(
+                "[COMPOSE MODE] SMTP configuration loaded from environment variables; "
+                "Kubernetes secrets path is bypassed."
+            )
+            self.from_mail = os.getenv("INVITATION_FROM_ADDRESS", "no-reply@geti.intel.com")
+            self.from_name = os.getenv("INVITATION_FROM_NAME", "Intel Geti")
+            self.smtp_port = int(os.getenv("SMTP_PORT", "1025"))
+            self.smtp_login = os.getenv("SMTP_LOGIN", "")
+            self.smtp_password = os.getenv("SMTP_PASSWORD", "")
+            self.smtp_host = os.getenv("SMTP_HOST", "mailhog")
+            return
+
         logger.debug(f"Extract SMTP server configuration from k8s `{SMTP_CONFIGURATION_SECRET}` secret.")
         smtp = get_secrets(
             name=SMTP_CONFIGURATION_SECRET,

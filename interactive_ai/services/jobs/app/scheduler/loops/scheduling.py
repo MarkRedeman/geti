@@ -8,7 +8,7 @@ from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
 
 from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available
+from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_main_execution_name, resolve_main_job
@@ -32,6 +32,13 @@ def run_scheduling_loop() -> None:
     """
     Runs the scheduling loop iteration for the job scheduler
     """
+
+    if is_compose_mode():
+        logger.error(
+            "Feature unavailable in compose mode: jobs.run_scheduling_loop. "
+            "This path currently requires Kubernetes/Flyte."
+        )
+        return
 
     try:
         logger.debug("Running job scheduler scheduling loop iteration...")
