@@ -474,6 +474,7 @@ services:
         condition: service_started
     volumes:
       - ./infrastructure/data/jobs/jobs_templates.yaml:/config/jobs_templates.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
 
   interactive_ai_jobs_policy:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -520,9 +521,37 @@ services:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      DATASET_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_ie_workflow:${TAG-main}
+      PROJECT_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_ie_workflow:${TAG-main}
+      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      MONGODB_CREDENTIALS_PROVIDER: local
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
+      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
+      S3_HOST: s3:8333
+      S3_CREDENTIALS_PROVIDER: local
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_PRESIGNED_URL_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_PRESIGNED_URL_SECRET_KEY: ${S3_SECRET_KEY}
+      JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
     depends_on:
       redis:
         condition: service_started
+      s3:
+        condition: service_started
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   redis:
     image: redis:7-alpine

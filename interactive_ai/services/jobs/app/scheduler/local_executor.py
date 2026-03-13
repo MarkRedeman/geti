@@ -41,12 +41,13 @@ import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from typing import cast
 
 from geti_kafka_tools import publish_event
 from geti_types import CTX_SESSION_VAR, ID, RequestSource, Singleton, make_session, session_context
 
 from scheduler.flyte import ExecutionType
-from scheduler.celery_tasks import run_job_execution
+from scheduler.celery_tasks import run_job_execution as run_job_execution_task
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,12 @@ class LocalExecutor(metaclass=Singleton):
             container_id = f"sim-{execution_name}"
             self._start_simulated_execution(record=record)
         elif self._run_mode == "celery":
-            result = self._start_celery_execution(execution_name=execution_name, payload=payload, record=record)
+            result = self._start_celery_execution(
+                execution_name=execution_name,
+                job_type=job_type,
+                payload=payload,
+                record=record,
+            )
             container_id = f"celery-{result.id}"
         else:
             container_id = self._launch_container(
@@ -193,11 +199,18 @@ class LocalExecutor(metaclass=Singleton):
 
         threading.Thread(target=_simulate, name=f"local-exec-sim-{record.execution_name}", daemon=True).start()
 
-    def _start_celery_execution(self, execution_name: str, payload: dict[str, Any], record: _ExecutionRecord):  # noqa: ANN001
+    def _start_celery_execution(
+        self,
+        execution_name: str,
+        job_type: str,
+        payload: dict[str, Any],
+        record: _ExecutionRecord,
+    ):  # noqa: ANN001
         self._publish_workflow_event(record, phase=PHASE_RUNNING)
         task_payload = dict(payload)
         task_payload.setdefault("sim_duration_sec", _SIM_DURATION_SEC)
-        async_result = run_job_execution.apply_async(args=[execution_name, task_payload])
+        celery_task = cast(Any, run_job_execution_task)
+        async_result = celery_task.apply_async(args=[execution_name, job_type, task_payload])
 
         def _watch_result() -> None:
             try:

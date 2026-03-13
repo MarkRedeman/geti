@@ -519,6 +519,24 @@ Execution bridge behavior:
 - LocalExecutor continues to publish synthetic workflow events (`RUNNING` -> terminal phase)
   so existing state-machine/event handlers are reused.
 
+Celery execution status (current):
+
+- dataset/project import-export job types are now routed through Celery to workflow runtime containers:
+  - `export_dataset`
+  - `prepare_import_to_new_project`
+  - `prepare_import_to_existing_project`
+  - `perform_import_to_new_project`
+  - `perform_import_to_existing_project`
+  - `export_project`
+  - `import_project`
+- non-import/export job types still use simulation fallback while train/optimize/test execution runners are being integrated.
+
+New files:
+
+- `interactive_ai/services/jobs/app/scheduler/celery_app.py`
+- `interactive_ai/services/jobs/app/scheduler/celery_tasks.py`
+- `interactive_ai/services/jobs/app/scheduler/workflow_adapters.py`
+
 ## Phase 8 — Cutover + docs
 
 - [x] Make compose path default in onboarding docs.
