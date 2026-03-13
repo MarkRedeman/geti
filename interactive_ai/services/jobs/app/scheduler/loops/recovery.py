@@ -22,6 +22,10 @@ def run_recovery_loop() -> None:
     """
 
     try:
+        if is_compose_mode():
+            logger.debug("[COMPOSE MODE] Recovery loop is disabled (Flyte recovery path not applicable)")
+            return
+
         logger.debug("Running job scheduler recovery loop...")
         ids = StateMachine().get_session_ids_with_jobs_not_in_final_state()
         for organization_id, workspace_id in ids.items():
@@ -54,9 +58,7 @@ def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     :param jobs: list of jobs to check
     """
     if is_compose_mode():
-        logger.error(
-            "Feature unavailable in compose mode: jobs.recovery_loop. This path currently requires Kubernetes/Flyte."
-        )
+        logger.debug("[COMPOSE MODE] Skipping Flyte-backed recovery job checks")
         return
 
     logger.debug(f"Processing jobs {[job.id for job in jobs]}")

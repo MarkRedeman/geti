@@ -46,6 +46,15 @@ logger = configure_logger()
 logger.info("Logger has been initialized in the job scheduling policy service")
 
 from .policy import GpuPolicy, MaxRunningJobsPolicy, Prioritizer, QuotaPolicy
-from .resource_manager import ResourceManager
+
+
+def __getattr__(name: str):  # noqa: ANN201
+    if name == "ResourceManager":
+        from .resource_manager import ResourceManager
+
+        return ResourceManager
+    msg = f"module 'policies' has no attribute '{name}'"
+    raise AttributeError(msg)
+
 
 __all__ = ["GpuPolicy", "MaxRunningJobsPolicy", "Prioritizer", "QuotaPolicy", "ResourceManager"]

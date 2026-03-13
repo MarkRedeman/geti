@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from opentelemetry import trace
 
-from policies import Prioritizer, ResourceManager
+from policies import Prioritizer
 
 from geti_telemetry_tools import ENABLE_TRACING
 from geti_types import RequestSource, make_session, session_context
@@ -119,6 +119,8 @@ def run_resource_manager_loop() -> None:
     """
     try:
         logger.debug("Running resource manager loop...")
+        from policies import ResourceManager
+
         ResourceManager().refresh_available_resources()
     except Exception:
         logger.exception("Error occurred in resource manager loop")

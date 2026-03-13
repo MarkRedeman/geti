@@ -724,8 +724,8 @@ The repository is now in a **workable compose-first local state** for developer 
    - Full API conformance and negative-path coverage (deploy/infer/undeploy/error semantics) still needs systematic testing.
 
 2. **Jobs execution in compose is transitional**
-   - Current local executor defaults to simulation-first behavior for deterministic state transitions.
-   - This proves control flow, but does not yet represent full production execution semantics for all workload types.
+   - Local executor still supports simulation mode, but compose worker path now runs staged real execution for import/export/model-test/train/optimize.
+   - Recovery loop is intentionally disabled in compose (no Flyte-backed execution recovery), so failed/stuck-run auto-recovery semantics are still limited.
 
 3. **Auth model is intentionally insecure for local mode**
    - `AUTH_MODE=mock` bypasses identity/authorization.
