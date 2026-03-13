@@ -7,8 +7,7 @@ Module for Flyte events Kafka handler
 
 import logging
 from datetime import datetime
-
-from flytekit.remote import FlyteWorkflowExecution
+from typing import TYPE_CHECKING
 
 from model.job import Job, JobConsumedResource, JobCost
 from model.job_state import JobTaskState
@@ -26,6 +25,9 @@ from iai_core.session.session_propagation import setup_session_kafka
 from iai_core.utils.time_utils import now
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from flytekit.remote import FlyteWorkflowExecution
 
 WORKFLOW_EXECUTION_EVENT_REQUEST = "com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest"
 TASK_EXECUTION_EVENT_REQUEST = "com.flyte.resource.flyteidl.admin.TaskExecutionEventRequest"
@@ -151,7 +153,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         return event["id"]["executionId"]["name"]
 
     @staticmethod
-    def handle_workflow_event(event: dict, execution: FlyteWorkflowExecution, job: Job) -> None:
+    def handle_workflow_event(event: dict, execution: "FlyteWorkflowExecution", job: Job) -> None:
         logger.info(f"Handling workflow event {event}")
 
         if "phase" not in event:
@@ -169,7 +171,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @staticmethod
     def handle_workflow_event_by_type(
         event: dict,
-        execution: FlyteWorkflowExecution | None,
+        execution: "FlyteWorkflowExecution | None",
         execution_type: ExecutionType,
         job: Job,
     ) -> None:
@@ -228,7 +230,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             StateMachine().set_and_publish_failed_state(job_id=job.id)
 
     @staticmethod
-    def handle_task_event(event: dict, execution: FlyteWorkflowExecution, job: Job) -> None:
+    def handle_task_event(event: dict, execution: "FlyteWorkflowExecution", job: Job) -> None:
         logger.info(f"Handling task event {event}")
 
         phase_state_map = {
@@ -301,7 +303,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         )
 
     @staticmethod
-    def handle_node_event(event: dict, execution: FlyteWorkflowExecution, job: Job) -> None:
+    def handle_node_event(event: dict, execution: "FlyteWorkflowExecution", job: Job) -> None:
         logger.info(f"Handling node event {event}")
 
         phase = event.get("phase")

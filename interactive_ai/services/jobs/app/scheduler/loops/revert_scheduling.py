@@ -3,8 +3,7 @@
 
 import logging
 import os
-
-from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
+from typing import TYPE_CHECKING
 
 from model.job import Job
 from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
@@ -16,6 +15,9 @@ from geti_telemetry_tools import unified_tracing
 from geti_types import ID, session_context
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
 
 MAX_START_RETRY_COUNT = int(os.environ.get("MAX_START_RETRY_COUNT", 5))
 logger.info(f"Max start retries number is {MAX_START_RETRY_COUNT}")
@@ -157,11 +159,11 @@ def start_revert_execution(job: Job) -> "FlyteWorkflowExecution | str | None":
 @unified_tracing
 def start_execution(
     job: Job,
-    workflow: FlyteWorkflow,
+    workflow: "FlyteWorkflow",
     execution_type: ExecutionType,
     execution_name: str,
     payload: dict,
-) -> FlyteWorkflowExecution:
+) -> "FlyteWorkflowExecution":
     """
     Starts job related execution
 

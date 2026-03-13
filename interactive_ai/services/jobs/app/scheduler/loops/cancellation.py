@@ -4,8 +4,6 @@
 import logging
 import os
 
-from flyteidl.core.execution_pb2 import WorkflowExecution
-
 from model.job_state import JobState
 from scheduler.flyte import Flyte, ensure_flyte_available, is_compose_mode
 from scheduler.local_executor import LocalExecutor
@@ -15,6 +13,11 @@ from geti_telemetry_tools import unified_tracing
 from geti_types import ID, session_context
 
 logger = logging.getLogger(__name__)
+
+# Flyte workflow execution phases (mirrored constants to avoid hard flyteidl import at startup)
+_PHASE_FAILING = 5
+_PHASE_ABORTED = 7
+_PHASE_ABORTING = 9
 
 MAX_CANCEL_RETRY_COUNT = int(os.environ.get("MAX_CANCEL_RETRY_COUNT", 5))
 logger.info(f"Max canceling retries number is {MAX_CANCEL_RETRY_COUNT}")
@@ -118,11 +121,11 @@ def cancel_execution(execution_name: str) -> None:
         logger.warning(f"Execution {execution_name} cannot be found in Flyte, marking job as cancelled")
         return
 
-    if execution.closure.phase in (WorkflowExecution.ABORTED, WorkflowExecution.ABORTING):
+    if execution.closure.phase in (_PHASE_ABORTED, _PHASE_ABORTING):
         logger.info(f"Flyte job execution with name {execution_name} is being or already aborted")
         return
 
-    if execution.is_done or execution.closure.phase == WorkflowExecution.FAILING:
+    if execution.is_done or execution.closure.phase == _PHASE_FAILING:
         logger.info(f"Flyte job execution with name {execution_name} is being or already terminated.")
         return
 

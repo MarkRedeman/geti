@@ -569,6 +569,11 @@ Celery compose fallback policy:
 - unsupported job types now fail fast with explicit runtime error in `celery_tasks`.
 - silent simulation fallback in Celery path has been removed to avoid hiding unported runtime behavior.
 
+Scheduler import coupling reduction (compose startup):
+
+- removed eager `flytekit.remote` imports from scheduling/revert loops and kafka handler (TYPE_CHECKING-only typing usage).
+- removed eager `flyteidl` import from cancellation loop by mirroring required workflow phase constants locally.
+
 Train status caveat:
 
 - current train Celery path includes a stubbed evaluate/infer bridge in compose mode (registration/inference-heavy substeps are still bypassed).
