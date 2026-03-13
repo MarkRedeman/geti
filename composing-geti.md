@@ -532,12 +532,15 @@ Celery execution status (current):
 - model-test job type is now routed through Celery workflow runtime container:
   - `test`
 - train job now has an initial Celery workflow-container execution bridge for preflight payload/runtime validation (`get_train_data` path).
+- train job now has an expanded Celery workflow-container bridge covering:
+  - lock + train data resolution
+  - train dataset creation
+  - pre-train model/output preparation (`prepare_train`)
 - optimize job type still uses simulation fallback while dedicated execution runner is being integrated.
 
 Train status caveat:
 
-- current train Celery path executes preflight data resolution and compatibility checks,
-  but does not yet run the full trainer-container + evaluate/infer sequence.
+- current train Celery path still does not run the full trainer-container + evaluate/infer sequence.
 
 Important note on current scope:
 

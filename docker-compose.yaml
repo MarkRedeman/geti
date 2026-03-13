@@ -550,6 +550,8 @@ services:
       JOB_METADATA_NAME: ${MOCK_JOB_METADATA_NAME}
       JOB_METADATA_AUTHOR: ${MOCK_JOB_METADATA_AUTHOR}
       JOB_METADATA_START_TIME: ${MOCK_JOB_METADATA_START_TIME}
+      FEATURE_FLAGS_HEADER_VALUE: ""
+      FEATURE_FLAGS_URL: ""
     depends_on:
       redis:
         condition: service_started
