@@ -8,15 +8,7 @@ Jobs Scheduler Flyte integration
 import logging
 import os
 from enum import Enum
-from typing import cast
-
-from flytekit import Annotations, Labels
-from flytekit.configuration import Config
-from flytekit.exceptions.user import FlyteEntityNotExistException
-from flytekit.models.filters import ValueIn
-from flytekit.remote import FlyteLaunchPlan, FlyteNode, FlyteRemote, FlyteTask, FlyteWorkflow, FlyteWorkflowExecution
-from flytekit.remote.entities import FlyteBranchNode
-from flytekit.tools.translator import Options
+from typing import TYPE_CHECKING, Any, cast
 
 from model.job import Job
 from model.telemetry import Telemetry
@@ -28,6 +20,52 @@ DOMAIN = os.environ.get("FLYTE_DOMAIN", "production")
 DEPLOYMENT_MODE = os.environ.get("DEPLOYMENT_MODE", "").lower()
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from flytekit.remote import FlyteLaunchPlan, FlyteNode, FlyteTask, FlyteWorkflow, FlyteWorkflowExecution
+
+_FLYTE_SYMBOLS: dict[str, Any] | None = None
+
+
+def _load_flyte_symbols() -> dict[str, Any]:
+    global _FLYTE_SYMBOLS
+    if _FLYTE_SYMBOLS is not None:
+        return _FLYTE_SYMBOLS
+
+    try:
+        from flytekit import Annotations, Labels
+        from flytekit.configuration import Config
+        from flytekit.exceptions.user import FlyteEntityNotExistException
+        from flytekit.models.filters import ValueIn
+        from flytekit.remote import (
+            FlyteLaunchPlan,
+            FlyteNode,
+            FlyteRemote,
+            FlyteTask,
+            FlyteWorkflow,
+            FlyteWorkflowExecution,
+        )
+        from flytekit.remote.entities import FlyteBranchNode
+        from flytekit.tools.translator import Options
+    except Exception as err:  # pragma: no cover - safety net for broken runtime env
+        raise RuntimeError("Flyte runtime dependencies are unavailable") from err
+
+    _FLYTE_SYMBOLS = {
+        "Annotations": Annotations,
+        "Labels": Labels,
+        "Config": Config,
+        "FlyteEntityNotExistException": FlyteEntityNotExistException,
+        "ValueIn": ValueIn,
+        "FlyteLaunchPlan": FlyteLaunchPlan,
+        "FlyteNode": FlyteNode,
+        "FlyteRemote": FlyteRemote,
+        "FlyteTask": FlyteTask,
+        "FlyteWorkflow": FlyteWorkflow,
+        "FlyteWorkflowExecution": FlyteWorkflowExecution,
+        "FlyteBranchNode": FlyteBranchNode,
+        "Options": Options,
+    }
+    return _FLYTE_SYMBOLS
 
 
 class ExecutionType(Enum):
@@ -56,7 +94,7 @@ def ensure_flyte_available(operation: str) -> None:
     raise FlyteUnavailableInComposeError(message)
 
 
-class FlyteClient(FlyteRemote, metaclass=Singleton):
+class FlyteClient(metaclass=Singleton):
     """
     Flyte client
     Extends and initializes a Flyte remote instance with endpoint URL from FLYTE_URL environment variable
@@ -66,10 +104,14 @@ class FlyteClient(FlyteRemote, metaclass=Singleton):
 
     def __init__(self) -> None:
         ensure_flyte_available(operation="scheduler.flyte_client_init")
+        symbols = _load_flyte_symbols()
         endpoint = os.environ.get("FLYTE_URL", "localhost:30003")
 
-        config = Config.for_endpoint(endpoint=endpoint, insecure=True)
-        FlyteRemote.__init__(self, config=config, default_project=PROJECT, default_domain=DOMAIN)
+        config = symbols["Config"].for_endpoint(endpoint=endpoint, insecure=True)
+        self.client = symbols["FlyteRemote"](config=config, default_project=PROJECT, default_domain=DOMAIN)
+
+    def __getattr__(self, attr: str):  # noqa: ANN201
+        return getattr(self.client, attr)
 
 
 class Flyte(metaclass=Singleton):
@@ -81,7 +123,7 @@ class Flyte(metaclass=Singleton):
     def __init__(self) -> None:
         self.client = FlyteClient()
 
-    def fetch_workflow(self, workflow_name: str, workflow_version: str) -> FlyteWorkflow | None:
+    def fetch_workflow(self, workflow_name: str, workflow_version: str) -> "FlyteWorkflow | None":
         """
         Returns Flyte workflow by it's name and version.
 
@@ -91,8 +133,11 @@ class Flyte(metaclass=Singleton):
         """
         try:
             return self.client.fetch_workflow(name=workflow_name, version=workflow_version)
-        except FlyteEntityNotExistException:
-            return None
+        except Exception as err:
+            if isinstance(err, _load_flyte_symbols()["FlyteEntityNotExistException"]):
+                return None
+            raise
+        return None
 
     def start_workflow_execution(  # noqa: PLR0913
         self,
@@ -101,26 +146,16 @@ class Flyte(metaclass=Singleton):
         project_id: str | None,
         execution_type: ExecutionType,
         execution_name: str,
-        workflow: FlyteWorkflow,
+        workflow: "FlyteWorkflow",
         payload: dict,
         telemetry: Telemetry,
         session: Session,
-    ) -> FlyteWorkflowExecution:
-        """
-        Starts Flyte workflow execution.
-        Workflow is uniquely identified by a combination of workflow name and workflow version.
-        Workspace and project are added to the workflow execution as annotations and labels.
+    ) -> "FlyteWorkflowExecution":
+        symbols = _load_flyte_symbols()
+        labels = symbols["Labels"]
+        annotations = symbols["Annotations"]
+        options = symbols["Options"]
 
-        :param workspace_id: workspace ID
-        :param project_id: project ID
-        :param execution_type: Execution type (i.e. MAIN, REVERT, etc.)
-        :param execution_name: Execution name
-        :param workflow: Flyte workflow to execute
-        :param payload: execution payload (all workflow inputs)
-        :param telemetry: telemetry data
-        :param session: the session
-        :return: Flyte workflow execution object
-        """
         session_dict = dict(session.as_tuple())
         metadata = {
             "workspace_id": workspace_id,
@@ -133,7 +168,7 @@ class Flyte(metaclass=Singleton):
         if project_id is not None:
             metadata["project_id"] = project_id
 
-        labels = Labels(metadata)
+        metadata_labels = labels(metadata)
         metadata_extended = {
             "job_type": job.type,
             "job_name": job.job_name,
@@ -141,18 +176,18 @@ class Flyte(metaclass=Singleton):
             "job_start_time": job.start_time.isoformat() if job.start_time else "null",
         }
         metadata_extended.update(metadata)
-        annotations = Annotations(metadata_extended)
+        metadata_annotations = annotations(metadata_extended)
 
         return self.client.execute_remote_wf(
             entity=workflow,
             execution_name=execution_name,
             wait=False,
             inputs=payload,
-            options=Options(labels=labels, annotations=annotations),
+            options=options(labels=metadata_labels, annotations=metadata_annotations),
         )
 
     @staticmethod
-    def get_execution_type(execution: FlyteWorkflowExecution) -> ExecutionType:
+    def get_execution_type(execution: "FlyteWorkflowExecution") -> ExecutionType:
         """
         Returns the type of execution: MAIN or REVERT
         :param execution: Flyte workflow execution instance
@@ -162,7 +197,7 @@ class Flyte(metaclass=Singleton):
         return ExecutionType(annotations["execution_type"])
 
     @staticmethod
-    def get_execution_workspace_id(execution: FlyteWorkflowExecution) -> str:
+    def get_execution_workspace_id(execution: "FlyteWorkflowExecution") -> str:
         """
         Returns the workspace execution belongs to
         :param execution: Flyte workflow execution instance
@@ -172,7 +207,7 @@ class Flyte(metaclass=Singleton):
         return annotations["workspace_id"]
 
     @staticmethod
-    def get_execution_organization_id(execution: FlyteWorkflowExecution) -> str:
+    def get_execution_organization_id(execution: "FlyteWorkflowExecution") -> str:
         """
         Returns the organization execution belongs to
         :param execution: Flyte workflow execution instance
@@ -182,7 +217,7 @@ class Flyte(metaclass=Singleton):
         return annotations["organization_id"]
 
     @staticmethod
-    def get_execution_job_id(execution: FlyteWorkflowExecution) -> str:
+    def get_execution_job_id(execution: "FlyteWorkflowExecution") -> str:
         """
         Returns the job execution belongs to
         :param execution: Flyte workflow execution instance
@@ -191,7 +226,7 @@ class Flyte(metaclass=Singleton):
         annotations = execution.spec.annotations.values
         return annotations["job_id"]
 
-    def fetch_workflow_execution(self, execution_name: str) -> FlyteWorkflowExecution | None:
+    def fetch_workflow_execution(self, execution_name: str) -> "FlyteWorkflowExecution | None":
         """
         Fetches Flyte workflow execution by name.
         :param execution_name: Execution name
@@ -199,10 +234,12 @@ class Flyte(metaclass=Singleton):
         """
         try:
             return self.client.fetch_execution(name=execution_name)
-        except FlyteEntityNotExistException:
-            return None
+        except Exception as err:
+            if isinstance(err, _load_flyte_symbols()["FlyteEntityNotExistException"]):
+                return None
+            raise
 
-    def list_workflow_executions(self, execution_names: list[str]) -> list[FlyteWorkflowExecution]:
+    def list_workflow_executions(self, execution_names: list[str]) -> list["FlyteWorkflowExecution"]:
         """
         Fetches Flyte workflow executions by names.
         :param execution_names: Execution names
@@ -211,14 +248,15 @@ class Flyte(metaclass=Singleton):
         logger.debug(f"Getting workflows executions list with names {execution_names}")
         if len(execution_names) == 0:
             return []
+        symbols = _load_flyte_symbols()
         (executions_list, _) = self.client.client.list_executions_paginated(
             project=PROJECT,
             domain=DOMAIN,
-            filters=[ValueIn(key="execution_name", values=execution_names)],
+            filters=[symbols["ValueIn"](key="execution_name", values=execution_names)],
         )
-        return [FlyteWorkflowExecution.promote_from_model(ex) for ex in executions_list]
+        return [symbols["FlyteWorkflowExecution"].promote_from_model(ex) for ex in executions_list]
 
-    def fetch_task(self, name: str, version: str) -> FlyteTask | None:
+    def fetch_task(self, name: str, version: str) -> "FlyteTask | None":
         """
         Fetches Flyte task by name and version.
         :param name: Task name
@@ -227,10 +265,12 @@ class Flyte(metaclass=Singleton):
         """
         try:
             return self.client.fetch_task(project=PROJECT, domain=DOMAIN, name=name, version=version)
-        except FlyteEntityNotExistException:
-            return None
+        except Exception as err:
+            if isinstance(err, _load_flyte_symbols()["FlyteEntityNotExistException"]):
+                return None
+            raise
 
-    def cancel_workflow_execution(self, execution: FlyteWorkflowExecution) -> None:
+    def cancel_workflow_execution(self, execution: "FlyteWorkflowExecution") -> None:
         """
         Cancels Flyte workflow execution.
 
@@ -239,7 +279,7 @@ class Flyte(metaclass=Singleton):
         self.client.terminate(execution=execution, cause="Canceling execution")
 
     @staticmethod
-    def get_workflow_branch_nodes(workflow: FlyteWorkflow) -> dict[str, FlyteNode]:
+    def get_workflow_branch_nodes(workflow: "FlyteWorkflow") -> dict[str, "FlyteNode"]:
         """
         Returns a dict with all branch nodes in a workflow (and all nested sub-workflows and branches).
         Dict key is a node ID (i.e. n6-0-n6-n0-0-n0) which is being used in Flyte, dict value is a branch node itself.
@@ -252,39 +292,44 @@ class Flyte(metaclass=Singleton):
         return result
 
     @staticmethod
-    def get_node_branch_nodes(node: FlyteNode) -> dict[str, FlyteNode]:
+    def get_node_branch_nodes(node: "FlyteNode") -> dict[str, "FlyteNode"]:
         """
         Returns a dict with all branch nodes in a node (and all nested sub-workflows and branches).
         Dict key is a node ID (i.e. n6-0-n6-n0-0-n0) which is being used in Flyte, dict value is a branch node itself.
         :param node: node to traverse
         :return Dict[str, FlyteNode]: branch nodes dict
         """
-        if isinstance(node.flyte_entity, FlyteWorkflow):
+        symbols = _load_flyte_symbols()
+        flyte_workflow = symbols["FlyteWorkflow"]
+        flyte_launch_plan = symbols["FlyteLaunchPlan"]
+        flyte_branch_node = symbols["FlyteBranchNode"]
+
+        if isinstance(node.flyte_entity, flyte_workflow):
             # Sub-workflow node, need to process sub-workflow to fetch its nodes
-            workflow: FlyteWorkflow = node.flyte_entity
+            workflow = node.flyte_entity
             return Flyte.get_workflow_branch_nodes(workflow=workflow)
 
-        if isinstance(node.flyte_entity, FlyteLaunchPlan):
+        if isinstance(node.flyte_entity, flyte_launch_plan):
             # Launch plan reference node, need to process Launch plan workflow to fetch its nodes
-            launch_plan: FlyteLaunchPlan = node.flyte_entity
+            launch_plan = node.flyte_entity
             return (
                 Flyte.get_workflow_branch_nodes(workflow=launch_plan.flyte_workflow)
                 if launch_plan.flyte_workflow is not None
                 else {}
             )
 
-        if isinstance(node.flyte_entity, FlyteBranchNode):
+        if isinstance(node.flyte_entity, flyte_branch_node):
             # Branch node (conditional), need to process further both branches nodes
-            branch_node: FlyteBranchNode = node.flyte_entity
+            branch_node = node.flyte_entity
             result = {}
 
             # "then" branch
-            case_node: FlyteNode = cast("FlyteNode", branch_node.if_else.case.then_node)
+            case_node = cast("FlyteNode", branch_node.if_else.case.then_node)
             result[case_node.metadata.name] = node
             result.update(Flyte.get_node_branch_nodes(node=case_node))
 
             # "else" branch
-            else_node: FlyteNode = cast("FlyteNode", branch_node.if_else.else_node)
+            else_node = cast("FlyteNode", branch_node.if_else.else_node)
             result[else_node.metadata.name] = node
             result.update(Flyte.get_node_branch_nodes(node=else_node))
 

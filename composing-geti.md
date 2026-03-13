@@ -573,6 +573,7 @@ Scheduler import coupling reduction (compose startup):
 
 - removed eager `flytekit.remote` imports from scheduling/revert loops and kafka handler (TYPE_CHECKING-only typing usage).
 - removed eager `flyteidl` import from cancellation loop by mirroring required workflow phase constants locally.
+- refactored `scheduler/flyte.py` to lazy-load Flyte symbols only when Flyte-backed operations are invoked.
 
 Train status caveat:
 
