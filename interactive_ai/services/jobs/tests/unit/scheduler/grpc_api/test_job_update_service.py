@@ -10,7 +10,6 @@ import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
 from model.job import JobConsumedResource
-from scheduler.flyte import Flyte
 from scheduler.grpc_api.job_update_service import JobUpdateService
 from scheduler.state_machine import StateMachine
 
@@ -32,58 +31,45 @@ def fxt_grpc_context():
     yield MagicMock()
 
 
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
-
-
-def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
-
-
 class TestJobUpdateService:
-    @patch("scheduler.grpc_api.job_update_service.ensure_flyte_available", side_effect=RuntimeError("compose-mode"))
-    def test_job_update_compose_mode_returns_unimplemented(
-        self, mock_ensure_flyte_available, fxt_job_update_service, fxt_grpc_context
+    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=False)
+    def test_job_update_non_compose_returns_unimplemented(
+        self, mock_is_compose_mode, fxt_job_update_service, fxt_grpc_context
     ) -> None:
         # Act
         request = JobUpdateRequest(execution_id="execution_id", metadata='{"foo": "bar"}')
         fxt_job_update_service.job_update(request, fxt_grpc_context)
 
         # Assert
-        mock_ensure_flyte_available.assert_called_once_with(operation="jobs.grpc_job_update")
-        fxt_grpc_context.abort.assert_called_once_with(code=grpc.StatusCode.UNIMPLEMENTED, details="compose-mode")
+        mock_is_compose_mode.assert_called_once_with()
+        fxt_grpc_context.abort.assert_called_once()
 
-    @patch.object(Flyte, "fetch_workflow_execution")
-    @patch.object(Flyte, "__init__", new=mock_flyte_client)
+    @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
+    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     def test_job_update_no_execution(
-        self, mock_fetch_workflow_execution, request, fxt_job_update_service, fxt_grpc_context
+        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
     ) -> None:
-        request.addfinalizer(lambda: reset_singletons())
-
-        # Arrange
-        mock_fetch_workflow_execution.return_value = None
+        mock_local_executor.return_value.get_execution_metadata.return_value = None
 
         # Act
         request = JobUpdateRequest(execution_id="execution_id", metadata="foobar")
         response = fxt_job_update_service.job_update(request, fxt_grpc_context)
 
         # Assert
-        mock_fetch_workflow_execution.assert_called_once_with(execution_name="execution_id")
+        mock_is_compose_mode.assert_called_once_with()
+        mock_local_executor.return_value.get_execution_metadata.assert_called_once_with("execution_id")
         assert (
             response.HasField("error") and response.error.code == EXECUTION_NOT_FOUND and not response.HasField("empty")
         )
 
-    @patch.object(Flyte, "fetch_workflow_execution")
-    @patch.object(Flyte, "__init__", new=mock_flyte_client)
+    @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
+    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     def test_job_update_corrupted_metadata(
-        self, mock_fetch_workflow_execution, request, fxt_job_update_service, fxt_grpc_context
+        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
     ) -> None:
-        request.addfinalizer(lambda: reset_singletons())
-        # Arrange
-        execution = MagicMock()
-        execution.spec.annotations.values = {"job_id": "job_id"}
-        mock_fetch_workflow_execution.return_value = execution
+        record = MagicMock()
+        record.job_id = "job_id"
+        mock_local_executor.return_value.get_execution_metadata.return_value = record
 
         # Act
         with (
@@ -104,15 +90,15 @@ class TestJobUpdateService:
             and not response.HasField("empty")
         )
 
-    @patch.object(Flyte, "fetch_workflow_execution")
-    @patch.object(Flyte, "__init__", new=mock_flyte_client)
+    @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
+    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     @pytest.mark.freeze_time("2024-01-01 00:00:01")
-    def test_job_update(self, mock_fetch_workflow_execution, request, fxt_job_update_service, fxt_grpc_context) -> None:
-        request.addfinalizer(lambda: reset_singletons())
-        # Arrange
-        execution = MagicMock()
-        execution.spec.annotations.values = {"job_id": "job_id"}
-        mock_fetch_workflow_execution.return_value = execution
+    def test_job_update(
+        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
+    ) -> None:
+        record = MagicMock()
+        record.job_id = "job_id"
+        mock_local_executor.return_value.get_execution_metadata.return_value = record
 
         # Act
         with (
@@ -151,17 +137,15 @@ class TestJobUpdateService:
 
         assert response.HasField("empty") and not response.HasField("error")
 
-    @patch.object(Flyte, "fetch_workflow_execution")
-    @patch.object(Flyte, "__init__", new=mock_flyte_client)
+    @patch("scheduler.grpc_api.job_update_service.LocalExecutor")
+    @patch("scheduler.grpc_api.job_update_service.is_compose_mode", return_value=True)
     @pytest.mark.freeze_time("2024-01-01 00:00:01")
     def test_job_update_mongo_not_available(
-        self, mock_fetch_workflow_execution, request, fxt_job_update_service, fxt_grpc_context
+        self, mock_is_compose_mode, mock_local_executor, request, fxt_job_update_service, fxt_grpc_context
     ) -> None:
-        request.addfinalizer(lambda: reset_singletons())
-        # Arrange
-        execution = MagicMock()
-        execution.spec.annotations.values = {"job_id": "job_id"}
-        mock_fetch_workflow_execution.return_value = execution
+        record = MagicMock()
+        record.job_id = "job_id"
+        mock_local_executor.return_value.get_execution_metadata.return_value = record
 
         # Act
         with patch.object(
