@@ -5,6 +5,8 @@ import json
 import os
 from unittest.mock import patch
 
+_TRAIN_PREP_RESULT_PREFIX = "TRAIN_PREP_RESULT="
+
 
 def _load_payload() -> dict:
     return json.loads(os.environ["WORKFLOW_PAYLOAD_JSON"])
@@ -98,7 +100,25 @@ def _run_job_type(job_type: str, payload: dict) -> None:
         from jobs_common.jobs.helpers.project_helpers import lock_project
         from job.tasks.prepare_and_train.create_task_train_dataset import create_task_train_dataset
         from job.tasks.prepare_and_train.get_train_data import get_train_data
-        from job.tasks.prepare_and_train.train_helpers import prepare_train
+        from job.tasks.prepare_and_train.train_helpers import finalize_train, prepare_train
+        from job.utils.train_workflow_data import TrainWorkflowData
+        from jobs_common_extras.experiments.utils.train_output_models import TrainOutputModelIds
+
+        stage = os.environ.get("WORKFLOW_JOB_STAGE", "prepare")
+
+        if stage == "finalize":
+            serialized = os.environ.get("TRAIN_PREP_RESULT_JSON")
+            if not serialized:
+                raise RuntimeError("TRAIN_PREP_RESULT_JSON is required for train finalize stage")
+            prep = json.loads(serialized)
+            train_data = TrainWorkflowData.from_json(prep["train_data_json"])
+            train_output_model_ids = TrainOutputModelIds.from_json(prep["train_output_model_ids_json"])
+            finalize_train(
+                train_data=train_data,
+                train_output_model_ids=train_output_model_ids,
+                retain_training_artifacts=payload.get("retain_training_artifacts", False),
+            )
+            return
 
         lock_project(job_type="train", project_id=ID(payload["project_id"]))
         train_data = get_train_data(
@@ -118,7 +138,13 @@ def _run_job_type(job_type: str, payload: dict) -> None:
             train_data=train_data,
             max_training_dataset_size=payload.get("max_training_dataset_size"),
         )
-        prepare_train(train_data=train_data, dataset=dataset)
+        output_models = prepare_train(train_data=train_data, dataset=dataset)
+        prep_result = {
+            "train_data_json": train_data.to_json(),
+            "dataset_id": str(dataset.id_),
+            "train_output_model_ids_json": output_models.to_train_output_model_ids().to_json(),
+        }
+        print(f"{_TRAIN_PREP_RESULT_PREFIX}{json.dumps(prep_result)}")
         return
 
     raise RuntimeError(f"Unsupported workflow runner job type: {job_type}")
