@@ -254,6 +254,17 @@ Use this as the operational checklist for the current migration branch.
   - `interactive_ai/services/jobs/app/microservice/grpc_api/grpc_job_service.py`
   - `interactive_ai/services/resource/app/managers/project_manager.py`
 
+## Phase 2.1 — Reverse proxy and ingress parity (Traefik)
+
+- [ ] Define Traefik as the single entrypoint for local compose (HTTP first, TLS optional).
+- [ ] Add/verify router rules for all externally reachable APIs and web paths.
+- [ ] Mirror key ingress path behavior from Kubernetes (host/path routing expectations).
+- [ ] Ensure auth/mock-auth related routes are reachable through Traefik (including onboarding/user flows).
+- [ ] Add health and smoke checks through Traefik endpoints (not direct container ports).
+- [ ] Document route map (`host/path -> service:port`) in compose migration docs.
+
+**Acceptance:** Core UI/API flows work end-to-end through Traefik exactly as the local ingress layer.
+
 ## Phase 3 — MongoDB bootstrap automation
 
 - [ ] Add compose `migration_job` service.
