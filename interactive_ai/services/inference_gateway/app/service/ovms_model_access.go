@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"geti.com/iai_core/logger"
 	pb "geti.com/predict"
@@ -35,12 +36,18 @@ func (s *OVMSModelAccessService) InferImageBytes(
 }
 
 func (s *OVMSModelAccessService) TryRecoverModel(
-	_ context.Context,
-	_ InferParameters,
+	ctx context.Context,
+	params InferParameters,
 ) (*pb.ModelInferResponse, error) {
+	for range ModelReadyRetries {
+		if s.ovmsClient.GetModelReady(ctx, params.pipelineName) {
+			return s.InferImageBytes(ctx, params)
+		}
+		time.Sleep(time.Duration(ModelRecoveryStatusCheckIntervalMilliSeconds) * time.Millisecond)
+	}
 	return nil, ErrModelNotFound
 }
 
-func (s *OVMSModelAccessService) IsModelReady(_ context.Context, modelID string) bool {
-	return s.ovmsClient.GetModelReady(modelID)
+func (s *OVMSModelAccessService) IsModelReady(ctx context.Context, modelID string) bool {
+	return s.ovmsClient.GetModelReady(ctx, modelID)
 }

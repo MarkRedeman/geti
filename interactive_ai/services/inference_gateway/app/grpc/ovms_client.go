@@ -4,13 +4,17 @@
 package grpc
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"geti.com/iai_core/logger"
 	"github.com/caarlos0/env/v11"
 	pb "geti.com/predict"
 	"google.golang.org/grpc"
 )
+
+const OVMSModelReadyTimeoutSeconds = 3
 
 type ovmsConfig struct {
 	Service string `env:"OVMS_SERVICE"        envDefault:"ovms"`
@@ -51,7 +55,14 @@ func (oc *OVMSClient) Close() error {
 	return nil
 }
 
-func (oc *OVMSClient) GetModelReady(_ string) bool {
-	// Compose bridge behavior: use infer-time readiness and avoid blocking status path.
-	return true
+func (oc *OVMSClient) GetModelReady(ctx context.Context, modelID string) bool {
+	req := &pb.ModelReadyRequest{Name: modelID}
+	rCtx, cancel := context.WithTimeout(ctx, time.Duration(OVMSModelReadyTimeoutSeconds)*time.Second)
+	defer cancel()
+	resp, err := oc.ModelReady(rCtx, req)
+	if err != nil {
+		logger.TracingLog(ctx).Infof("OVMS model readiness check failed for `%s`: %v", modelID, err)
+		return false
+	}
+	return resp.GetReady()
 }
