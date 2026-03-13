@@ -6,6 +6,8 @@ Common functions for user related operations.
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 from enum import Enum
+import os
+import logging
 
 from geti_spicedb_tools import AccessResourceTypes
 from grpc_interfaces.account_service.pb.user_common_pb2 import UserRole, UserRoleOperation
@@ -18,6 +20,12 @@ from common.errors import GeneralError
 from common.interfaces.payload_error import ResponseException
 from common.utils import timed_lru_cache
 from config import AUTH_CONFIG
+
+logger = logging.getLogger(__name__)
+
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
 
 
 class UserRoles(str, Enum):
@@ -101,6 +109,19 @@ def get_user_from_header(header: str) -> UserType:
     Returns user from HTTP request's header.
     Wrapped in timed_lru_cache decorator to reduce LDAP's load.
     """
+    if _is_mock_auth_mode():
+        logger.warning("[MOCK AUTH] get_user_from_header bypass active.")
+        user_id = os.getenv("MOCK_USER_ID", "local-admin")
+        return {
+            "uid": user_id,
+            "name": os.getenv("MOCK_USER_NAME", "Local Admin"),
+            "mail": os.getenv("MOCK_USER_EMAIL", "local-admin@geti.local"),
+            "roles": [],
+            "group": 500,
+            "registered": True,
+            "email_token": None,
+        }
+
     users_handler = UsersHandler(**AUTH_CONFIG)
     try:
         return users_handler.get_user_from_jwt_header(header)

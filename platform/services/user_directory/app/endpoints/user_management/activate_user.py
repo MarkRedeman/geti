@@ -2,6 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 import base64
 import logging
+import os
 from http import HTTPStatus
 
 import jwt
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
+
+
 class ActivateData(BaseModel):
     first_name: str
     second_name: str
@@ -49,6 +54,8 @@ class ActivateData(BaseModel):
 async def activate(data: ActivateData) -> PlainTextResponse:  # noqa: D103
     account_service = AccountServiceConnection()
     handler = UsersHandler(**AUTH_CONFIG)
+    user = None
+    find_user: dict[str, str] | None = None
     user_data = None
     rollback_password = None
     try:
@@ -86,7 +93,7 @@ async def activate(data: ActivateData) -> PlainTextResponse:  # noqa: D103
             "Specified password does not meet minimal requirements", status_code=HTTPStatus.BAD_REQUEST
         )
     except Exception:
-        if user_data and rollback_password:
+        if user_data and rollback_password and find_user and user:
             rollback_user = UserData(
                 **find_user, first_name=data.first_name, second_name=data.second_name, id=user_data.id, status="RGS"
             )
@@ -101,6 +108,20 @@ def verify_payload(handler: UsersHandler, token: str) -> UserType:
     Wraps UsersHandler token verification with common list of exceptions which should return
     common error (e.g. 'bad request') from the API
     """
+    if _is_mock_auth_mode():
+        logger.warning("[MOCK AUTH] user_directory registration token validation bypass active.")
+        user_id = os.getenv("MOCK_USER_ID", "local-admin")
+        user_email = os.getenv("MOCK_USER_EMAIL", "local-admin@geti.local")
+        return {
+            "uid": user_id,
+            "name": os.getenv("MOCK_USER_NAME", "Local Admin"),
+            "mail": user_email,
+            "roles": [],
+            "group": 500,
+            "registered": True,
+            "email_token": token,
+        }
+
     try:
         secret = get_secrets(
             name=JWT_SECRET,

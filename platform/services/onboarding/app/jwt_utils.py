@@ -22,6 +22,10 @@ FIRST_NAME_FIELDS = ["given_name", "firstName"]
 LAST_NAME_FIELDS = ["family_name", "lastName"]
 
 
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
+
+
 class DecodedUserData(BaseModel):
     email: str
     sub: str
@@ -41,11 +45,26 @@ def lookup_jwt_fields(decoded_token: dict, fields: list[str]) -> str:
     raise ValueError(f"Unable to find {fields=} in {decoded_token=}")
 
 
-async def parse_internal_jwt_token(x_auth_request_access_token: Annotated[str, Header()]) -> DecodedUserData:
+async def parse_internal_jwt_token(
+    x_auth_request_access_token: Annotated[str | None, Header()] = None,
+) -> DecodedUserData:
     """
     Parse internal JWT token passed in the request and return UserData from decoded token.
     """
+    if _is_mock_auth_mode():
+        logger.warning("[MOCK AUTH] Onboarding JWT parsing bypass active; using local mock user.")
+        return DecodedUserData(
+            email=os.getenv("MOCK_USER_EMAIL", "local-admin@geti.local"),
+            sub=os.getenv("MOCK_USER_SUB", "local-admin"),
+            first_name=os.getenv("MOCK_USER_FIRST_NAME", "Local"),
+            last_name=os.getenv("MOCK_USER_LAST_NAME", "Admin"),
+            country_code=os.getenv("MOCK_USER_COUNTRY_CODE"),
+            is_intel_employee=os.getenv("MOCK_USER_IS_INTEL_EMPLOYEE", "false").lower() == "true",
+        )
+
     try:
+        if x_auth_request_access_token is None:
+            raise ValueError("Missing x-auth-request-access-token header")
         decoded_token: dict = jwt.decode(
             x_auth_request_access_token,
             algorithms=[JWT_ALGORITHM],
@@ -126,6 +145,9 @@ class OnboardingTokenService:
         """
         Validates onboarding invitation token using AWS KMS.
         """
+        if _is_mock_auth_mode():
+            logger.warning("[MOCK AUTH] Onboarding token validation bypass active.")
+            return
         self._lazy_init()
         try:
             message, mac_b64 = token.rsplit(".", 1)

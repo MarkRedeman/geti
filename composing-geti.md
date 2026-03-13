@@ -226,14 +226,33 @@ Use this as the operational checklist for the current migration branch.
 
 ## Phase 2 — Local auth/authz mock mode
 
-- [ ] Add global `AUTH_MODE=mock` (or equivalent) gating.
-- [ ] Implement identity fallback in shared request auth dependency.
-- [ ] Implement SpiceDB bypass adapter returning allow-all.
-- [ ] Make onboarding/user_directory token checks bypassable in mock mode.
-- [ ] Add startup warnings and per-request debug markers for bypassed authz checks.
+- [x] Add global `AUTH_MODE=mock` (or equivalent) gating.
+- [x] Implement identity fallback in shared request auth dependency.
+- [x] Implement SpiceDB bypass adapter returning allow-all.
+- [x] Make onboarding/user_directory token checks bypassable in mock mode.
+- [x] Add startup warnings and per-request debug markers for bypassed authz checks.
 - [ ] Document “mock mode is local-only”.
 
 **Acceptance:** Protected endpoints are callable locally without OIDC/SpiceDB.
+
+### Phase 2 implementation notes (done)
+
+- Identity fallback is implemented in `libs/fastapi_tools/src/geti_fastapi_tools/identity.py`:
+  - missing/invalid `x-auth-request-access-token` yields mock identity in `AUTH_MODE=mock`.
+- SpiceDB allow-all mode is implemented in `libs/spicedb_tools/src/geti_spicedb_tools/spicedb.py`:
+  - permission checks return allow,
+  - relation mutation/read calls are no-op or empty in mock mode.
+- Onboarding JWT/token validation bypass in mock mode:
+  - `platform/services/onboarding/app/jwt_utils.py`
+  - `platform/services/onboarding/app/routers/onboarding.py`
+- user_directory token/header validation bypass in mock mode:
+  - `platform/services/user_directory/app/common/jwt_token_validation.py`
+  - `platform/services/user_directory/app/common/users.py`
+  - `platform/services/user_directory/app/endpoints/user_management/activate_user.py`
+- ACL fallback for jobs/resource to avoid empty-result behavior under mock SpiceDB:
+  - `interactive_ai/services/jobs/app/microservice/rest/job_controller.py`
+  - `interactive_ai/services/jobs/app/microservice/grpc_api/grpc_job_service.py`
+  - `interactive_ai/services/resource/app/managers/project_manager.py`
 
 ## Phase 3 — MongoDB bootstrap automation
 

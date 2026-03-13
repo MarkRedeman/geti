@@ -2,6 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 from enum import Enum
 from http import HTTPStatus
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -24,6 +25,11 @@ DEFAULT_PRODUCT_NAME = "Geti Free Tier"
 INTERNAL_PRODUCT_NAME = "Intel Trial"
 
 logger = initialize_logger(__name__)
+
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
+
 
 router = APIRouter(prefix="/onboarding")
 
@@ -190,7 +196,11 @@ async def user_onboarding(
     """
     if not all([onboarding_req_body.user_consent == "y", onboarding_req_body.telemetry_consent == "y"]):
         return PlainTextResponse(status_code=HTTPStatus.BAD_REQUEST)
-    existing_user = await User.get_user_profile(request.headers["x-auth-request-access-token"])
+    if _is_mock_auth_mode():
+        token = request.headers.get("x-auth-request-access-token", "mock-access-token")
+    else:
+        token = request.headers["x-auth-request-access-token"]
+    existing_user = await User.get_user_profile(token)
 
     if (
         not existing_user
