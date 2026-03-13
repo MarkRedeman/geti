@@ -8,6 +8,7 @@ from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
 
 from model.job import Job
 from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_revert_execution_name, resolve_revert_job
 
@@ -24,13 +25,6 @@ def run_revert_scheduling_loop() -> None:
     """
     Runs the revert scheduling loop iteration for the job scheduler
     """
-
-    if is_compose_mode():
-        logger.error(
-            "Feature unavailable in compose mode: jobs.run_revert_scheduling_loop. "
-            "This path currently requires Kubernetes/Flyte."
-        )
-        return
 
     try:
         while True:
@@ -85,26 +79,56 @@ def schedule_revert_job(job_id: ID) -> None:
             set_final_state()
             return
 
-        # Update job in database
+        # Update job in database — execution is either an execution_name str (compose) or
+        # a FlyteWorkflowExecution (Flyte).  We store just the name string in both cases.
+        execution_id = execution if isinstance(execution, str) else execution.id.name
         StateMachine().set_revert_scheduled_state(
             job_id=job_id,
-            flyte_execution_id=execution.id.name,
+            flyte_execution_id=execution_id,
         )
     except Exception:
-        logger.exception(f"Failed to schedule Flyte revert execution for job {job_id}")
+        logger.exception(f"Failed to schedule revert execution for job {job_id}")
         StateMachine().reset_revert_scheduling_job(job_id=job_id)
 
 
 @unified_tracing
-def start_revert_execution(job: Job) -> FlyteWorkflowExecution | None:
+def start_revert_execution(job: Job) -> "FlyteWorkflowExecution | str | None":
     """
-    Starts jobs revert execution
+    Starts jobs revert execution.
+
+    In compose mode, launches via LocalExecutor (Docker) and returns the
+    execution_name string.
+    In Flyte mode, returns a FlyteWorkflowExecution object or None when no
+    revert workflow is registered for this job type.
 
     :param job: Job to start revert execution for
-    :return: FlyteWorkflowExecution Flyte workflow execution object
+    :return: execution_name (compose) | FlyteWorkflowExecution (Flyte) | None
     """
-    ensure_flyte_available(operation="jobs.start_revert_execution")
     execution_name = get_revert_execution_name(job_id=job.id)
+
+    if is_compose_mode():
+        # Resolving revert workflow/image for this job type
+        resolved = resolve_revert_job(job_type=job.type)
+        if resolved is None:
+            return None
+
+        container_id = LocalExecutor().start_execution(
+            execution_name=execution_name,
+            job_id=str(job.id),
+            workspace_id=str(job.workspace_id),
+            organization_id=str(job.session.organization_id),
+            execution_type=ExecutionType.REVERT,
+            job_type=job.type,
+            payload={},
+            session_headers=list(job.session.as_list_bytes()),
+        )
+        logger.info(
+            f"Revert execution started locally (compose mode): "
+            f"execution_name={execution_name}, container_id={container_id}"
+        )
+        return execution_name
+
+    ensure_flyte_available(operation="jobs.start_revert_execution")
 
     # Resolving Flyte workflow name and version
     resolved_revert_job = resolve_revert_job(job_type=job.type)

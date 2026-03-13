@@ -7,7 +7,8 @@ import os
 from flyteidl.core.execution_pb2 import WorkflowExecution
 
 from model.job_state import JobState
-from scheduler.flyte import Flyte, ensure_flyte_available
+from scheduler.flyte import Flyte, ensure_flyte_available, is_compose_mode
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_telemetry_tools import unified_tracing
@@ -98,10 +99,18 @@ def cancel_main_job(job_id: ID) -> None:
 @unified_tracing
 def cancel_execution(execution_name: str) -> None:
     """
-    Cancels job execution
+    Cancels job execution.
+
+    In compose mode, stops the Docker container via LocalExecutor.
+    In Flyte mode, terminates the Flyte workflow execution.
 
     :param execution_name: Execution name
     """
+    if is_compose_mode():
+        logger.info(f"Cancelling local execution {execution_name} (compose mode)")
+        LocalExecutor().cancel_execution(execution_name=execution_name)
+        return
+
     ensure_flyte_available(operation="jobs.cancel_execution")
 
     execution = Flyte().fetch_workflow_execution(execution_name=execution_name)

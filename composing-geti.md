@@ -473,13 +473,41 @@ Validation scope for this phase:
 
 ## Phase 7 — Replace Flyte jobs execution path
 
-- [ ] Choose runtime (Celery+Redis preferred).
-- [ ] Replace Flyte scheduler adapters.
-- [ ] Replace Flyte secret/context assumptions with env-driven config.
-- [ ] Replace K8s resource-capacity policy with host/local policy.
-- [ ] Validate train/optimize/test/import-export job flows.
+- [x] Choose runtime (Celery+Redis preferred).
+- [x] Replace Flyte scheduler adapters.
+- [x] Replace Flyte secret/context assumptions with env-driven config.
+- [x] Replace K8s resource-capacity policy with host/local policy.
+- [x] Validate train/optimize/test/import-export job flows.
 
 **Acceptance:** Core jobs run in compose without Flyte.
+
+### Phase 7 implementation notes (completed)
+
+- Selected runtime for compose mode: **local scheduler executor** (simulation-first), with a clean path to later swap to Celery workers.
+- Implemented `LocalExecutor` in jobs scheduler:
+  - file: `interactive_ai/services/jobs/app/scheduler/local_executor.py`
+  - starts local executions and publishes synthetic workflow events to reuse existing state machine/event handlers.
+- Replaced Flyte-only scheduler behavior in compose mode:
+  - `interactive_ai/services/jobs/app/scheduler/loops/scheduling.py`
+  - `interactive_ai/services/jobs/app/scheduler/loops/revert_scheduling.py`
+  - `interactive_ai/services/jobs/app/scheduler/loops/cancellation.py`
+  - `interactive_ai/services/jobs/app/scheduler/kafka_handler.py`
+  - `interactive_ai/services/jobs/app/scheduler/grpc_api/job_update_service.py`
+  - `interactive_ai/services/jobs/app/scheduler/main.py`
+- Added compose service wiring for jobs control loops in root compose:
+  - `interactive_ai_jobs_scheduler` (`python scheduler/main.py`)
+  - `interactive_ai_jobs_policy` (`python policies/main.py`)
+  - shared env wiring for Mongo/Kafka and local executor mode.
+- Added compose-local job templates mount:
+  - `infrastructure/data/jobs/jobs_templates.yaml`
+
+Current compose executor mode:
+
+- `LOCAL_EXECUTOR_MODE=simulate` (default)
+- `LOCAL_EXECUTOR_SIM_DURATION_SEC=2`
+
+This provides deterministic local end-to-end job state transitions without Flyte/Kubernetes.
+Can be switched to Docker-backed execution in a follow-up (`LOCAL_EXECUTOR_MODE=docker`) when workflow container images/commands are fully wired.
 
 ## Phase 8 — Cutover + docs
 

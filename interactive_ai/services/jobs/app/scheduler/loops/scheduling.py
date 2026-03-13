@@ -10,6 +10,7 @@ from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
 from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
 from scheduler.jobs_templates import JobsTemplates
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_main_execution_name, resolve_main_job
 
@@ -32,13 +33,6 @@ def run_scheduling_loop() -> None:
     """
     Runs the scheduling loop iteration for the job scheduler
     """
-
-    if is_compose_mode():
-        logger.error(
-            "Feature unavailable in compose mode: jobs.run_scheduling_loop. "
-            "This path currently requires Kubernetes/Flyte."
-        )
-        return
 
     try:
         logger.debug("Running job scheduler scheduling loop iteration...")
@@ -81,7 +75,7 @@ def schedule_main_job(job_id: ID) -> None:
         return
 
     try:
-        workflow, execution = start_main_execution(job=job)
+        execution_name, launch_plan_id = start_main_execution(job=job)
         job_steps = JobsTemplates().get_job_steps(job_type=job.type)
 
         step_details = [
@@ -109,25 +103,47 @@ def schedule_main_job(job_id: ID) -> None:
         # Update job in database
         StateMachine().set_scheduled_state(
             job_id=job_id,
-            flyte_launch_plan_id=execution.spec.launch_plan.name,
-            flyte_execution_id=execution.id.name,
+            flyte_launch_plan_id=launch_plan_id,
+            flyte_execution_id=execution_name,
             step_details=step_details,
         )
     except Exception:
-        logger.exception(f"Failed to schedule Flyte execution for job {job_id}")
+        logger.exception(f"Failed to schedule execution for job {job_id}")
         StateMachine().reset_scheduling_job(job_id=job_id)
 
 
 @unified_tracing
-def start_main_execution(job: Job) -> tuple[FlyteWorkflow, FlyteWorkflowExecution]:
+def start_main_execution(job: Job) -> tuple[str, str]:
     """
-    Starts jobs main execution
+    Starts jobs main execution.
+
+    In compose mode, launches via LocalExecutor (Docker).
+    In Flyte mode, fetches and executes the registered Flyte workflow.
 
     :param job: Job to start main execution for
-    :return: FlyteWorkflow, FlyteWorkflowExecution Tuple of Flyte workflow and  Flyte workflow execution object
+    :return: Tuple of (execution_name, launch_plan_id).
+             In compose mode launch_plan_id equals execution_name.
     """
-    ensure_flyte_available(operation="jobs.start_main_execution")
     execution_name = get_main_execution_name(job_id=job.id)
+
+    if is_compose_mode():
+        container_id = LocalExecutor().start_execution(
+            execution_name=execution_name,
+            job_id=str(job.id),
+            workspace_id=str(job.workspace_id),
+            organization_id=str(job.session.organization_id),
+            execution_type=ExecutionType.MAIN,
+            job_type=job.type,
+            payload=job.payload,
+            session_headers=list(job.session.as_list_bytes()),
+        )
+        logger.info(
+            f"Job execution started locally (compose mode): "
+            f"execution_name={execution_name}, container_id={container_id}"
+        )
+        return execution_name, execution_name
+
+    ensure_flyte_available(operation="jobs.start_main_execution")
 
     # Resolving Flyte workflow name and version
     workflow_name, workflow_version = resolve_main_job(job_type=job.type)
@@ -141,16 +157,14 @@ def start_main_execution(job: Job) -> tuple[FlyteWorkflow, FlyteWorkflowExecutio
     logger.debug(
         f"Workflow {workflow_name}:{workflow_version} is found, launching it with execution name {execution_name}"
     )
-    return (
-        workflow,
-        start_execution(
-            job=job,
-            workflow=workflow,
-            execution_type=ExecutionType.MAIN,
-            execution_name=execution_name,
-            payload=job.payload,
-        ),
+    execution = start_execution(
+        job=job,
+        workflow=workflow,
+        execution_type=ExecutionType.MAIN,
+        execution_name=execution_name,
+        payload=job.payload,
     )
+    return execution.id.name, execution.spec.launch_plan.name
 
 
 @unified_tracing
@@ -162,7 +176,7 @@ def start_execution(
     payload: dict,
 ) -> FlyteWorkflowExecution:
     """
-    Starts job related execution
+    Starts job related execution (Flyte path only).
 
     :param job: Job to start execution for
     :param workflow: Job workflow

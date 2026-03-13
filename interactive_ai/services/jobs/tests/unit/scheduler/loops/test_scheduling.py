@@ -73,20 +73,23 @@ def test_run_revert_scheduling_loop_none(
 )
 @patch.object(StateMachine, "find_and_lock_job_for_scheduling")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
-def test_run_scheduling_loop_compose_mode_skips(
+def test_run_scheduling_loop_compose_mode_works(
     mock_find_and_lock_job_for_scheduling,
     mock_schedule_main_job,
     mock_is_compose_mode,
     request,
 ) -> None:
+    """In compose mode the scheduling loop should still run (no early-return)."""
     request.addfinalizer(reset_singletons)
+
+    # Arrange: no jobs to schedule
+    mock_find_and_lock_job_for_scheduling.return_value = None
 
     # Act
     run_scheduling_loop()
 
-    # Assert
-    mock_is_compose_mode.assert_called_once_with()
-    mock_find_and_lock_job_for_scheduling.assert_not_called()
+    # Assert: loop ran and tried to find a job
+    mock_find_and_lock_job_for_scheduling.assert_called_once_with()
     mock_schedule_main_job.assert_not_called()
 
 
@@ -214,9 +217,9 @@ def test_schedule_main_job_success(
     # Arrange
     mock_js_get_by_id.return_value = fxt_job
 
-    workflow = MagicMock()
-    execution = MagicMock()
-    mock_start_main_execution.return_value = workflow, execution
+    execution_name = "ex-test-job"
+    launch_plan_id = "lp-test-job"
+    mock_start_main_execution.return_value = execution_name, launch_plan_id
 
     step_details = [
         JobTemplateStep(name="Test task 1", task_id="task_id_1"),
@@ -242,8 +245,8 @@ def test_schedule_main_job_success(
     mock_js_reset_scheduling_job.assert_not_called()
     mock_js_set_scheduled_state.assert_called_once_with(
         job_id=job_id,
-        flyte_launch_plan_id=execution.spec.launch_plan.name,
-        flyte_execution_id=execution.id.name,
+        flyte_launch_plan_id=launch_plan_id,
+        flyte_execution_id=execution_name,
         step_details=[
             JobStepDetails(
                 index=1,
@@ -376,7 +379,7 @@ def test_start_main_execution(
     mock_start_execution.return_value = execution
 
     # Act
-    result_workflow, result_exectuion = start_main_execution(job=fxt_job)
+    result_execution_name, result_launch_plan_id = start_main_execution(job=fxt_job)
 
     # Assert
     mock_flyte_fetch_workflow.assert_called_once_with(
@@ -391,8 +394,8 @@ def test_start_main_execution(
         execution_name="execution_name",
         payload=fxt_job.payload,
     )
-    assert result_workflow == workflow
-    assert result_exectuion == execution
+    assert result_execution_name == execution.id.name
+    assert result_launch_plan_id == execution.spec.launch_plan.name
 
 
 @patch.object(Flyte, "start_workflow_execution")

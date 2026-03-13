@@ -10,6 +10,7 @@ from multiprocessing import Process
 
 from opentelemetry import trace
 
+from scheduler.flyte import is_compose_mode
 from scheduler.grpc_api.job_update_service import JobUpdateService
 from scheduler.kafka_handler import ProgressHandler
 from scheduler.loops.cancellation import run_cancellation_loop
@@ -87,6 +88,11 @@ def stop() -> None:
     if ENABLE_TRACING:
         KafkaTelemetry.uninstrument()
 
+    if is_compose_mode():
+        from scheduler.local_executor import LocalExecutor
+
+        LocalExecutor().stop()
+
     # Shutdown
     grpc_api_server_process.kill()
     grpc_api_server_process.join()
@@ -108,6 +114,11 @@ def start() -> None:
         KafkaTelemetry.instrument()
     ProgressHandler()
     atexit.register(stop)
+
+    if is_compose_mode():
+        from scheduler.local_executor import LocalExecutor
+
+        LocalExecutor()  # initialise eagerly so the monitor thread starts
 
     grpc_api_server_process.start()
 

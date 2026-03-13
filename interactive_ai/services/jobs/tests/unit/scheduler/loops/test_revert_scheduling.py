@@ -62,20 +62,23 @@ def test_run_revert_scheduling_loop_none(
 )
 @patch.object(StateMachine, "find_and_lock_job_for_reverting")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
-def test_run_revert_scheduling_loop_compose_mode_skips(
+def test_run_revert_scheduling_loop_compose_mode_works(
     mock_find_and_lock_job_for_reverting,
     mock_schedule_revert_job,
     mock_is_compose_mode,
     request,
 ) -> None:
+    """In compose mode the revert scheduling loop should still run (no early-return)."""
     request.addfinalizer(reset_singletons)
+
+    # Arrange: no jobs to revert
+    mock_find_and_lock_job_for_reverting.return_value = None
 
     # Act
     run_revert_scheduling_loop()
 
-    # Assert
-    mock_is_compose_mode.assert_called_once_with()
-    mock_find_and_lock_job_for_reverting.assert_not_called()
+    # Assert: loop ran and tried to find a job
+    mock_find_and_lock_job_for_reverting.assert_called_once_with()
     mock_schedule_revert_job.assert_not_called()
 
 

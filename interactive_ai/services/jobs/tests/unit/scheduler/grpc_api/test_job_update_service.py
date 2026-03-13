@@ -48,8 +48,7 @@ class TestJobUpdateService:
     ) -> None:
         # Act
         request = JobUpdateRequest(execution_id="execution_id", metadata='{"foo": "bar"}')
-        with pytest.raises(RuntimeError, match="compose-mode"):
-            fxt_job_update_service.job_update(request, fxt_grpc_context)
+        fxt_job_update_service.job_update(request, fxt_grpc_context)
 
         # Assert
         mock_ensure_flyte_available.assert_called_once_with(operation="jobs.grpc_job_update")

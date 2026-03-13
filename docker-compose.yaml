@@ -411,9 +411,86 @@ services:
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
+      AUTH_MODE: ${AUTH_MODE}
+      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
+      LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
     depends_on:
       migration_job:
         condition: service_completed_successfully
+
+  interactive_ai_jobs_scheduler:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
+    build:
+      context: ./interactive_ai/services/jobs
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+    command:
+      - python
+      - scheduler/main.py
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
+      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      JOBS_TEMPLATES_DIR: /config
+      JOBS_TEMPLATES_FILE: jobs_templates.yaml
+      LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
+      LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
+      SCHEDULER_SCHEDULING_LOOP_WORKERS: 1
+      SCHEDULER_REVERT_SCHEDULING_LOOP_WORKERS: 1
+      SCHEDULER_CANCELLATION_LOOP_WORKERS: 1
+      SCHEDULER_RESETTING_LOOP_WORKERS: 1
+      SCHEDULER_DELETION_LOOP_WORKERS: 1
+      SCHEDULER_RECOVERY_LOOP_WORKERS: 1
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./infrastructure/data/jobs/jobs_templates.yaml:/config/jobs_templates.yaml:ro
+
+  interactive_ai_jobs_policy:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
+    build:
+      context: ./interactive_ai/services/jobs
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+    command:
+      - python
+      - policies/main.py
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
+      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
+      RESOURCE_MANAGER_LOOP_INTERVAL: 60
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
 
   interactive_ai_media:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/media:${TAG-main}

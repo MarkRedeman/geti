@@ -13,8 +13,9 @@ from flytekit.remote import FlyteWorkflowExecution
 from model.job import Job, JobConsumedResource, JobCost
 from model.job_state import JobTaskState
 from scheduler.context import job_context
-from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available
+from scheduler.flyte import ExecutionType, Flyte, ensure_flyte_available, is_compose_mode
 from scheduler.jobs_templates import JobsTemplates
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_kafka_tools import BaseKafkaHandler, KafkaRawMessage, TopicSubscription, publish_event
@@ -59,7 +60,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @staticmethod
     @unified_tracing
     def on_flyte_event(raw_message: KafkaRawMessage) -> None:
-        ensure_flyte_available(operation="jobs.on_flyte_event")
         event = raw_message.value["event"] if raw_message.value is not None and "event" in raw_message.value else None
         if event is None:
             return
@@ -81,14 +81,30 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             logger.error("Unable to determine execution_name")
             return
 
-        execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
-        if execution is None:
-            logger.error(f"Unable to fetch execution {execution_name}")
-            return
+        if is_compose_mode():
+            # In compose mode look up execution metadata from the local registry
+            # instead of fetching it from Flyte.
+            record = LocalExecutor().get_execution_metadata(execution_name)
+            if record is None:
+                logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
+                return
 
-        organization_id = ID(Flyte.get_execution_organization_id(execution))
-        workspace_id = ID(Flyte.get_execution_workspace_id(execution))
-        job_id = Flyte.get_execution_job_id(execution)
+            organization_id = ID(record.organization_id)
+            workspace_id = ID(record.workspace_id)
+            job_id = record.job_id
+            execution_type = record.execution_type
+            execution = None  # no Flyte object in compose mode
+        else:
+            ensure_flyte_available(operation="jobs.on_flyte_event")
+            execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
+            if execution is None:
+                logger.error(f"Unable to fetch execution {execution_name}")
+                return
+
+            organization_id = ID(Flyte.get_execution_organization_id(execution))
+            workspace_id = ID(Flyte.get_execution_workspace_id(execution))
+            job_id = Flyte.get_execution_job_id(execution)
+            execution_type = Flyte.get_execution_type(execution)
 
         with session_context(
             session=make_session(
@@ -104,13 +120,27 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
 
             with job_context(job=job, span_name="on_flyte_event"):
                 if event_type == WORKFLOW_EXECUTION_EVENT_REQUEST:
-                    ProgressHandler.handle_workflow_event(event=event, execution=execution, job=job)
+                    if execution is not None:
+                        # Flyte mode: use handle_workflow_event (resolves execution_type internally)
+                        ProgressHandler.handle_workflow_event(event=event, execution=execution, job=job)
+                    else:
+                        # Compose mode: execution_type already resolved from local registry
+                        ProgressHandler.handle_workflow_event_by_type(
+                            event=event,
+                            execution=execution,
+                            execution_type=execution_type,
+                            job=job,
+                        )
 
                 elif event_type == TASK_EXECUTION_EVENT_REQUEST:
-                    ProgressHandler.handle_task_event(event=event, execution=execution, job=job)
+                    if execution is not None:
+                        ProgressHandler.handle_task_event(event=event, execution=execution, job=job)
+                    # task-level events are not published in compose mode (no Flyte task graph)
 
                 elif event_type == NODE_EXECUTION_EVENT_REQUEST:
-                    ProgressHandler.handle_node_event(event=event, execution=execution, job=job)
+                    if execution is not None:
+                        ProgressHandler.handle_node_event(event=event, execution=execution, job=job)
+                    # node/branch events are not published in compose mode
 
     @staticmethod
     def get_execution_name(event_type: str, event: dict) -> str:
@@ -129,6 +159,34 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         execution_type = Flyte.get_execution_type(execution)
+        ProgressHandler.handle_workflow_event_by_type(
+            event=event,
+            execution=execution,
+            execution_type=execution_type,
+            job=job,
+        )
+
+    @staticmethod
+    def handle_workflow_event_by_type(
+        event: dict,
+        execution: FlyteWorkflowExecution | None,
+        execution_type: ExecutionType,
+        job: Job,
+    ) -> None:
+        """
+        Handle a workflow-level phase change.
+
+        Accepts a pre-resolved *execution_type* so it can be called both from
+        the Flyte path (where ``execution`` is a real FlyteWorkflowExecution) and
+        from the compose/local path (where ``execution`` is None and metadata comes
+        from the LocalExecutor registry).
+        """
+        logger.info(f"Handling workflow event {event}")
+
+        if "phase" not in event:
+            logger.error("Unable to obtain execution phase from event")
+            return
+
         if execution_type == ExecutionType.MAIN:
             ProgressHandler.handle_main_workflow_event(job=job, phase=event["phase"])
         elif execution_type == ExecutionType.REVERT:
@@ -295,7 +353,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_step_details(raw_message: KafkaRawMessage) -> None:
-        ensure_flyte_available(operation="jobs.on_job_step_details")
         value: dict = raw_message.value
 
         if "execution_id" not in value:
@@ -303,13 +360,21 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         execution_name = value["execution_id"]
-        execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
 
-        if execution is None:
-            logger.error(f"Unable to fetch execution {execution_name}")
-            return
+        if is_compose_mode():
+            record = LocalExecutor().get_execution_metadata(execution_name)
+            if record is None:
+                logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
+                return
+            job_id = record.job_id
+        else:
+            ensure_flyte_available(operation="jobs.on_job_step_details")
+            execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
+            if execution is None:
+                logger.error(f"Unable to fetch execution {execution_name}")
+                return
+            job_id = Flyte.get_execution_job_id(execution)
 
-        job_id = Flyte.get_execution_job_id(execution)
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if job is None:
             logger.error(f"Unable to find job by it's ID {job_id}")
@@ -334,7 +399,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_update(raw_message: KafkaRawMessage) -> None:
-        ensure_flyte_available(operation="jobs.on_job_update")
         value: dict = raw_message.value
 
         if "execution_id" not in value:
@@ -342,13 +406,20 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         execution_name = value["execution_id"]
-        execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
 
-        if execution is None:
-            logger.error(f"Unable to fetch execution {execution_name}")
-            return
-
-        job_id = Flyte.get_execution_job_id(execution)
+        if is_compose_mode():
+            record = LocalExecutor().get_execution_metadata(execution_name)
+            if record is None:
+                logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
+                return
+            job_id = record.job_id
+        else:
+            ensure_flyte_available(operation="jobs.on_job_update")
+            execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
+            if execution is None:
+                logger.error(f"Unable to fetch execution {execution_name}")
+                return
+            job_id = Flyte.get_execution_job_id(execution)
 
         if "metadata" in value:
             StateMachine().update_metadata(job_id=ID(job_id), metadata=value["metadata"])

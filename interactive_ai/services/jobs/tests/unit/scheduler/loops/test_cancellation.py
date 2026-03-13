@@ -385,22 +385,29 @@ def test_cancel_execution_terminated_or_terminating(
     mock_flyte_cancel_workflow_execution.assert_not_called()
 
 
-@patch("scheduler.loops.cancellation.ensure_flyte_available", side_effect=RuntimeError("compose-unsupported"))
+@patch("scheduler.loops.cancellation.is_compose_mode", return_value=True)
 @patch.object(Flyte, "cancel_workflow_execution")
 @patch.object(Flyte, "fetch_workflow_execution")
 @patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_cancel_execution_compose_mode_raises(
+def test_cancel_execution_compose_mode_uses_local_executor(
     mock_flyte_fetch_workflow_execution,
     mock_flyte_cancel_workflow_execution,
-    mock_ensure_flyte_available,
+    mock_is_compose_mode,
     request,
 ) -> None:
+    """In compose mode, cancel_execution delegates to LocalExecutor and never touches Flyte."""
     request.addfinalizer(reset_singletons)
 
-    # Act / Assert
-    with pytest.raises(RuntimeError, match="compose-unsupported"):
+    # Arrange
+    with patch("scheduler.loops.cancellation.LocalExecutor") as mock_local_executor_cls:
+        mock_local_executor = MagicMock()
+        mock_local_executor_cls.return_value = mock_local_executor
+
+        # Act
         cancel_execution(execution_name="execution_name")
 
-    mock_ensure_flyte_available.assert_called_once_with(operation="jobs.cancel_execution")
+    # Assert
+    mock_is_compose_mode.assert_called_once_with()
+    mock_local_executor.cancel_execution.assert_called_once_with(execution_name="execution_name")
     mock_flyte_fetch_workflow_execution.assert_not_called()
     mock_flyte_cancel_workflow_execution.assert_not_called()

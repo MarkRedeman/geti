@@ -17,7 +17,8 @@ import grpc
 from pymongo.errors import AutoReconnect
 
 from model.job import JobConsumedResource
-from scheduler.flyte import Flyte, ensure_flyte_available
+from scheduler.flyte import Flyte, ensure_flyte_available, is_compose_mode
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_telemetry_tools import unified_tracing
@@ -58,18 +59,26 @@ class JobUpdateService(JobUpdateServiceServicer):
         :raises: JobPayloadNotDeserializableException if the payload is not deserializable
         """
         logger.info(f"Job update request received: {request}")
-        try:
-            ensure_flyte_available(operation="jobs.grpc_job_update")
-        except RuntimeError as err:
-            context.abort(code=grpc.StatusCode.UNIMPLEMENTED, details=str(err))
 
-        execution = Flyte().fetch_workflow_execution(execution_name=request.execution_id)
+        # Resolve job_id from the execution, using the appropriate backend
+        if is_compose_mode():
+            record = LocalExecutor().get_execution_metadata(request.execution_id)
+            if record is None:
+                logger.error(f"[compose mode] Unable to find execution {request.execution_id} in local registry")
+                return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
+            job_id = record.job_id
+        else:
+            try:
+                ensure_flyte_available(operation="jobs.grpc_job_update")
+            except RuntimeError as err:
+                context.abort(code=grpc.StatusCode.UNIMPLEMENTED, details=str(err))
+                return JobUpdateResponse(empty=Empty())
 
-        if execution is None:
-            logger.error(f"Unable to fetch execution {request.execution_id}")
-            return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
-
-        job_id = Flyte.get_execution_job_id(execution)
+            execution = Flyte().fetch_workflow_execution(execution_name=request.execution_id)
+            if execution is None:
+                logger.error(f"Unable to fetch execution {request.execution_id}")
+                return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
+            job_id = Flyte.get_execution_job_id(execution)
 
         try:
             if request.HasField("metadata"):
