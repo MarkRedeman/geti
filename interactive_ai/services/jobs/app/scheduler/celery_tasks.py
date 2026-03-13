@@ -6,7 +6,7 @@ import os
 import subprocess
 import time
 
-from scheduler.workflow_adapters import WorkflowAdapterError
+from scheduler.workflow_adapters import WorkflowAdapterError, run_import_export_job
 
 from scheduler.celery_app import celery_app
 
@@ -88,8 +88,8 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
     """
     Transitional Celery task for compose mode.
 
-    For now it simulates work to produce deterministic RUNNING -> SUCCEEDED
-    transitions through LocalExecutor's event bridge.
+    Dispatches import/export job types to dedicated workflow runtime containers.
+    Other job types remain in simulation fallback for now.
     """
     if job_type in _IMPORT_EXPORT_JOB_TYPES:
         _run_import_export_in_container(job_type=job_type, payload=payload)

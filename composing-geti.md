@@ -531,6 +531,11 @@ Celery execution status (current):
   - `import_project`
 - non-import/export job types still use simulation fallback while train/optimize/test execution runners are being integrated.
 
+Important note on current scope:
+
+- train / optimize / model-test jobs are **not** yet moved to real Celery workflow execution.
+- they continue to run via compose simulation fallback until dedicated adapters are implemented and validated.
+
 New files:
 
 - `interactive_ai/services/jobs/app/scheduler/celery_app.py`

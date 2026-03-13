@@ -92,3 +92,18 @@ def run_import_export_job(job_type: str, payload: dict) -> None:
             return
 
     raise WorkflowAdapterError(f"Unsupported import/export job type: {job_type}")
+
+
+def run_train_job(payload: dict) -> None:
+    """Train execution placeholder for Celery integration (real workflow wiring pending)."""
+    raise WorkflowAdapterError("Train job execution is not implemented yet in Celery adapter")
+
+
+def run_optimize_pot_job(payload: dict) -> None:
+    """Optimize execution placeholder for Celery integration (real workflow wiring pending)."""
+    raise WorkflowAdapterError("Optimize POT job execution is not implemented yet in Celery adapter")
+
+
+def run_test_job(payload: dict) -> None:
+    """Model test execution placeholder for Celery integration (real workflow wiring pending)."""
+    raise WorkflowAdapterError("Model test job execution is not implemented yet in Celery adapter")
