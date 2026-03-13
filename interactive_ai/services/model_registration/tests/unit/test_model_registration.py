@@ -1,8 +1,6 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import grpc
 import pytest
 from botocore.exceptions import ClientError
 from grpc.aio import ServicerContext
@@ -16,7 +14,7 @@ from grpc_interfaces.model_registration.pb.service_pb2 import (
 )
 from kubernetes_asyncio.client.rest import ApiException
 
-from service.config import MODELMESH_NAMESPACE, S3_STORAGE
+from service.config import MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
 from service.model_registration import ModelRegistration
 from service.responses import Responses
 
@@ -112,21 +110,33 @@ async def test_register_new_pipelines_error(get_inference, model_registration, s
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_register_new_pipelines_compose_mode_aborts(model_registration, servicer_context):
-    servicer_context.abort.side_effect = RuntimeError("aborted")
-
+async def test_register_new_pipelines_compose_mode_creates(model_registration, servicer_context, s3_client):
+    s3_client.return_value.get_json_object.return_value = None
     req = RegisterRequest(name="test", override=False)
+    response = await model_registration.register_new_pipelines(req, servicer_context)
+    assert response.status == Responses.Created
+    s3_client.return_value.put_json_object.assert_called_once()
 
-    with pytest.raises(RuntimeError, match="aborted"):
-        await model_registration.register_new_pipelines(req, servicer_context)
 
-    servicer_context.abort.assert_awaited_once_with(
-        grpc.StatusCode.UNIMPLEMENTED,
-        details=(
-            "Feature unavailable in compose mode: model_registration.register_new_pipelines. "
-            "This path currently requires Kubernetes/Flyte."
-        ),
-    )
+@pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_register_new_pipelines_compose_mode_already_registered(model_registration, servicer_context, s3_client):
+    s3_client.return_value.get_json_object.return_value = {"pipeline_name": "test"}
+    req = RegisterRequest(name="test", override=False)
+    response = await model_registration.register_new_pipelines(req, servicer_context)
+    assert response.status == Responses.AlreadyRegistered
+    s3_client.return_value.put_json_object.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_register_new_pipelines_compose_mode_override(model_registration, servicer_context, s3_client):
+    s3_client.return_value.get_json_object.return_value = {"pipeline_name": "test"}
+    req = RegisterRequest(name="test", override=True)
+    response = await model_registration.register_new_pipelines(req, servicer_context)
+    assert response.status == Responses.Created
+    s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key="test")
+    s3_client.return_value.put_json_object.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -154,6 +164,15 @@ async def test_deregister_pipeline_faile(remove_inference, model_registration, s
 
 
 @pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_deregister_pipeline_compose(model_registration, servicer_context, s3_client):
+    req = DeregisterRequest(name="test")
+    response = await model_registration.deregister_pipeline(req, servicer_context)
+    assert response.status == Responses.Removed
+    s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key="test")
+
+
+@pytest.mark.asyncio
 async def test_register_active_pipeline(model_registration, servicer_context):
     req = ActiveRequest()
     response = await model_registration.register_active_pipeline(req, servicer_context)
@@ -178,21 +197,11 @@ async def test_list_pipeline(list_inference, model_registration, servicer_contex
 
 @pytest.mark.asyncio
 @patch("service.model_registration.DEPLOYMENT_MODE", "compose")
-async def test_list_pipeline_compose_mode_aborts(model_registration, servicer_context):
-    servicer_context.abort.side_effect = RuntimeError("aborted")
-
+async def test_list_pipeline_compose_mode(model_registration, servicer_context, s3_client):
+    s3_client.return_value.list_registry_folders.return_value = ["model1", "model2"]
     req = ListRequest()
-
-    with pytest.raises(RuntimeError, match="aborted"):
-        await model_registration.list_pipelines(req, servicer_context)
-
-    servicer_context.abort.assert_awaited_once_with(
-        grpc.StatusCode.UNIMPLEMENTED,
-        details=(
-            "Feature unavailable in compose mode: model_registration.list_pipelines. "
-            "This path currently requires Kubernetes/Flyte."
-        ),
-    )
+    response = await model_registration.list_pipelines(req, servicer_context)
+    assert response.pipelines == ["model1", "model2"]
 
 
 @pytest.mark.asyncio
@@ -247,6 +256,26 @@ async def test_recover_pipelines_no_recover(list_inference, model_registration, 
 
 
 @pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_recover_pipelines_compose_success(model_registration, servicer_context, s3_client):
+    s3_client.return_value.check_folder_exists.return_value = True
+    req = RecoverRequest(name="test")
+    response = await model_registration.recover_pipeline(req, servicer_context)
+    assert response.success is True
+    s3_client.return_value.put_json_object.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_recover_pipelines_compose_not_found(model_registration, servicer_context, s3_client):
+    s3_client.return_value.check_folder_exists.return_value = False
+    req = RecoverRequest(name="test")
+    response = await model_registration.recover_pipeline(req, servicer_context)
+    assert response.success is False
+    s3_client.return_value.put_json_object.assert_not_called()
+
+
+@pytest.mark.asyncio
 @patch("service.model_registration.InferenceManager.list_inference")
 @patch("service.model_registration.InferenceManager.remove_inference")
 async def test_delete_project_pipelines(
@@ -265,6 +294,28 @@ async def test_delete_project_pipelines(
     remove_inference.assert_awaited_once()
     s3_client.return_value.list_folders.assert_called_once()
     s3_client.return_value.delete_folder.assert_called() == 2
+
+
+@pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_delete_project_pipelines_compose(model_registration, servicer_context, s3_client):
+    s3_client.return_value.list_folders.return_value = ["test-model1", "test-model2", "other-model"]
+    req = PurgeProjectRequest(project_id="test")
+    response = await model_registration.delete_project_pipelines(req, servicer_context)
+    assert response.success is True
+    assert s3_client.return_value.delete_folder.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("service.model_registration.DEPLOYMENT_MODE", "compose")
+async def test_delete_project_pipelines_compose_failed(model_registration, servicer_context, s3_client):
+    s3_client.return_value.list_folders.return_value = ["test-model1"]
+    s3_client.return_value.delete_folder.side_effect = ClientError(
+        {"Error": {"Code": 500, "Message": "Error"}}, "delete_object"
+    )
+    req = PurgeProjectRequest(project_id="test")
+    response = await model_registration.delete_project_pipelines(req, servicer_context)
+    assert response.success is False
 
 
 @pytest.mark.asyncio

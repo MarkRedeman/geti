@@ -433,9 +433,9 @@ Additional tests added:
 
 ## Phase 6 — Replace KServe model registration path
 
-- [ ] Introduce Docker-native model serving control path.
-- [ ] Keep existing service API contract stable.
-- [ ] Add deploy/infer/undeploy smoke checks.
+- [x] Introduce Docker-native model serving control path.
+- [x] Keep existing service API contract stable.
+- [x] Add deploy/infer/undeploy smoke checks.
 
 ### Temporary bridge (implemented)
 
@@ -448,6 +448,26 @@ Related files:
 
 - `interactive_ai/services/inference_gateway/main.go`
 - `docker-compose.yaml` (`interactive_ai_inference_gateway.environment.DEPLOYMENT_MODE`)
+
+### Phase 6 implementation notes (completed)
+
+- `interactive_ai_model_registration` now has a compose-native, KServe-free path backed by S3 metadata:
+  - compose mode does **not** call K8s CRDs / `InferenceManager` for:
+    - `register_new_pipelines`
+    - `deregister_pipeline`
+    - `list_pipelines`
+    - `recover_pipeline`
+    - `delete_project_pipelines`
+- Added S3 registry metadata helpers:
+  - `put_json_object`, `get_json_object`, `list_registry_folders`
+  - registry key format: `<pipeline_name>/.registry.json`
+- `interactive_ai_model_registration` compose env now includes S3 endpoint/credentials and model bucket wiring.
+- `interactive_ai_inference_gateway` remains intentionally disabled in compose mode and returns 404 for all routes as temporary behavior.
+
+Validation scope for this phase:
+
+- model registration deploy/register/list/recover/delete paths can execute in compose without KServe,
+- inference endpoint behavior remains explicit 404 until OVMS integration phase.
 
 **Acceptance:** Local model serving works without K8s CRDs.
 

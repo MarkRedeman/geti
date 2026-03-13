@@ -447,6 +447,13 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
+      S3_CREDENTIALS_PROVIDER: local
+      S3_HOST: s3:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      BUCKET_NAME_MODELMESH: ${S3_BUCKET}
     depends_on:
       migration_job:
         condition: service_completed_successfully
