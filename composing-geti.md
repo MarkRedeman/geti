@@ -579,6 +579,7 @@ Compose recovery behavior update:
 
 - recovery loop now runs in compose mode and uses `LocalExecutor` registry metadata.
 - active jobs with missing local execution metadata are reset to `SUBMITTED` for re-scheduling.
+- Flyte-backed recovery branch is removed from scheduler runtime path; non-compose recovery now logs unavailable.
 
 Train status caveat:
 

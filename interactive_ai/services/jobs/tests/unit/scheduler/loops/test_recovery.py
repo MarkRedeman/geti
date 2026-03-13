@@ -3,7 +3,6 @@
 
 from unittest.mock import MagicMock, call, patch
 
-from scheduler.flyte import Flyte
 from scheduler.loops.recovery import (
     check_and_recover_organization_if_needed,
     check_and_recover_organization_jobs_if_needed,
@@ -28,17 +27,18 @@ def mock_state_machine(self, *args, **kwargs) -> None:
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
 
 
 @patch(
     "scheduler.loops.recovery.check_and_recover_organization_if_needed",
 )
+@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch.object(StateMachine, "get_session_ids_with_jobs_not_in_final_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_run_recovery_loop_none(
     mock_get_session_ids_with_jobs_not_in_final_state,
+    mock_is_compose_mode,
     mock_check_and_recover_organization_if_needed,
     request,
 ) -> None:
@@ -51,16 +51,19 @@ def test_run_recovery_loop_none(
     run_recovery_loop()
 
     # Assert
+    mock_is_compose_mode.assert_called_once_with()
     mock_check_and_recover_organization_if_needed.assert_not_called()
 
 
 @patch(
     "scheduler.loops.recovery.check_and_recover_organization_if_needed",
 )
+@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch.object(StateMachine, "get_session_ids_with_jobs_not_in_final_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_run_recovery_loop_org(
     mock_get_session_ids_with_jobs_not_in_final_state,
+    mock_is_compose_mode,
     mock_check_and_recover_organization_if_needed,
     request,
 ) -> None:
@@ -73,6 +76,7 @@ def test_run_recovery_loop_org(
     run_recovery_loop()
 
     # Assert
+    mock_is_compose_mode.assert_called_once_with()
     mock_check_and_recover_organization_if_needed.assert_called_once_with(organization_id=ORG, workspace_id=WORK)
 
 
@@ -100,6 +104,27 @@ def test_run_recovery_loop_compose_uses_org_recovery(
     mock_is_compose_mode.assert_called_once_with()
     mock_get_session_ids_with_jobs_not_in_final_state.assert_called_once_with()
     mock_check_and_recover_organization_if_needed.assert_called_once_with(organization_id=ORG, workspace_id=WORK)
+
+
+@patch("scheduler.loops.recovery.is_compose_mode", return_value=False)
+@patch(
+    "scheduler.loops.recovery.check_and_recover_organization_if_needed",
+)
+@patch.object(StateMachine, "get_session_ids_with_jobs_not_in_final_state")
+@patch.object(StateMachine, "__init__", new=mock_state_machine)
+def test_run_recovery_loop_non_compose_logs_and_skips(
+    mock_get_session_ids_with_jobs_not_in_final_state,
+    mock_check_and_recover_organization_if_needed,
+    mock_is_compose_mode,
+    request,
+) -> None:
+    request.addfinalizer(reset_singletons)
+
+    run_recovery_loop()
+
+    mock_is_compose_mode.assert_called_once_with()
+    mock_get_session_ids_with_jobs_not_in_final_state.assert_not_called()
+    mock_check_and_recover_organization_if_needed.assert_not_called()
 
 
 @patch("scheduler.loops.recovery.check_and_recover_organization_jobs_if_needed")
@@ -151,37 +176,30 @@ def test_check_and_recover_workspace_if_needed(
     )
 
 
-@patch.object(Flyte, "list_workflow_executions")
 @patch.object(StateMachine, "reset_job_to_submitted_state")
+@patch("scheduler.loops.recovery.LocalExecutor")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_check_and_recover_workspace_jobs_if_needed_empty_list(
+    mock_local_executor,
     mock_reset_job_to_submitted_state,
-    mock_list_workflow_executions,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
-
-    # Arrange
-    mock_list_workflow_executions.return_value = []
 
     # Act
     check_and_recover_organization_jobs_if_needed(jobs=[])
 
     # Assert
-    mock_list_workflow_executions.assert_called_once_with(execution_names=[])
+    mock_local_executor.return_value.get_execution_metadata.assert_not_called()
     mock_reset_job_to_submitted_state.assert_not_called()
 
 
-@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch("scheduler.loops.recovery.LocalExecutor")
-@patch.object(Flyte, "list_workflow_executions")
 @patch.object(StateMachine, "reset_job_to_submitted_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_check_and_recover_workspace_jobs_if_needed_compose_mode(
     mock_reset_job_to_submitted_state,
-    mock_list_workflow_executions,
     mock_local_executor,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -195,22 +213,16 @@ def test_check_and_recover_workspace_jobs_if_needed_compose_mode(
     check_and_recover_organization_jobs_if_needed(jobs=[job])
 
     # Assert
-    mock_is_compose_mode.assert_called_once_with()
-    mock_list_workflow_executions.assert_not_called()
     mock_local_executor.return_value.get_execution_metadata.assert_called_once_with(execution_name="execution")
     mock_reset_job_to_submitted_state.assert_not_called()
 
 
-@patch("scheduler.loops.recovery.is_compose_mode", return_value=True)
 @patch("scheduler.loops.recovery.LocalExecutor")
-@patch.object(Flyte, "list_workflow_executions")
 @patch.object(StateMachine, "reset_job_to_submitted_state")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_check_and_recover_workspace_jobs_if_needed_compose_mode_missing_execution(
     mock_reset_job_to_submitted_state,
-    mock_list_workflow_executions,
     mock_local_executor,
-    mock_is_compose_mode,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -224,18 +236,16 @@ def test_check_and_recover_workspace_jobs_if_needed_compose_mode_missing_executi
     check_and_recover_organization_jobs_if_needed(jobs=[job])
 
     # Assert
-    mock_is_compose_mode.assert_called_once_with()
-    mock_list_workflow_executions.assert_not_called()
     mock_local_executor.return_value.get_execution_metadata.assert_called_once_with(execution_name="execution")
     mock_reset_job_to_submitted_state.assert_called_once_with(job_id=job.id)
 
 
-@patch.object(Flyte, "list_workflow_executions")
 @patch.object(StateMachine, "reset_job_to_submitted_state")
+@patch("scheduler.loops.recovery.LocalExecutor")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_check_and_recover_workspace_jobs_if_needed_job_found(
+    mock_local_executor,
     mock_reset_job_to_submitted_state,
-    mock_list_workflow_executions,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -245,24 +255,22 @@ def test_check_and_recover_workspace_jobs_if_needed_job_found(
     job = MagicMock()
     job.executions.main.execution_id = execution_id
 
-    execution = MagicMock()
-    execution.id.name = "execution"
-    mock_list_workflow_executions.return_value = [execution]
+    mock_local_executor.return_value.get_execution_metadata.return_value = object()
 
     # Act
     check_and_recover_organization_jobs_if_needed(jobs=[job])
 
     # Assert
-    mock_list_workflow_executions.assert_called_once_with(execution_names=["execution"])
+    mock_local_executor.return_value.get_execution_metadata.assert_called_once_with(execution_name="execution")
     mock_reset_job_to_submitted_state.assert_not_called()
 
 
-@patch.object(Flyte, "list_workflow_executions")
 @patch.object(StateMachine, "reset_job_to_submitted_state")
+@patch("scheduler.loops.recovery.LocalExecutor")
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_check_and_recover_workspace_jobs_if_needed_job_not_found(
+    mock_local_executor,
     mock_reset_job_to_submitted_state,
-    mock_list_workflow_executions,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -272,11 +280,11 @@ def test_check_and_recover_workspace_jobs_if_needed_job_not_found(
     job = MagicMock()
     job.executions.main.execution_id = execution_id
 
-    mock_list_workflow_executions.return_value = []
+    mock_local_executor.return_value.get_execution_metadata.return_value = None
 
     # Act
     check_and_recover_organization_jobs_if_needed(jobs=[job])
 
     # Assert
-    mock_list_workflow_executions.assert_called_once_with(execution_names=["execution"])
+    mock_local_executor.return_value.get_execution_metadata.assert_called_once_with(execution_name="execution")
     mock_reset_job_to_submitted_state.assert_called_once_with(job_id=job.id)

@@ -5,7 +5,7 @@ import logging
 import os
 
 from model.job import Job
-from scheduler.flyte import Flyte, is_compose_mode
+from scheduler.flyte import is_compose_mode
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
@@ -23,14 +23,14 @@ def run_recovery_loop() -> None:
     """
 
     try:
-        if is_compose_mode():
-            logger.debug("[COMPOSE MODE] Running compose-native recovery loop")
-            ids = StateMachine().get_session_ids_with_jobs_not_in_final_state()
-            for organization_id, workspace_id in ids.items():
-                check_and_recover_organization_if_needed(organization_id=organization_id, workspace_id=workspace_id)
+        if not is_compose_mode():
+            logger.error(
+                "Feature unavailable outside compose mode: jobs.recovery_loop. "
+                "Flyte-backed recovery path has been removed."
+            )
             return
 
-        logger.debug("Running job scheduler recovery loop...")
+        logger.debug("[COMPOSE MODE] Running compose-native recovery loop")
         ids = StateMachine().get_session_ids_with_jobs_not_in_final_state()
         for organization_id, workspace_id in ids.items():
             check_and_recover_organization_if_needed(organization_id=organization_id, workspace_id=workspace_id)
@@ -61,36 +61,16 @@ def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     Checks workspace jobs and resets the jobs missing in Flyte.
     :param jobs: list of jobs to check
     """
-    if is_compose_mode():
-        logger.debug(f"[COMPOSE MODE] Processing jobs {[job.id for job in jobs]}")
-        executor = LocalExecutor()
-        for job in jobs:
-            execution_id = job.executions.main.execution_id
-            if execution_id is None:
-                continue
-
-            record = executor.get_execution_metadata(execution_name=execution_id)
-            if record is not None:
-                continue
-
-            logger.warning(f"Found active job {job.id} with missing local execution {execution_id}")
-            StateMachine().reset_job_to_submitted_state(job_id=job.id)
-        return
-
-    logger.debug(f"Processing jobs {[job.id for job in jobs]}")
-
-    executions_ids = [job.executions.main.execution_id for job in jobs if job.executions.main.execution_id is not None]
-    executions = Flyte().list_workflow_executions(execution_names=executions_ids)
-    logger.debug(f"Found {len(executions)} workflow executions in Flyte")
-
+    logger.debug(f"[COMPOSE MODE] Processing jobs {[job.id for job in jobs]}")
+    executor = LocalExecutor()
     for job in jobs:
         execution_id = job.executions.main.execution_id
-        execution = next(
-            (ex for ex in executions if ex.id.name == execution_id),
-            None,
-        )
-        if execution is not None:
+        if execution_id is None:
             continue
 
-        logger.warning(f"Found active job {job.id} with missing Flyte execution {execution_id}")
+        record = executor.get_execution_metadata(execution_name=execution_id)
+        if record is not None:
+            continue
+
+        logger.warning(f"Found active job {job.id} with missing local execution {execution_id}")
         StateMachine().reset_job_to_submitted_state(job_id=job.id)
