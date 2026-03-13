@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"strings"
 
@@ -47,10 +46,24 @@ func main() {
 	}
 
 	if isComposeMode() {
-		logger.Log().Warn(
-			"[COMPOSE MODE] inference_gateway is running in temporary disabled mode; returning 404 for all requests.",
-		)
-		router := createCompose404Router()
+		logger.Log().Warn("[COMPOSE MODE] inference_gateway uses OVMS backend bridge.")
+
+		ovmsClient, err := grpc.NewOVMSClient()
+		if err != nil {
+			logger.Log().Fatalf("Cannot create OVMS gRPC client: %s", err)
+		}
+		defer func() {
+			_ = ovmsClient.Close()
+		}()
+
+		modelAccessSrv := service.NewOVMSModelAccessService(ovmsClient)
+		clientManager, err := minio.NewClientManager()
+		if err != nil {
+			logger.Log().Fatalf("Cannot instantiate minio client manager: %s", err)
+		}
+		defer clientManager.Close()
+
+		router := createRouter(cfg.MaxMultipartMemoryMB, modelAccessSrv, clientManager)
 		if err := router.Run(":" + cfg.InferenceGatewayPort); err != nil {
 			logger.Log().Fatalf("Cannot run server: %s", err)
 		}
@@ -88,15 +101,6 @@ func main() {
 
 func isComposeMode() bool {
 	return strings.EqualFold(os.Getenv("DEPLOYMENT_MODE"), "compose")
-}
-
-func createCompose404Router() *gin.Engine {
-	r := gin.New()
-	r.Use(gin.Recovery())
-	r.NoRoute(func(c *gin.Context) {
-		c.Status(http.StatusNotFound)
-	})
-	return r
 }
 
 // createRouter initializes and returns a new instance of *gin.Engine.

@@ -392,9 +392,13 @@ services:
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
     environment:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
+      OVMS_SERVICE: ovms
+      OVMS_PORT: 9000
     depends_on:
       migration_job:
         condition: service_completed_successfully
+      ovms:
+        condition: service_started
 
   interactive_ai_jobs:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -629,6 +633,20 @@ services:
     depends_on:
       migration_job:
         condition: service_completed_successfully
+
+  ovms:
+    image: openvino/model_server:latest
+    command:
+      - --port=9000
+      - --rest_port=8080
+      - --config_path=/models/models.json
+      - --file_system_poll_wait_seconds=5
+    ports:
+      - "9000:9000"
+      - "8080:8080"
+    volumes:
+      - ./infrastructure/data/ovms:/models
+    restart: unless-stopped
 
   interactive_ai_project_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_import_export:${TAG-main}

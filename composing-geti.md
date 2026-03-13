@@ -439,14 +439,16 @@ Additional tests added:
 
 ### Temporary bridge (implemented)
 
-- `interactive_ai_inference_gateway` now supports a compose-only disabled mode:
-  - when `DEPLOYMENT_MODE=compose`, gateway starts without ModelMesh/KServe clients,
-  - all requests return `404 Not Found`.
-- This avoids startup failure/noisy KServe errors during compose migration while making unsupported inference behavior explicit.
+- `interactive_ai_inference_gateway` now supports a compose OVMS backend bridge:
+  - when `DEPLOYMENT_MODE=compose`, gateway starts with OVMS gRPC client,
+  - requests are routed through existing controller/usecase path using OVMS-backed model access service.
+- This removes the global compose 404 behavior and enables inference path integration work in compose.
 
 Related files:
 
 - `interactive_ai/services/inference_gateway/main.go`
+- `interactive_ai/services/inference_gateway/app/grpc/ovms_client.go`
+- `interactive_ai/services/inference_gateway/app/service/ovms_model_access.go`
 - `docker-compose.yaml` (`interactive_ai_inference_gateway.environment.DEPLOYMENT_MODE`)
 
 ### Phase 6 implementation notes (completed)
@@ -463,6 +465,7 @@ Related files:
   - registry key format: `<pipeline_name>/.registry.json`
 - `interactive_ai_model_registration` compose env now includes S3 endpoint/credentials and model bucket wiring.
 - `interactive_ai_inference_gateway` remains intentionally disabled in compose mode and returns 404 for all routes as temporary behavior.
+ - `interactive_ai_inference_gateway` now runs in compose with OVMS backend bridge (model loading/configuration still progressive).
 
 Validation scope for this phase:
 
