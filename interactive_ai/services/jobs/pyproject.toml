@@ -18,6 +18,7 @@ dependencies = [
     "geti-types",
     "iai_core",
     "grpc_interfaces[job_submission]"
+    ,"celery[redis]==5.4.0"
 ]
 
 [tool.uv.sources]

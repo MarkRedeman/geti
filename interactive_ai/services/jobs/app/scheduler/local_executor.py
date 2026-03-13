@@ -46,6 +46,7 @@ from geti_kafka_tools import publish_event
 from geti_types import CTX_SESSION_VAR, ID, RequestSource, Singleton, make_session, session_context
 
 from scheduler.flyte import ExecutionType
+from scheduler.celery_tasks import run_job_execution
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,9 @@ class LocalExecutor(metaclass=Singleton):
         if self._run_mode == "simulate":
             container_id = f"sim-{execution_name}"
             self._start_simulated_execution(record=record)
+        elif self._run_mode == "celery":
+            result = self._start_celery_execution(execution_name=execution_name, payload=payload, record=record)
+            container_id = f"celery-{result.id}"
         else:
             container_id = self._launch_container(
                 execution_name=execution_name,
@@ -189,6 +193,31 @@ class LocalExecutor(metaclass=Singleton):
 
         threading.Thread(target=_simulate, name=f"local-exec-sim-{record.execution_name}", daemon=True).start()
 
+    def _start_celery_execution(self, execution_name: str, payload: dict[str, Any], record: _ExecutionRecord):  # noqa: ANN001
+        self._publish_workflow_event(record, phase=PHASE_RUNNING)
+        task_payload = dict(payload)
+        task_payload.setdefault("sim_duration_sec", _SIM_DURATION_SEC)
+        async_result = run_job_execution.apply_async(args=[execution_name, task_payload])
+
+        def _watch_result() -> None:
+            try:
+                async_result.get(timeout=max(60, int(_SIM_DURATION_SEC * 10)))
+                with self._lock:
+                    if record.cancelled:
+                        return
+                    record.finished = True
+                self._publish_workflow_event(record, phase=PHASE_SUCCEEDED)
+            except Exception:
+                logger.exception(f"[LocalExecutor] Celery execution failed: {execution_name}")
+                with self._lock:
+                    if record.cancelled:
+                        return
+                    record.finished = True
+                self._publish_workflow_event(record, phase=PHASE_FAILED)
+
+        threading.Thread(target=_watch_result, name=f"local-exec-celery-{execution_name}", daemon=True).start()
+        return async_result
+
     # ------------------------------------------------------------------
     # Public API – cancellation
     # ------------------------------------------------------------------
@@ -210,7 +239,7 @@ class LocalExecutor(metaclass=Singleton):
             logger.info(f"[LocalExecutor] Execution {execution_name} already finished, nothing to cancel")
             return
 
-        if self._run_mode == "simulate":
+        if self._run_mode in {"simulate", "celery"}:
             with self._lock:
                 record.cancelled = True
                 record.finished = True

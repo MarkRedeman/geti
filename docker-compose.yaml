@@ -422,9 +422,13 @@ services:
       KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
     depends_on:
       migration_job:
         condition: service_completed_successfully
+      redis:
+        condition: service_started
 
   interactive_ai_jobs_scheduler:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -451,6 +455,8 @@ services:
       JOBS_TEMPLATES_FILE: jobs_templates.yaml
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
       SCHEDULER_SCHEDULING_LOOP_WORKERS: 1
       SCHEDULER_REVERT_SCHEDULING_LOOP_WORKERS: 1
       SCHEDULER_CANCELLATION_LOOP_WORKERS: 1
@@ -464,6 +470,8 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./infrastructure/data/jobs/jobs_templates.yaml:/config/jobs_templates.yaml:ro
 
@@ -491,6 +499,36 @@ services:
         condition: service_completed_successfully
       mongodb:
         condition: service_healthy
+
+  interactive_ai_jobs_worker:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
+    build:
+      context: ./interactive_ai/services/jobs
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+    command:
+      - celery
+      - -A
+      - scheduler.celery_app.celery_app
+      - worker
+      - --loglevel=INFO
+      - --pool=solo
+      - --concurrency=1
+    environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+    depends_on:
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
 
   interactive_ai_media:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/media:${TAG-main}

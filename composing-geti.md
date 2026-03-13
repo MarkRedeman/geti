@@ -503,11 +503,21 @@ Validation scope for this phase:
 
 Current compose executor mode:
 
-- `LOCAL_EXECUTOR_MODE=simulate` (default)
+- `LOCAL_EXECUTOR_MODE=celery` (default)
+- `CELERY_BROKER_URL=redis://redis:6379/0`
+- `CELERY_RESULT_BACKEND=redis://redis:6379/1`
 - `LOCAL_EXECUTOR_SIM_DURATION_SEC=2`
 
-This provides deterministic local end-to-end job state transitions without Flyte/Kubernetes.
-Can be switched to Docker-backed execution in a follow-up (`LOCAL_EXECUTOR_MODE=docker`) when workflow container images/commands are fully wired.
+Compose now includes:
+
+- `redis` service
+- `interactive_ai_jobs_worker` Celery worker service
+
+Execution bridge behavior:
+
+- Scheduler dispatches local job execution to Celery tasks in compose mode.
+- LocalExecutor continues to publish synthetic workflow events (`RUNNING` -> terminal phase)
+  so existing state-machine/event handlers are reused.
 
 ## Phase 8 — Cutover + docs
 
@@ -555,3 +565,110 @@ Can be switched to Docker-backed execution in a follow-up (`LOCAL_EXECUTOR_MODE=
 - K8s/Flyte code dependencies are explicitly mapped and guarded.
 - MongoDB bootstrap for shared DB is automated and repeatable.
 - Execution checklist is actionable and can be tracked to completion.
+
+---
+
+## Migration Findings Summary (Appended)
+
+This section summarizes what was discovered and implemented during the migration work across Phases 1–8.
+
+### What is now in place
+
+1. **Compose-first local stack exists and is wired**
+   - Root compose has infra dependencies (Postgres, MongoDB, Kafka, S3, SpiceDB, Traefik, Dex/Authelia) and persistence.
+   - Compose bootstrap + smoke scripts exist and are integrated into Make targets.
+
+2. **Ingress parity via Traefik is in place for core routes**
+   - Service routes are label-driven with priorities.
+   - Smoke tests validate routing through Traefik rather than direct service ports.
+
+3. **Auth/authz can be bypassed for local development**
+   - `AUTH_MODE=mock` path implemented across shared identity + SpiceDB + key service paths.
+   - This unblocks local dev without OIDC/SpiceDB setup friction.
+
+4. **Mongo bootstrap is automated**
+   - One-shot `migration_job` service runs Mongo user setup, migrations, and S3 bootstrap.
+   - Interactive AI services depend on successful bootstrap.
+
+5. **Platform services are wired for compose runtime**
+   - Account/auth_proxy/user_directory/onboarding/notifier/credit/initial_user have compose env/dependency wiring.
+   - Local helper services (LDAP + Mailhog) added.
+
+6. **K8s/Flyte failure modes are explicit**
+   - Many previously implicit failures now fail fast with clear compose-mode logs/status.
+   - Startup-critical lazy K8s clients are guarded.
+
+7. **KServe dependency removed from model_registration compose path**
+   - Compose-mode model registration uses S3-backed metadata (`.registry.json`) instead of CRDs.
+   - Register/list/recover/delete flows are available without KServe.
+
+8. **Flyte jobs path replaced for compose mode**
+   - Local executor added for scheduler flow continuity.
+   - Scheduler and related event/update paths were adapted for compose-mode execution metadata.
+
+9. **Docs + CI were cut over**
+   - Compose is now documented as default local path.
+   - Main CI includes compose smoke job.
+
+---
+
+## Honest State Review (Current)
+
+### Overall status
+
+The repository is now in a **workable compose-first local state** for developer onboarding and core platform bring-up. However, some areas are intentionally temporary and not equivalent to production behavior.
+
+### What is good
+
+- Local startup path is much clearer and more reproducible than before.
+- Major Kubernetes/Flyte hard dependencies are no longer hard blockers for day-to-day local development.
+- CI now has a compose smoke gate, reducing drift risk.
+
+### Gaps / limitations found while implementing
+
+1. **Inference is intentionally disabled in compose mode**
+   - `interactive_ai_inference_gateway` currently returns 404 in compose mode.
+   - This is explicit and safe, but not feature-complete.
+
+2. **Jobs execution in compose is transitional**
+   - Current local executor defaults to simulation-first behavior for deterministic state transitions.
+   - This proves control flow, but does not yet represent full production execution semantics for all workload types.
+
+3. **Auth model is intentionally insecure for local mode**
+   - `AUTH_MODE=mock` bypasses identity/authorization.
+   - Useful for dev speed, but must stay tightly scoped and non-default outside local.
+
+4. **Route coverage is representative, not exhaustive**
+   - Traefik rules and smoke checks cover core paths.
+   - Full API surface parity with historical ingress behavior still needs systematic verification.
+
+5. **Configuration complexity remains high**
+   - Env surface is still large; some values are placeholders.
+   - A stricter env validation layer would reduce startup/runtime surprises.
+
+6. **Service behavior parity is mixed**
+   - Some compose-mode paths are true replacements (e.g., model registration metadata path).
+   - Others are explicit temporary bridges (404/unimplemented/simulated).
+
+7. **Local data/state hygiene is still rough**
+   - Runtime-generated artifacts (auth/db files) and local volumes can cause stale-state issues between runs.
+
+---
+
+## Improvement Checklist (Next)
+
+Use this as the next execution backlog after Phases 1–8.
+
+- [ ] **Inference replacement (highest priority):** integrate OVMS-based local serving path and remove compose 404 mode.
+- [ ] Add deploy/infer/undeploy conformance tests for inference API contract.
+- [ ] Move jobs executor from simulation-first to validated real execution for at least one job type end-to-end.
+- [ ] Expand real-execution coverage to train/optimize/test/import-export with deterministic retries/cancel semantics.
+- [ ] Add readiness-driven waits in CI compose job (remove blind sleep).
+- [ ] Upload compose logs/artifacts on CI smoke failure for fast diagnosis.
+- [ ] Expand Traefik smoke paths to a broader API matrix and verify expected status classes.
+- [ ] Add stricter startup env validation per service (fail early on missing critical vars).
+- [ ] Create a config parity matrix (K8s ConfigMap/Secret -> Compose env/secret) and maintain it.
+- [ ] Externalize sensitive local secrets where possible (file/secret mount over plain env).
+- [ ] Add developer ergonomics targets: `compose-up`, `compose-down`, `compose-reset`, `compose-logs`.
+- [ ] Add a documented “clean-room local run” procedure and expected timing/health criteria.
+- [ ] Define compose local “GA” criteria and track pass rate over time.
