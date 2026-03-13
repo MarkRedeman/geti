@@ -294,12 +294,16 @@ Traefik smoke validation command:
 
 - `make compose-smoke`
 - Script path: `infrastructure/compose-smoke.sh`
-- Current checks verify routing through Traefik (non-404) for:
+- Current default checks verify routing through Traefik (non-404) for:
   - `/`
   - `/dex`
   - `/api/v1/healthz`
   - `/api/v1/organizations/test/workspaces/test/jobs`
   - `/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/pipelines/active/status`
+- Smoke script now supports status-aware checks via `SMOKE_CHECKS` (format: `path|expected`):
+  - exact status code, e.g. `.../status|200`
+  - wildcard status class, e.g. `...|2xx`
+  - route-only check, e.g. `...|not_404`
 
 ## Phase 3 — MongoDB bootstrap automation
 
@@ -627,6 +631,7 @@ New files:
   - always tears down stack
 - Updated smoke script to support configurable path lists via `SMOKE_PATHS` env (used by CI).
 - Expanded default smoke route coverage with inference status path through Traefik to validate compose OVMS bridge routing.
+- CI compose smoke now uses `SMOKE_CHECKS` and enforces `200` for inference status endpoint.
 
 ---
 
