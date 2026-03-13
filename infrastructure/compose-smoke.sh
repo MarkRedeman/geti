@@ -4,7 +4,7 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost}"
 HOST_HEADER="${HOST_HEADER:-geti.localhost}"
-SMOKE_PATHS="${SMOKE_PATHS:-/,/dex,/api/v1/healthz,/api/v1/onboarding/user,/api/v1/admin/onboarding/tokens,/api/v1/users/reset_password,/api/v1/organizations/test/workspaces/test/jobs}"
+SMOKE_PATHS="${SMOKE_PATHS:-/,/dex,/api/v1/healthz,/api/v1/onboarding/user,/api/v1/admin/onboarding/tokens,/api/v1/users/reset_password,/api/v1/organizations/test/workspaces/test/jobs,/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/pipelines/active/status}"
 
 curl_check() {
 	local path="$1"

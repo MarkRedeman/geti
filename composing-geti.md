@@ -299,6 +299,7 @@ Traefik smoke validation command:
   - `/dex`
   - `/api/v1/healthz`
   - `/api/v1/organizations/test/workspaces/test/jobs`
+  - `/api/v1/organizations/test/workspaces/test/projects/000000000000000000000000/pipelines/active/status`
 
 ## Phase 3 — MongoDB bootstrap automation
 
@@ -625,6 +626,7 @@ New files:
   - runs `make compose-smoke`
   - always tears down stack
 - Updated smoke script to support configurable path lists via `SMOKE_PATHS` env (used by CI).
+- Expanded default smoke route coverage with inference status path through Traefik to validate compose OVMS bridge routing.
 
 ---
 
