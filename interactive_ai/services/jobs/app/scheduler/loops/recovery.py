@@ -6,6 +6,7 @@ import os
 
 from model.job import Job
 from scheduler.flyte import Flyte, is_compose_mode
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_types import ID, RequestSource, make_session, session_context
@@ -23,7 +24,10 @@ def run_recovery_loop() -> None:
 
     try:
         if is_compose_mode():
-            logger.debug("[COMPOSE MODE] Recovery loop is disabled (Flyte recovery path not applicable)")
+            logger.debug("[COMPOSE MODE] Running compose-native recovery loop")
+            ids = StateMachine().get_session_ids_with_jobs_not_in_final_state()
+            for organization_id, workspace_id in ids.items():
+                check_and_recover_organization_if_needed(organization_id=organization_id, workspace_id=workspace_id)
             return
 
         logger.debug("Running job scheduler recovery loop...")
@@ -58,7 +62,19 @@ def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     :param jobs: list of jobs to check
     """
     if is_compose_mode():
-        logger.debug("[COMPOSE MODE] Skipping Flyte-backed recovery job checks")
+        logger.debug(f"[COMPOSE MODE] Processing jobs {[job.id for job in jobs]}")
+        executor = LocalExecutor()
+        for job in jobs:
+            execution_id = job.executions.main.execution_id
+            if execution_id is None:
+                continue
+
+            record = executor.get_execution_metadata(execution_name=execution_id)
+            if record is not None:
+                continue
+
+            logger.warning(f"Found active job {job.id} with missing local execution {execution_id}")
+            StateMachine().reset_job_to_submitted_state(job_id=job.id)
         return
 
     logger.debug(f"Processing jobs {[job.id for job in jobs]}")

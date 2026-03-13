@@ -575,6 +575,11 @@ Scheduler import coupling reduction (compose startup):
 - removed eager `flyteidl` import from cancellation loop by mirroring required workflow phase constants locally.
 - refactored `scheduler/flyte.py` to lazy-load Flyte symbols only when Flyte-backed operations are invoked.
 
+Compose recovery behavior update:
+
+- recovery loop now runs in compose mode and uses `LocalExecutor` registry metadata.
+- active jobs with missing local execution metadata are reset to `SUBMITTED` for re-scheduling.
+
 Train status caveat:
 
 - current train Celery path includes a stubbed evaluate/infer bridge in compose mode (registration/inference-heavy substeps are still bypassed).
