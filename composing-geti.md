@@ -260,7 +260,7 @@ Use this as the operational checklist for the current migration branch.
 - [x] Add/verify router rules for all externally reachable APIs and web paths.
 - [x] Mirror key ingress path behavior from Kubernetes (host/path routing expectations).
 - [x] Ensure auth/mock-auth related routes are reachable through Traefik (including onboarding/user flows).
-- [ ] Add health and smoke checks through Traefik endpoints (not direct container ports).
+- [x] Add health and smoke checks through Traefik endpoints (not direct container ports).
 - [x] Document route map (`host/path -> service:port`) in compose migration docs.
 
 **Acceptance:** Core UI/API flows work end-to-end through Traefik exactly as the local ingress layer.
@@ -289,6 +289,16 @@ Auxiliary hosts:
 
 - `auth.geti.localhost` -> `authelia:9091`
 - `traefik.localhost` -> Traefik dashboard/API
+
+Traefik smoke validation command:
+
+- `make compose-smoke`
+- Script path: `infrastructure/compose-smoke.sh`
+- Current checks verify routing through Traefik (non-404) for:
+  - `/`
+  - `/dex`
+  - `/api/v1/healthz`
+  - `/api/v1/organizations/test/workspaces/test/jobs`
 
 ## Phase 3 — MongoDB bootstrap automation
 
