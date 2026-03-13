@@ -77,6 +77,36 @@ services:
       - "traefik.http.routers.platform-account.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/logout/?$`) || PathRegexp(`^/api/v[0-9]+/profile/?$`) || PathRegexp(`^/api/v[0-9]+/personal_access_tokens(/.*)?$`))"
       - "traefik.http.routers.platform-account.priority=90"
       - "traefik.http.services.platform-account.loadbalancer.server.port=5002"
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PORT: 5432
+      POSTGRES_DB_NAME: ${DB_NAME}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
+      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
+      LOGGING_CONFIG_DIR: /
+      USERS_PER_ORG_LIMIT: 300
+      FEATURE_FLAG_MANAGE_USERS_ROLES: "false"
+      FEATURE_FLAG_MANAGE_USERS: "false"
+      FEATURE_FLAG_REQ_ACCESS: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      spicedb:
+        condition: service_healthy
 
   platform_auth_proxy:
     image: ${REGISTRY-ghcr.io/geti}/platform_auth_proxy:${TAG-main}
@@ -86,9 +116,12 @@ services:
       additional_contexts:
         - account_service_client=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
     environment:
-      ACCOUNT_SERVICE_ADDRESS: "platform_account"
-      JWT_CERTIFICATE_PRIVATE_KEY_PATH: "/tls.key"
-      JWT_CERTIFICATE_PUBLIC_KEY_PATH: "/tls.crt"
+      ACCOUNT_SERVICE_HOST: "platform_account"
+      ACCOUNT_SERVICE_PORT: "5001"
+      JWT_CERTIFICATE_PRIVATE_KEY_PATH: "/etc/geti-jwt-secret/tls.key"
+      JWT_CERTIFICATE_PUBLIC_KEY_PATH: "/etc/geti-jwt-secret/tls.crt"
+      HTTP_SERVER_PORT: "7002"
+      UNAUTHORIZED_URLS: "/api/v1/profile,/api/v1/logout,/api/v1/onboarding/user,/api/v1/feature_flags"
       #JWKS_UPDATE_TIME: {{ .Values.certificate.jwksUpdateTime }} # 1s
       #JWKS_ENTRY_EXPIRATION: {{ .Values.certificate.jwksEntryExpiration }} # 15m
       #LOGGING_CONFIG_DIR: {{ .Values.global.logging_config_dir }}
@@ -97,12 +130,16 @@ services:
       #ISS_EXTERNAL: ...
       #AUD_EXTERNAL: ...
       #REQUIRED_ROLES: ...
-      #HTTP_SERVER_PORT: 7002
+    volumes:
+      - ./infrastructure/data/auth_proxy/certs:/etc/geti-jwt-secret:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.platform-auth-proxy.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/set_cookie/?$`)"
       - "traefik.http.routers.platform-auth-proxy.priority=100"
       - "traefik.http.services.platform-auth-proxy.loadbalancer.server.port=7002"
+    depends_on:
+      platform_account:
+        condition: service_started
 
   platform_credit:
     image: ${REGISTRY-ghcr.io/geti}/platform_credit:${TAG-main}
@@ -111,6 +148,29 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs 
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_RO_HOST: db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PORT: 5432
+      POSTGRES_DB_NAME: creditsystem
+      POSTGRES_SSLMODE: disable
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      KAFKA_SASL_MECHANISM: PLAIN
+      ACCOUNT_SERVICE_HOST: platform_account
+      ACCOUNT_SERVICE_PORT: 5001
+      GRPC_SERVICE_PORT: 5556
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      platform_account:
+        condition: service_started
 
   platform_notifier:
     image: ${REGISTRY-ghcr.io/geti}/platform_notifier:${TAG-main}
@@ -119,6 +179,22 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
+    environment:
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_LOGIN: ${SMTP_LOGIN}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      USE_START_TLS: "false"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
 
   platform_observability:
     image: ${REGISTRY-ghcr.io/geti}/platform_observability:${TAG-main}
@@ -140,6 +216,27 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.platform-onboarding.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/onboarding/user/?$`) || PathRegexp(`^/api/v[0-9]+/admin/onboarding/tokens/?$`))"
+      - "traefik.http.routers.platform-onboarding.priority=88"
+      - "traefik.http.services.platform-onboarding.loadbalancer.server.port=9000"
+    environment:
+      ACCOUNT_SERVICE_HOST: platform_account
+      ACCOUNT_SERVICE_PORT: 5001
+      CREDITS_SERVICE: platform_credit:5556
+      FEATURE_FLAG_CREDIT_SYSTEM: "false"
+      FEATURE_FLAG_FREE_TIER: "false"
+      FEATURE_FLAG_SAAS_REQUIRE_INVITATION_LINK: "false"
+      FEATURE_FLAG_REQ_ACCESS: "false"
+      MARKETING_PLATFORM_URL: ""
+      MARKETING_PLATFORM_FORM_NAME: ""
+      MARKETING_PLATFORM_SITE_ID: ""
+    depends_on:
+      platform_account:
+        condition: service_started
+      platform_credit:
+        condition: service_started
 
   platform_initial_user:
     image: ${REGISTRY-ghcr.io/geti}/platform_initial_user:${TAG-main}
@@ -149,6 +246,38 @@ services:
       additional_contexts:
         - common_libs=./libs
         - platform_libs=./platform/libs
+    command:
+      - python
+      - create_initial_user.py
+    environment:
+      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD}
+      LDAP_HOST: ${LDAP_HOST}
+      LDAP_PORT: ${LDAP_PORT}
+      LDAP_ADMIN_USER: ${LDAP_ADMIN_USER}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
+      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
+      SPICEDB_CREDENTIALS: ${SPICEDB_CREDENTIALS}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${DB_NAME}
+      SPICEDB_POSTGRES_USER: ${DB_USER}
+      SPICEDB_POSTGRES_PASSWORD: ${DB_PASSWORD}
+      ACCOUNT_SERVICE_HOST: platform_account
+      ACCOUNT_SERVICE_PORT: 5001
+      FEATURE_FLAG_WORKSPACE_ACTIONS: "false"
+      LOGGING_CONFIG_DIR: /
+    depends_on:
+      db:
+        condition: service_healthy
+      spicedb:
+        condition: service_healthy
+      platform_account:
+        condition: service_started
+      openldap:
+        condition: service_started
+    restart: "no"
 
   platform_user_directory:
     image: ${REGISTRY-ghcr.io/geti}/platform_user_directory:${TAG-main}
@@ -163,6 +292,32 @@ services:
       - "traefik.http.routers.platform-user-directory.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/users/reset_password/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/create/?$`) || PathRegexp(`^/api/v[0-9]+/users/.*/update_password/?$`) || PathRegexp(`^/api/v[0-9]+/users/confirm_registration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/invitations/?$`) || PathPrefix(`/confirm-action/registration/reset-password`))"
       - "traefik.http.routers.platform-user-directory.priority=85"
       - "traefik.http.services.platform-user-directory.loadbalancer.server.port=9000"
+    environment:
+      LDAP_HOST: ${LDAP_HOST}
+      LDAP_PORT: ${LDAP_PORT}
+      LDAP_ADMIN_USER: ${LDAP_ADMIN_USER}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
+      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
+      SPICEDB_CREDENTIALS: ${SPICEDB_CREDENTIALS}
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+      GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
+      AUTH_MODE: ${AUTH_MODE}
+      LOGS_DIR: /logs
+      LOGGING_CONFIG_DIR: /
+      USE_KUBECONFIG: "true"
+    depends_on:
+      openldap:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      spicedb:
+        condition: service_healthy
+    volumes:
+      - user_directory_logs:/logs
 
   # IAI Services
   # 
@@ -576,6 +731,22 @@ services:
       - "traefik.http.middlewares.fileservice-strip.stripprefix.prefixes=/api/v1/fileservice"
       - "traefik.http.services.fileservice.loadbalancer.server.port=8333"
 
+  openldap:
+    image: osixia/openldap:1.5.0
+    environment:
+      LDAP_ORGANISATION: "Geti Local"
+      LDAP_DOMAIN: "example.org"
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+    ports:
+      - "389:389"
+    restart: always
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "8025:8025"
+    restart: always
+
   spicedb:
     image: authzed/spicedb:v1.34.0
     command: serve --grpc-preshared-key "${SPICEDB_TOKEN}"
@@ -625,6 +796,7 @@ volumes:
   s3_data:
   postgres_data:
   mongodb_data:
+  user_directory_logs:
 
 networks:
   default:

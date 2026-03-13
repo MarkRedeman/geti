@@ -326,12 +326,35 @@ Traefik smoke validation command:
 
 ## Phase 4 — Platform service wiring
 
-- [ ] Wire `platform_account` runtime env/dependencies using existing service compose as template.
-- [ ] Wire `platform_auth_proxy` in mock-compatible mode (or bypass path where applicable).
-- [ ] Wire `platform_user_directory` with non-K8s config/secrets source.
-- [ ] Wire remaining platform services (`notifier`, `onboarding`, `credit`, `initial_user`) for compose runtime.
+- [x] Wire `platform_account` runtime env/dependencies using existing service compose as template.
+- [x] Wire `platform_auth_proxy` in mock-compatible mode (or bypass path where applicable).
+- [x] Wire `platform_user_directory` with non-K8s config/secrets source.
+- [x] Wire remaining platform services (`notifier`, `onboarding`, `credit`, `initial_user`) for compose runtime.
 
 **Acceptance:** Core platform flows (startup + basic API calls) succeed under compose.
+
+### Phase 4 implementation notes (in progress)
+
+- Added runtime env and dependency wiring in root compose for:
+  - `platform_account`
+  - `platform_auth_proxy`
+  - `platform_user_directory`
+  - `platform_onboarding`
+  - `platform_credit`
+  - `platform_notifier`
+  - `platform_initial_user`
+- Added local supporting services for platform flows:
+  - `openldap`
+  - `mailhog`
+- Added onboarding Traefik routes:
+  - `/api/v*/onboarding/user`
+  - `/api/v*/admin/onboarding/tokens`
+- Added local env defaults needed by platform runtime (`.env`, `.env.example`) for Kafka plaintext mode, LDAP, SMTP, and initial-user bootstrap.
+
+Remaining for full Phase 4 acceptance:
+
+- Provide/generate local JWT cert files for `platform_auth_proxy` mount at `./infrastructure/data/auth_proxy/certs/{tls.crt,tls.key}`.
+- Add a platform-focused smoke run proving account/onboarding/user-directory calls succeed end-to-end through Traefik.
 
 ## Phase 5 — Mark K8s/Flyte dependent features explicitly unavailable
 
