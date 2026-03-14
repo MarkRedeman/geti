@@ -320,7 +320,7 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
 
 
 def _workflow_runner_command() -> list[str]:
-    return ["python", "-m", "scheduler.workflow_runner"]
+    return ["python", "-m", "jobs_common.compose.workflow_runner"]
 
 
 def _run_import_export_in_container(job_type: str, payload: dict) -> str:
