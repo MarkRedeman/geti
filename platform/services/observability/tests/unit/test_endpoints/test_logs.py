@@ -101,3 +101,18 @@ def test_get_with_invalid_datetime_range(mocker, start: datetime, end: datetime)
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY and response.json()["detail"] == err_msg
     get_archive_mock.assert_called_once_with(log_type=log_type_mock, start=start, end=end)
+
+
+def test_get_logs_not_implemented_returns_501(mocker):
+    """When get_telemetry_archive raises NotImplementedError the endpoint returns HTTP 501."""
+    err_msg = "K8S logs are unavailable in compose mode"
+    get_archive_mock = mocker.patch(
+        f"{_PATCHING_TARGET}.get_telemetry_archive", side_effect=NotImplementedError(err_msg)
+    )
+    log_type_mock = LogType.K8S_LOGS
+
+    response = client.get(f"{API_BASE_PATTERN}/logs?type={log_type_mock.value}")
+
+    assert response.status_code == HTTPStatus.NOT_IMPLEMENTED
+    assert err_msg in response.json()["detail"]
+    get_archive_mock.assert_called_once()

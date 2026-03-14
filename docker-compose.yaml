@@ -318,6 +318,12 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       INVITATION_FROM_ADDRESS: no-reply@geti.intel.com
       INVITATION_FROM_NAME: Intel Geti
+      # Compose-mode secrets / config-map fallbacks (see service_connection/k8s_client/{secrets,config_maps}.py)
+      # JWT key used to sign invitation and password-reset tokens (secret name: impt-jwt-config, key: key)
+      GETI_SECRET_IMPT_JWT_CONFIG_KEY: ${GETI_JWT_SECRET_KEY}
+      # impt-configuration CM fields consumed by invite_user and password_reset endpoints
+      GETI_CM_IMPT_CONFIGURATION_INVITE_USER_EXPIRATION: "43200"
+      GETI_CM_IMPT_CONFIGURATION_PASSWORD_RESET_EXPIRATION: "15"
     depends_on:
       openldap:
         condition: service_started

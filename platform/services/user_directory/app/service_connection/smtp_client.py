@@ -85,14 +85,50 @@ class SMTPClient:
         self.smtp_password = smtp["smtp_password"]
         self.smtp_host = smtp["smtp_host"]
 
+    # Compose-mode fallback templates.  These mirror the values shipped in the
+    # Helm chart (platform/services/user_directory/chart/values.yaml) so that
+    # invite and password-reset emails work without a Kubernetes config map.
+    _COMPOSE_EMAIL_TEMPLATES: dict[str, dict[str, str]] = {
+        "InvitationMail": {
+            "topic": "You have been invited to join Geti\u2122",
+            "message": (
+                "<p>You have been invited to join Intel\u00ae Geti\u2122.</p>"
+                "<p>Please complete your registration by clicking the link below:</p>"
+                '<p><a href="{{ invitationLink }}">{{ invitationLink }}</a></p>'
+            ),
+        },
+        "PasswordReset": {
+            "topic": "Reset your password",
+            "message": (
+                "<p>A password reset was requested for your Intel\u00ae Geti\u2122 account.</p>"
+                "<p>Click the link below to set a new password:</p>"
+                '<p><a href="{{ resetLink }}">{{ resetLink }}</a></p>'
+                "<p>If you did not request a password reset, you can ignore this email.</p>"
+            ),
+        },
+    }
+
     @staticmethod
     def _get_email_template_from_cm(template: str) -> dict[str, str]:
         """
-        Loads email template from k8s config map based on name of template
+        Loads email template from k8s config map based on name of template.
+        In compose mode, returns built-in defaults (or env-var overrides) instead
+        of hitting the Kubernetes API.
         :param template: name of email template
         :return: dictionary with topic and message of email template
-        :raise: KeyError when `topic` and/or `message` does not exist in configmap
+        :raise: KeyError when `topic` and `message` does not exist in configmap
         """
+        if os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+            defaults = SMTPClient._COMPOSE_EMAIL_TEMPLATES.get(template, {})
+            topic = os.getenv(f"EMAIL_TEMPLATE_{template.upper()}_TOPIC", defaults.get("topic", ""))
+            message = os.getenv(f"EMAIL_TEMPLATE_{template.upper()}_MESSAGE", defaults.get("message", ""))
+            if not topic or not message:
+                logger.warning(
+                    f"[COMPOSE MODE] Email template {template!r} is missing topic or message. "
+                    "Set EMAIL_TEMPLATE_<TEMPLATE>_TOPIC / EMAIL_TEMPLATE_<TEMPLATE>_MESSAGE env vars to override."
+                )
+            return {"topic": topic, "message": message}
+
         email_templates = get_config_map(name=EMAIL_TEMPLATES_CM)
 
         topic = email_templates[f"{template}Topic"]

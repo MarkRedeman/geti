@@ -39,6 +39,10 @@ tracer = trace.get_tracer(__name__)
             "content": {"text/plain": {}},
             "description": "Request validation failed.",
         },
+        int(HTTPStatus.NOT_IMPLEMENTED): {
+            "content": {"text/plain": {}},
+            "description": "Log type is not available in this deployment.",
+        },
     },
 )
 @EndpointLogger.extended_logging
@@ -52,6 +56,11 @@ async def logs_endpoint(  # noqa: ANN201
         path_archive = get_telemetry_archive(log_type=log_type, start=start_date, end=end_date)
     except DateError as err:
         raise HTTPException(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(err)) from err
+    except NotImplementedError as err:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_IMPLEMENTED,
+            detail=f"Log type {log_type!r} is not available in this deployment: {err}",
+        ) from err
 
     # Respond with scheduled background archive removal.
     return FileResponse(

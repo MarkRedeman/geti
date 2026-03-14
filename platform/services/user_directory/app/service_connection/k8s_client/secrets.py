@@ -6,15 +6,38 @@ Functions for kubernetes secrets management
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import logging
+import os
 
 from kubernetes.client.rest import ApiException
 
 from service_connection.k8s_client.apis import K8S
 from users_handler.validation import convert_from_base_64
 
-from config import K8S_CR_NAMESPACE
+from config import DEPLOYMENT_MODE, K8S_CR_NAMESPACE
 
 logger = logging.getLogger(__name__)
+
+
+def _get_secrets_from_env(name: str, secrets_list: list[str]) -> dict:
+    """
+    Compose-mode fallback: reads secrets from environment variables.
+
+    Each key is looked up as ``GETI_SECRET_<NAME>_<KEY>`` (upper-cased, hyphens
+    replaced with underscores).  Missing variables are silently omitted from the
+    returned dict, matching the K8S path behaviour.
+    """
+    ret: dict[str, str] = {}
+    for key in secrets_list:
+        env_var = f"GETI_SECRET_{name}_{key}".upper().replace("-", "_")
+        value = os.getenv(env_var)
+        if value is not None:
+            ret[key] = value
+        else:
+            logger.warning(
+                f"[COMPOSE MODE] Secret {name!r}/{key!r} not found. "
+                f"Set env var {env_var!r} to provide it."
+            )
+    return ret
 
 
 def get_secrets(name: str, secrets_list: list[str], namespace: str = K8S_CR_NAMESPACE) -> dict:
@@ -26,6 +49,10 @@ def get_secrets(name: str, secrets_list: list[str], namespace: str = K8S_CR_NAME
     :return: dict of demanded secrets, if secret does not exist returns None.
     Example {'password':'intel123', 'token': None}
     """
+    if DEPLOYMENT_MODE == "compose":
+        logger.debug(f"[COMPOSE MODE] Reading secret {name!r} from environment variables.")
+        return _get_secrets_from_env(name=name, secrets_list=secrets_list)
+
     if not namespace:
         raise ValueError("Missing namespace value for `get_secrets`")
 

@@ -53,11 +53,30 @@ def start() -> None:
     policy_executor.submit(start_policy_loop)
     if _is_compose_mode():
         logger.warning(
-            "Feature unavailable in compose mode: jobs.resource_manager_loop. "
-            "This path currently requires Kubernetes."
+            "Compose mode: resource_manager_loop is disabled (no Kubernetes). "
+            "Initialising GPU capacity to [1] so CPU/GPU jobs can be scheduled."
         )
+        _initialize_compose_gpu_capacity()
     else:
         resource_manager_executor.submit(start_resource_manager_loop)
+
+
+def _initialize_compose_gpu_capacity() -> None:
+    """
+    In compose mode there is no Kubernetes node-capacity API, so we set a
+    sensible default of [1] GPU directly on the ResourceManager singleton.
+    This allows the scheduling policy to treat every job as schedulable rather
+    than leaving GPU jobs stuck in SUBMITTED forever.
+    """
+    try:
+        from policies import ResourceManager
+
+        manager = ResourceManager()
+        if manager.gpu_capacity is None:
+            manager.gpu_capacity = [1]
+            logger.info("Compose mode: ResourceManager.gpu_capacity initialised to [1].")
+    except Exception:
+        logger.exception("Compose mode: failed to initialise ResourceManager GPU capacity.")
 
 
 def start_loop(loop_id: str, loop: Callable, loop_interval: int) -> None:
