@@ -32,7 +32,7 @@ def run_recovery_loop() -> None:
 
 def check_and_recover_organization_if_needed(organization_id: ID, workspace_id: ID) -> None:
     """
-    Checks all organization jobs and resets all the jobs missing in Flyte.
+    Checks all organization jobs and resets all jobs whose execution is no longer tracked.
     :param organization_id: ID of organization to check
     :param workspace_id: ID of the workspace to check
     """
@@ -50,7 +50,7 @@ def check_and_recover_organization_if_needed(organization_id: ID, workspace_id: 
 
 def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     """
-    Checks workspace jobs and resets the jobs missing in Flyte.
+    Checks workspace jobs and resets jobs whose local execution is no longer tracked.
     :param jobs: list of jobs to check
     """
     logger.debug(f"[COMPOSE MODE] Processing jobs {[job.id for job in jobs]}")

@@ -10,7 +10,7 @@ import os
 
 def resolve_revert_job(job_type: str) -> tuple[str, str] | None:
     """
-    Resolves a job type to Flyte revert workflow name and version.
+    Resolves a job type to a revert workflow name and version.
     Uses environment variables for mapping.
 
     Workflow name env var mapping: job_type -> "JOB_{job_type.upper()}_REVERT_FLYTE_WORKFLOW_NAME"
@@ -21,7 +21,7 @@ def resolve_revert_job(job_type: str) -> tuple[str, str] | None:
     Workflow version env var: JOB_TRAIN_REVERT_FLYTE_WORKFLOW_VERSION
 
     :param job_type: Job type
-    :return Tuple[str, str]: workflows name and version
+    :return Tuple[str, str]: workflow name and version
     """
     workflow_name = os.environ.get(f"JOB_{job_type.upper()}_REVERT_FLYTE_WORKFLOW_NAME", None)
     if workflow_name is None:
@@ -37,11 +37,11 @@ def resolve_revert_job(job_type: str) -> tuple[str, str] | None:
 
 def get_revert_execution_name(job_id: str) -> str:
     """
-    Returns Flyte revert execution name for a job
-    Revert execution name is a main execution plus "-revert" suffix
+    Returns the revert execution name for a job.
+    Revert execution name is the main execution name plus a "-revert" suffix.
 
     :param job_id: Job ID
-    :return str: Flyte revert execution name
+    :return str: revert execution name
     """
 
     return f"{get_main_execution_name(job_id=job_id)}-revert"
@@ -49,12 +49,12 @@ def get_revert_execution_name(job_id: str) -> str:
 
 def get_main_execution_name(job_id: str) -> str:
     """
-    Returns Flyte execution name for a job from certain workspace
-    Flyte execution name matches with job ID.
-    Suffix ex is added because Flyte execution ID must start with a-z
+    Returns the main execution name for a job.
+    The execution name matches the job ID with an "ex-" prefix
+    (required so the execution ID starts with a-z).
 
     :param job_id: Job ID
-    :return str: Flyte execution name
+    :return str: main execution name
     """
 
     return f"ex-{job_id}"

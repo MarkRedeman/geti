@@ -750,6 +750,7 @@ The repository is now in a **workable compose-first local state** for developer 
    - Active compose runtime now imports execution discriminator enum from a Flyte-independent module (`scheduler.execution_type`), reducing coupling to `scheduler.flyte` for non-Flyte paths.
    - Removed unnecessary `Flyte` singleton scaffolding from compose-path scheduler tests (kafka/scheduling/revert/deletion), further isolating Flyte-only coverage to `test_flyte.py`.
    - Removed legacy scheduler Flyte service module and its unit tests (`scheduler/flyte.py`, `test_flyte.py`) now that no compose runtime paths depend on them.
+   - Normalized remaining scheduler/runtime comments and logs away from Flyte terminology (compose/Kubernetes-centric wording only), with no behavior changes.
 
 3. **Auth model is intentionally insecure for local mode**
    - `AUTH_MODE=mock` bypasses identity/authorization.

@@ -4,13 +4,13 @@
 """
 Local (Docker) executor for compose-mode deployments.
 
-In compose mode Flyte/Kubernetes is not available. This module provides a
+In compose mode Kubernetes is not available. This module provides a
 LocalExecutor that:
 
   1. Launches each job workload as a ``docker run`` subprocess.
   2. Maintains an in-process registry mapping execution_name → metadata so
      that the existing Kafka-handler and gRPC-update paths can resolve
-     job/workspace/org IDs without a live Flyte connection.
+     job/workspace/org IDs without a live remote orchestrator connection.
   3. Publishes synthetic ``flyte_event`` Kafka messages on state transitions
      (RUNNING, SUCCEEDED, FAILED/ABORTED) so the existing ProgressHandler
      state-machine transitions are reused unchanged.
@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 _POLL_INTERVAL = float(os.environ.get("LOCAL_EXECUTOR_POLL_INTERVAL", "2"))
 _SIM_DURATION_SEC = float(os.environ.get("LOCAL_EXECUTOR_SIM_DURATION_SEC", "2"))
 
-# Header name used by Flyte cloud events
+# Header name used by the cloud event protocol
 _CE_TYPE_HEADER = "ce_type"
 _WORKFLOW_EXECUTION_EVENT_REQUEST = "com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest"
 
@@ -89,8 +89,8 @@ class LocalExecutor(metaclass=Singleton):
     """
     Thin Docker-based executor for compose-mode.
 
-    All public methods mirror the ``Flyte`` singleton's interface where needed
-    to keep scheduler integration points stable during migration.
+    All public methods provide the scheduler integration points needed
+    to launch, monitor, and cancel job executions.
     """
 
     def __init__(self) -> None:
@@ -271,15 +271,14 @@ class LocalExecutor(metaclass=Singleton):
             logger.exception(f"[LocalExecutor] Failed to stop container {record.container_id}")
 
     # ------------------------------------------------------------------
-    # Public API – registry lookup (used instead of Flyte().fetch_workflow_execution)
+    # Public API – registry lookup (used instead of a remote execution fetch)
     # ------------------------------------------------------------------
 
     def get_execution_metadata(self, execution_name: str) -> _ExecutionRecord | None:
         """
         Return the stored metadata for *execution_name*, or None if unknown.
 
-        This is the compose-mode replacement for
-        ``Flyte().fetch_workflow_execution(execution_name)``.
+        This is the compose-mode replacement for a remote execution metadata fetch.
         """
         with self._lock:
             return self._registry.get(execution_name)
@@ -453,7 +452,7 @@ class LocalExecutor(metaclass=Singleton):
 
     def _publish_workflow_event(self, record: _ExecutionRecord, phase: str) -> None:
         """
-        Publish a synthetic ``flyte_event`` Kafka message that mimics a Flyte
+        Publish a synthetic ``flyte_event`` Kafka message that mimics a
         WorkflowExecutionEventRequest so the existing ProgressHandler picks it up.
 
         The message body follows the shape that ProgressHandler.on_flyte_event()

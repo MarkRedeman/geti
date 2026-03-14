@@ -54,7 +54,7 @@ def start() -> None:
     if _is_compose_mode():
         logger.warning(
             "Feature unavailable in compose mode: jobs.resource_manager_loop. "
-            "This path currently requires Kubernetes/Flyte."
+            "This path currently requires Kubernetes."
         )
     else:
         resource_manager_executor.submit(start_resource_manager_loop)

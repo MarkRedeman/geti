@@ -2,7 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 """
-Module for Flyte events Kafka handler
+Module for job execution events Kafka handler
 """
 
 import logging
@@ -40,7 +40,7 @@ PHASE_ABORTED = "ABORTED"
 
 
 class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
-    """KafkaHandler for Flyte cloud events"""
+    """KafkaHandler for job execution cloud events"""
 
     def __init__(self) -> None:
         super().__init__(group_id="job_scheduler")
@@ -82,7 +82,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         # In compose mode look up execution metadata from the local registry
-        # instead of fetching it from Flyte.
+        # instead of fetching it from a remote orchestrator.
         record = LocalExecutor().get_execution_metadata(execution_name)
         if record is None:
             logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
@@ -92,7 +92,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         workspace_id = ID(record.workspace_id)
         job_id = record.job_id
         execution_type = record.execution_type
-        execution = None  # no Flyte object in compose mode
+        execution = None  # no remote execution object in compose mode
 
         with session_context(
             session=make_session(
@@ -117,11 +117,11 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
                     )
 
                 elif event_type == TASK_EXECUTION_EVENT_REQUEST:
-                    # task-level events are not published in compose mode (no Flyte task graph)
+                    # task-level events are not used in compose mode
                     return
 
                 elif event_type == NODE_EXECUTION_EVENT_REQUEST:
-                    # node/branch events are not published in compose mode
+                    # node/branch events are not used in compose mode
                     return
 
     @staticmethod
@@ -143,9 +143,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         Handle a workflow-level phase change.
 
         Accepts a pre-resolved *execution_type* so it can be called both from
-        the Flyte path (where ``execution`` is a real FlyteWorkflowExecution) and
-        from the compose/local path (where ``execution`` is None and metadata comes
-        from the LocalExecutor registry).
+        the local path (where ``execution`` is None and metadata comes from the
+        LocalExecutor registry) and any future remote execution path.
         """
         logger.info(f"Handling workflow event {event}")
 
@@ -182,7 +181,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         if phase == PHASE_FAILED:
-            logger.critical(f"Revert workflow execution failed: job_id={job.id}")
+            logger.critical(f"Revert execution failed: job_id={job.id}")
 
         if job.cancellation_info.is_cancelled:
             # If job has been cancelled by user, setting final CANCELLED state
