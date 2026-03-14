@@ -4,6 +4,9 @@
 
 Make Docker Compose the default local platform path and remove the requirement for local Kubernetes/Flyte.
 
+> See also: `docs/compose-parity-policy.md` for the current local parity contract,
+> unsupported behavior policy, and required acceptance checks.
+
 Constraints/decisions for this migration branch:
 
 - We are already on the migration branch.
