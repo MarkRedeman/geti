@@ -12,7 +12,7 @@ from model.job import (
     JobCost,
     JobResource,
 )
-from scheduler.flyte import ExecutionType
+from scheduler.execution_type import ExecutionType
 from scheduler.kafka_handler import ProgressHandler
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
