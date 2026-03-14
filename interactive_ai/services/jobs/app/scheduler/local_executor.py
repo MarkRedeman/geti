@@ -209,6 +209,9 @@ class LocalExecutor(metaclass=Singleton):
         self._publish_workflow_event(record, phase=PHASE_RUNNING)
         task_payload = dict(payload)
         task_payload.setdefault("sim_duration_sec", _SIM_DURATION_SEC)
+        task_payload.setdefault("organization_id", record.organization_id)
+        task_payload.setdefault("workspace_id", record.workspace_id)
+        task_payload.setdefault("job_id", record.job_id)
         celery_task = cast(Any, run_job_execution_task)
         async_result = celery_task.apply_async(args=[execution_name, job_type, task_payload])
 
@@ -376,7 +379,7 @@ class LocalExecutor(metaclass=Singleton):
         """Background thread: polls running containers, publishes Kafka events on completion."""
         while not self._stop_event.is_set():
             try:
-                if self._run_mode != "simulate":
+                if self._run_mode not in {"simulate", "celery"}:
                     self._poll_all()
             except Exception:
                 logger.exception("[LocalExecutor] Unexpected error in monitor loop")

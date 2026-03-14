@@ -30,9 +30,11 @@ x-iai-runtime-env: &iai-runtime-env
   BUCKET_NAME_THUMBNAILS: thumbnails
   BUCKET_NAME_TENSORS: tensors
   BUCKET_NAME_MODELS: models
+  BUCKET_NAME_TEMPORARYFILES: temporaryfiles
   BUCKET_NAME_RESULTMEDIA: resultmedia
   BUCKET_NAME_CODEDEPLOYMENTS: codedeployments
   BUCKET_NAME_MLFLOWEXPERIMENTS: mlflowexperiments
+  BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
   BUCKET_NAME_VPSREFERENCEFEATURES: vpsreferencefeatures
   FEATURE_FLAG_OBJECT_STORAGE_OP: "true"
   FEATURE_FLAGS_HEADER_VALUE: ""
@@ -593,6 +595,7 @@ services:
       WORKFLOW_EVALUATE_STUB_TASK_INFER: "false"
       WORKFLOW_EVALUATE_STUB_PIPELINE_INFER: "false"
       WORKFLOW_OPTIMIZE_STUB_EVALUATE: "false"
+      STORAGE_DIR_PATH: /tmp/ie_storage
       MONGODB_CREDENTIALS_PROVIDER: local
       S3_HOST: s3:8333
       JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
@@ -606,6 +609,14 @@ services:
       JOB_METADATA_START_TIME: ${MOCK_JOB_METADATA_START_TIME}
       FEATURE_FLAGS_HEADER_VALUE: ""
       FEATURE_FLAGS_URL: ""
+      WORKFLOW_DOCKER_NETWORK: geti
+      SIGNING_IE_PRIVKEY: |
+        -----BEGIN EC PRIVATE KEY-----
+        MIGkAgEBBDBvhcbXuDdIHzU9EDwCRP+ML3+RwHOeiJH7muQ+5BHPnvCKpblCz9WA
+        SUe7b4o44DCgBwYFK4EEACKhZANiAAR9qU6ywYIcqXUOWSauI74EE6jx76+6yY7R
+        1oY9tGxFIe644p1PITx0yaQKp5MKm/iXRIhV0UrWfxWpzzp2w0Pq8nlWkMC8CVBH
+        SLqppAcpL0bWNjq68cd1PegegXkQtjU=
+        -----END EC PRIVATE KEY-----
     depends_on:
       redis:
         condition: service_started
@@ -775,7 +786,7 @@ services:
       S3_HOST: s3:8333
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
-      S3_BUCKET: ${S3_BUCKET}
+      S3_BUCKET: geti;images;videos;thumbnails;tensors;models;temporaryfiles;resultmedia;codedeployments;mlflowexperiments;pretrainedweights;vpsreferencefeatures
     depends_on:
       mongodb:
         condition: service_healthy

@@ -311,7 +311,7 @@ def run() -> None:
     payload = _load_payload()
 
     metadata_patch = (
-        patch("jobs_common.tasks.utils.progress.publish_metadata_update", lambda m: None)
+        patch("jobs_common.tasks.utils.progress.publish_metadata_update", lambda *a, **k: None)
         if _bool_env("WORKFLOW_EVALUATE_STUB_METADATA", True)
         else nullcontext()
     )

@@ -20,7 +20,8 @@ def signing_key_env_vars(fn):  # noqa: ANN001, ANN201
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        os.environ["SIGNING_IE_PRIVKEY"] = current_context().secrets.get("signing-ie-certificate", "tls.key")
+        if not os.environ.get("SIGNING_IE_PRIVKEY"):
+            os.environ["SIGNING_IE_PRIVKEY"] = current_context().secrets.get("signing-ie-certificate", "tls.key")
         return fn(*args, **kwargs)
 
     return wrapper

@@ -2,10 +2,13 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import json
+import logging
 import os
 import subprocess
 
 from scheduler.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 _IMPORT_EXPORT_JOB_TYPES = {
     "export_dataset",
@@ -28,6 +31,26 @@ _DATASET_IE_CONTAINER_JOB_TYPES = {
     "perform_import_to_new_project",
     "perform_import_to_existing_project",
 }
+
+
+def _workflow_docker_network() -> str:
+    return os.environ.get("WORKFLOW_DOCKER_NETWORK", "geti")
+
+
+def _docker_run_cmd() -> list[str]:
+    return ["docker", "run", "--rm", "--network", _workflow_docker_network()]
+
+
+def _session_org_id(payload: dict) -> str:
+    return str(payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", ""))
+
+
+def _session_workspace_id(payload: dict) -> str:
+    return str(payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", ""))
+
+
+def _job_metadata_id(payload: dict) -> str:
+    return str(payload.get("job_id") or os.environ.get("JOB_METADATA_ID", ""))
 
 
 def _dataset_ie_image() -> str:
@@ -72,7 +95,7 @@ def _run_optimize_trainer_container(payload: dict) -> None:
         }
     )
 
-    cmd = ["docker", "run", "--rm", "--network", "host"]
+    cmd = _docker_run_cmd()
     _forward_prefixes = (
         "DATABASE_",
         "MONGODB_",
@@ -89,6 +112,8 @@ def _run_optimize_trainer_container(payload: dict) -> None:
         "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -109,7 +134,7 @@ def _run_optimize_finalize_stage(payload: dict, prep_result: dict) -> None:
     if not image:
         raise RuntimeError("Missing OPTIMIZE_WORKFLOW_IMAGE for optimize finalize stage")
 
-    cmd = ["docker", "run", "--rm", "--network", "host"]
+    cmd = _docker_run_cmd()
     _forward_prefixes = (
         "DATABASE_",
         "MONGODB_",
@@ -126,6 +151,8 @@ def _run_optimize_finalize_stage(payload: dict, prep_result: dict) -> None:
         "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -144,7 +171,7 @@ def _run_optimize_evaluate_stage(payload: dict, prep_result: dict) -> None:
     if not image:
         raise RuntimeError("Missing OPTIMIZE_WORKFLOW_IMAGE for optimize evaluate stage")
 
-    cmd = ["docker", "run", "--rm", "--network", "host"]
+    cmd = _docker_run_cmd()
     _forward_prefixes = (
         "DATABASE_",
         "MONGODB_",
@@ -161,6 +188,8 @@ def _run_optimize_evaluate_stage(payload: dict, prep_result: dict) -> None:
         "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -197,13 +226,7 @@ def _run_train_trainer_container(payload: dict) -> None:
         }
     )
 
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-        "--network",
-        "host",
-    ]
+    cmd = _docker_run_cmd()
 
     _forward_prefixes = (
         "DATABASE_",
@@ -221,6 +244,8 @@ def _run_train_trainer_container(payload: dict) -> None:
         "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -240,7 +265,7 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
     if not image:
         raise RuntimeError("Missing TRAIN_WORKFLOW_IMAGE for train finalize stage")
 
-    cmd = ["docker", "run", "--rm", "--network", "host"]
+    cmd = _docker_run_cmd()
     _forward_prefixes = (
         "DATABASE_",
         "MONGODB_",
@@ -257,6 +282,8 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
         "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -289,7 +316,7 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
     if not image:
         raise RuntimeError("Missing TRAIN_WORKFLOW_IMAGE for train evaluate stage")
 
-    cmd = ["docker", "run", "--rm", "--network", "host"]
+    cmd = _docker_run_cmd()
     _forward_prefixes = (
         "DATABASE_",
         "MONGODB_",
@@ -306,6 +333,8 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
         "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -337,13 +366,7 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
     if not image:
         raise RuntimeError(f"Missing workflow image for job_type={job_type}")
 
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-        "--network",
-        "host",
-    ]
+    cmd = _docker_run_cmd()
 
     _forward_prefixes = (
         "DATABASE_",
@@ -358,8 +381,11 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
         "CELERY_",
         "OTEL_",
         "ENABLE_",
+        "FEATURE_FLAG_",
         "WORKFLOW_",
         "MODEL_REGISTRATION_",
+        "STORAGE_",
+        "BUCKET_NAME_",
     )
     for key in os.environ:
         if any(key.startswith(p) for p in _forward_prefixes):
@@ -367,9 +393,23 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
 
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", f"WORKFLOW_JOB_TYPE={job_type}"]
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
 
     cmd += [image, *_workflow_runner_command()]
-    result = subprocess.run(cmd, check=True, timeout=3600, capture_output=True, text=True)  # noqa: S603
+    try:
+        result = subprocess.run(cmd, check=True, timeout=3600, capture_output=True, text=True)  # noqa: S603
+    except subprocess.CalledProcessError as err:
+        logger.error(
+            "Workflow container failed for job_type=%s job_id=%s (exit=%s)\nstdout:\n%s\nstderr:\n%s",
+            job_type,
+            _job_metadata_id(payload),
+            err.returncode,
+            (err.stdout or "").strip(),
+            (err.stderr or "").strip(),
+        )
+        raise
     return result.stdout
 
 
