@@ -12,7 +12,7 @@ from model.job import (
     JobCost,
     JobResource,
 )
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.flyte import ExecutionType
 from scheduler.kafka_handler import ProgressHandler
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
@@ -28,17 +28,11 @@ def mock_job_service(self, *args, **kwargs) -> None:
     return None
 
 
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
-
-
 def mock_progress_handler(self, *args, **kwargs) -> None:
     return None
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     ProgressHandler._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
     LocalExecutor._instance = None  # type: ignore[attr-defined]
@@ -60,7 +54,6 @@ def reset_singletons() -> None:
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -111,7 +104,6 @@ def test_on_flyte_event_wrong_event_type(
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -157,7 +149,6 @@ def test_on_flyte_event_missing_event(
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -203,7 +194,6 @@ def test_on_flyte_event_no_execution(
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -259,7 +249,6 @@ def test_on_flyte_event_no_job(
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -323,7 +312,6 @@ def test_on_flyte_workflow_event(
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -373,7 +361,6 @@ def test_on_flyte_node_event(
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -427,7 +414,6 @@ def test_on_flyte_task_event(
         {"executionId": {}},
     ],
 )
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -452,7 +438,6 @@ def test_handle_workflow_event_by_type_wrong_event(
     mock_ph_handle_revert_workflow_event.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -481,7 +466,6 @@ def test_handle_workflow_event_by_type_no_phase(
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "RUNNING", "FAILED", "ABORTED"])
 @patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -510,7 +494,6 @@ def test_handle_workflow_event_by_type_main_execution(
 
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "RUNNING", "FAILED", "ABORTED"])
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
@@ -538,7 +521,6 @@ def test_handle_workflow_event_by_type_revert_execution(
     mock_ph_handle_revert_workflow_event.assert_called_once_with(job=job, phase=phase)
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
 @patch.object(StateMachine, "set_and_publish_finished_state")
@@ -567,7 +549,6 @@ def test_handle_main_workflow_event_running(
     mock_set_and_publish_cancelled_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
 @patch.object(StateMachine, "set_and_publish_finished_state")
@@ -596,7 +577,6 @@ def test_handle_main_workflow_event_finished(
     mock_set_and_publish_cancelled_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
 @patch.object(StateMachine, "set_and_publish_finished_state")
@@ -623,7 +603,6 @@ def test_handle_main_workflow_event_failed(
     mock_set_and_publish_finished_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_finished_state")
 @patch.object(StateMachine, "set_ready_for_revert_state")
@@ -649,7 +628,6 @@ def test_handle_main_workflow_event_aborted(
     mock_set_and_publish_finished_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
@@ -676,7 +654,6 @@ def test_handle_revert_workflow_event_running(
 
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "FAILED"])
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
@@ -706,7 +683,6 @@ def test_handle_revert_workflow_event_cancelled(
 
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "FAILED"])
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
@@ -737,7 +713,6 @@ def test_handle_revert_workflow_event_failed(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
 def test_on_job_step_details_missing_execution_id(
@@ -773,7 +748,6 @@ def test_on_job_step_details_missing_execution_id(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
 def test_on_job_step_details_missing_execution(
@@ -811,7 +785,6 @@ def test_on_job_step_details_missing_execution(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
 @patch.object(StateMachine, "get_by_id")
@@ -869,7 +842,6 @@ def test_on_job_step_details(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
 @patch.object(StateMachine, "get_by_id")
@@ -920,7 +892,6 @@ def test_on_job_step_details_cancelled(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "update_metadata")
 def test_on_job_update_missing_execution_id(
@@ -956,7 +927,6 @@ def test_on_job_update_missing_execution_id(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "update_metadata")
 def test_on_job_update_missing_execution(
@@ -994,7 +964,6 @@ def test_on_job_update_missing_execution(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "update_metadata")
 def test_on_job_update_metadata(
@@ -1037,7 +1006,6 @@ def test_on_job_update_metadata(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "update_cost_consumed")
 def test_on_job_update_consumed_cost(
@@ -1099,7 +1067,6 @@ def test_on_job_update_consumed_cost(
 
 @patch.object(LocalExecutor, "get_execution_metadata")
 @patch.object(LocalExecutor, "__init__", return_value=None)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_gpu_state_released")
 def test_on_job_update_release_gpu(

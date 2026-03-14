@@ -748,6 +748,7 @@ The repository is now in a **workable compose-first local state** for developer 
    - Removed dead scheduler compatibility stubs (`loops.start_execution` wrappers) and unused main-workflow utility remnants from runtime code.
    - Scheduler loop unit tests no longer require direct runtime `flytekit` imports; remaining Flyte-oriented test coverage is isolated behind type-checking-only imports/mocked symbols.
    - Active compose runtime now imports execution discriminator enum from a Flyte-independent module (`scheduler.execution_type`), reducing coupling to `scheduler.flyte` for non-Flyte paths.
+   - Removed unnecessary `Flyte` singleton scaffolding from compose-path scheduler tests (kafka/scheduling/revert/deletion), further isolating Flyte-only coverage to `test_flyte.py`.
 
 3. **Auth model is intentionally insecure for local mode**
    - `AUTH_MODE=mock` bypasses identity/authorization.

@@ -4,7 +4,6 @@
 from unittest.mock import MagicMock, patch
 
 from model.job import JobRevertFlyteExecution
-from scheduler.flyte import Flyte
 from scheduler.loops.revert_scheduling import (
     run_revert_scheduling_loop,
     schedule_revert_job,
@@ -22,7 +21,6 @@ def mock_state_machine(self, *args, **kwargs) -> None:
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
 
 

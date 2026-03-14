@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 from bson import ObjectId
 from model.job import JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import Flyte
 from scheduler.jobs_templates import JobsTemplates, JobTemplateStep
 from scheduler.local_executor import LocalExecutor
 from scheduler.loops.scheduling import (
@@ -31,7 +30,6 @@ def mock_jobs_templates(self, *args, **kwargs) -> None:
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
     JobsTemplates._instance = None  # type: ignore[attr-defined]
 
