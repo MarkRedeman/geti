@@ -183,7 +183,7 @@ class JobCancellationInfoMapper(IMapperSimple[JobCancellationInfo, dict]):
 
 class JobMainFlyteExecutionMapper(IMapperSimple[JobMainFlyteExecution, dict]):
     """
-    Job main Flyte execution mapper (from MongoDB dict) to a "business layer" level object
+    Job main execution mapper (from MongoDB dict) to a "business layer" level object
     """
 
     @staticmethod
@@ -225,7 +225,7 @@ class JobMainFlyteExecutionMapper(IMapperSimple[JobMainFlyteExecution, dict]):
 
 class JobRevertFlyteExecutionMapper(IMapperSimple[JobRevertFlyteExecution, dict]):
     """
-    Job revert Flyte execution mapper (from MongoDB dict) to a "business layer" level object
+    Job revert execution mapper (from MongoDB dict) to a "business layer" level object
     """
 
     @staticmethod
@@ -261,7 +261,7 @@ class JobRevertFlyteExecutionMapper(IMapperSimple[JobRevertFlyteExecution, dict]
 
 class JobExecutionsMapper(IMapperSimple[JobFlyteExecutions, dict]):
     """
-    Job Flyte executions mapper (from MongoDB dict) to a "business layer" level object
+    Job executions mapper (from MongoDB dict) to a "business layer" level object
     """
 
     @staticmethod

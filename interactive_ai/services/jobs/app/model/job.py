@@ -107,13 +107,13 @@ class JobCancellationInfo:
 @dataclass
 class JobMainFlyteExecution:
     """
-    Job main Flyte execution
+    Job main execution
 
-    launch_plan_id              Flyte launch plan ID
-    execution_id                Flyte execution ID
+    launch_plan_id              Workflow launch plan ID
+    execution_id                Execution ID
     start_retry_counter         Counter defining number of execution start retries
     cancel_retry_counter        Counter defining number of execution cancel retries
-    process_start_time          Timestamp of a moment when execution has been picked for start or canceling by scheduler
+    process_start_time          Timestamp of a moment when execution has been picked for start or cancelling by scheduler
     """
 
     launch_plan_id: str | None = None
@@ -126,10 +126,9 @@ class JobMainFlyteExecution:
 @dataclass
 class JobRevertFlyteExecution:
     """
-    Job revert Flyte execution
+    Job revert execution
 
-    launch_plan_id              Flyte launch plan ID
-    execution_id                Flyte execution ID
+    execution_id                Execution ID
     """
 
     execution_id: str | None = None
@@ -140,10 +139,10 @@ class JobRevertFlyteExecution:
 @dataclass
 class JobFlyteExecutions:
     """
-    Job Flyte executions
+    Job executions
 
-    main                        Main Flyte execution
-    revert                      Revert Flyte execution (in case of failure or cancellation)
+    main                        Main execution
+    revert                      Revert execution (in case of failure or cancellation)
     """
 
     main: JobMainFlyteExecution
@@ -213,7 +212,7 @@ class Job(PersistentEntity):
 
     id_                         Job identifier
     workspace_id                ID of a workspace job belongs to
-    type                        Job type (train, test, etc.). Defines which workflow to execute in Flyte
+    type                        Job type (train, test, etc.). Defines which workflow to execute
     priority                    Job priority
     job_name                    Job human-readable name
     key                         Job key, two jobs having the same key are considered as duplicates
@@ -234,7 +233,7 @@ class Job(PersistentEntity):
     project_id                  ID of a project job belongs to, only for project related jobs
     start_time                  Job start timestamp
     end_time                    Job finish\failure timestamp
-    executions                  Job Flyte executions
+    executions                  Job workflow executions
     cost                        Job cost information in case if credits should be charged for job execution
     """
 
