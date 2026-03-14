@@ -22,6 +22,7 @@ from authzed.api.v1 import (
     ReadRelationshipsRequest,
     ReadRelationshipsResponse,
     RelationshipFilter,
+    InsecureClient,
     SubjectFilter,
     SubjectReference,
     WriteRelationshipsResponse,
@@ -128,7 +129,21 @@ class SpiceDB(metaclass=Singleton):
         spicedb_credentials = environ.get("SPICEDB_CREDENTIALS", "token")
         spicedb_ssl_certificates_dir = environ.get("SPICEDB_SSL_CERTIFICATES_DIR", "")
 
-        credentials = self._get_credentials(spicedb_credentials, spicedb_token, spicedb_ssl_certificates_dir)
+        # In docker-compose we connect to non-loopback SpiceDB addresses (e.g. spicedb:50051)
+        # over plaintext with preshared token auth. grpcutil.insecure_bearer_token_credentials
+        # relies on LOCAL_TCP channel creds and fails for non-loopback endpoints.
+        # Use authzed's InsecureClient for that mode; keep localhost behavior unchanged
+        # for local tests.
+        if spicedb_credentials == "token":
+            target_host = spicedb_address.split(":", 1)[0]
+            if target_host in {"localhost", "127.0.0.1", "::1"}:
+                credentials = insecure_bearer_token_credentials(spicedb_token)
+            else:
+                self._client = InsecureClient(spicedb_address, spicedb_token)
+                return
+        else:
+            credentials = self._get_credentials(spicedb_credentials, spicedb_token, spicedb_ssl_certificates_dir)
+
         grpc_channel_config: str = json.dumps(
             {
                 "methodConfig": [
@@ -166,7 +181,7 @@ class SpiceDB(metaclass=Singleton):
                 self._get_ssl_channel_credentials(certificates_dir),
                 access_token_call_credentials(spicedb_token),
             )
-        return insecure_bearer_token_credentials(spicedb_token)
+        raise ValueError(f"Unsupported SPICEDB_CREDENTIALS value: {spicedb_credentials}")
 
     def _get_root_certificate_credentials(self, certificates_dir: str) -> Any:
         with open(os.path.join(certificates_dir, "ca.crt"), mode="rb") as ca_file:

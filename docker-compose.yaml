@@ -7,6 +7,27 @@ x-proxies: &proxies
     - https_proxy=${https_proxy}
     - no_proxy=${no_proxy}
 
+x-iai-runtime-env: &iai-runtime-env
+  DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+  DATABASE_USERNAME: ${DATABASE_USERNAME}
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+  MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+  KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+  KAFKA_USERNAME: ${KAFKA_USERNAME}
+  KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+  KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
+  SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
+  SPICEDB_TOKEN: ${SPICEDB_TOKEN}
+  SPICEDB_CREDENTIALS: token
+  S3_CREDENTIALS_PROVIDER: local
+  S3_HOST: s3:8333
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY}
+  S3_PRESIGNED_URL_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_PRESIGNED_URL_SECRET_KEY: ${S3_SECRET_KEY}
+  FEATURE_FLAGS_HEADER_VALUE: ""
+  FEATURE_FLAGS_URL: ""
+
 services:
   # Build services
   #
@@ -74,7 +95,7 @@ services:
         - account_service_grpc=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.platform-account.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/logout/?$`) || PathRegexp(`^/api/v[0-9]+/profile/?$`) || PathRegexp(`^/api/v[0-9]+/personal_access_tokens(/.*)?$`))"
+      - "traefik.http.routers.platform-account.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/(users|quotas|credits|activeUser)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/logout/?$`) || PathRegexp(`^/api/v[0-9]+/profile/?$`) || PathRegexp(`^/api/v[0-9]+/personal_access_tokens(/.*)?$`))"
       - "traefik.http.routers.platform-account.priority=90"
       - "traefik.http.services.platform-account.loadbalancer.server.port=5002"
       - "traefik.http.routers.platform-account.middlewares=geti-auth@docker"
@@ -370,6 +391,8 @@ services:
       - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`))"
       - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
       - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
+    environment:
+      <<: *iai-runtime-env
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -386,9 +409,13 @@ services:
         - supported_models=./interactive_ai/supported_models/
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
+      - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/training_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
       - "traefik.http.routers.interactive-ai-director.priority=65"
+      - "traefik.http.routers.interactive-ai-director.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-director.loadbalancer.server.port=4999"
+    environment:
+      <<: *iai-runtime-env
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -428,19 +455,13 @@ services:
         - iai_core=./interactive_ai/libs/iai_core_py/
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`)"
+      - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/jobs(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`))"
       - "traefik.http.routers.interactive-ai-jobs.priority=70"
+      - "traefik.http.routers.interactive-ai-jobs.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
+      <<: *iai-runtime-env
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
-      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
-      DATABASE_USERNAME: ${DATABASE_USERNAME}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
@@ -463,15 +484,8 @@ services:
       - python
       - scheduler/main.py
     environment:
+      <<: *iai-runtime-env
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
-      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
-      DATABASE_USERNAME: ${DATABASE_USERNAME}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       JOBS_TEMPLATES_DIR: /config
       JOBS_TEMPLATES_FILE: jobs_templates.yaml
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
@@ -509,11 +523,8 @@ services:
       - python
       - policies/main.py
     environment:
+      <<: *iai-runtime-env
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
-      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
-      DATABASE_USERNAME: ${DATABASE_USERNAME}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
       RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
@@ -539,6 +550,7 @@ services:
       - --pool=solo
       - --concurrency=1
     environment:
+      <<: *iai-runtime-env
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
@@ -562,23 +574,8 @@ services:
       WORKFLOW_EVALUATE_STUB_TASK_INFER: "false"
       WORKFLOW_EVALUATE_STUB_PIPELINE_INFER: "false"
       WORKFLOW_OPTIMIZE_STUB_EVALUATE: "false"
-      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
-      DATABASE_USERNAME: ${DATABASE_USERNAME}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
       MONGODB_CREDENTIALS_PROVIDER: local
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
-      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
       S3_HOST: s3:8333
-      S3_CREDENTIALS_PROVIDER: local
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-      S3_PRESIGNED_URL_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_PRESIGNED_URL_SECRET_KEY: ${S3_SECRET_KEY}
       JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
       MODEL_REGISTRATION_SERVICE: interactive_ai_model_registration:5555
       SESSION_ORGANIZATION_ID: ${MOCK_SESSION_ORGANIZATION_ID}
@@ -620,6 +617,8 @@ services:
       - "traefik.http.routers.interactive-ai-media.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/media/images/.*/display/(full|thumb)$`)"
       - "traefik.http.routers.interactive-ai-media.priority=70"
       - "traefik.http.services.interactive-ai-media.loadbalancer.server.port=5002"
+    environment:
+      <<: *iai-runtime-env
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -672,6 +671,8 @@ services:
       - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
       - "traefik.http.routers.interactive-ai-project-ie.priority=75"
       - "traefik.http.services.interactive-ai-project-ie.loadbalancer.server.port=8000"
+    environment:
+      <<: *iai-runtime-env
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -689,9 +690,12 @@ services:
         - supported_models=./interactive_ai/supported_models/
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathPrefix(`/api/`))"
+      - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathRegexp(`^/api/v[0-9]+/user_settings/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/tests/.*/results:query$`))"
       - "traefik.http.routers.interactive-ai-resource.priority=50"
+      - "traefik.http.routers.interactive-ai-resource.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-resource.loadbalancer.server.port=5000"
+    environment:
+      <<: *iai-runtime-env
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -710,6 +714,8 @@ services:
       - "traefik.http.routers.interactive-ai-visual-prompt.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:prompt$`)"
       - "traefik.http.routers.interactive-ai-visual-prompt.priority=80"
       - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
+    environment:
+      <<: *iai-runtime-env
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -845,7 +851,10 @@ services:
         - api_context=./interactive_ai/services/api
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.geti-web.rule=(Host(`geti.localhost`) && !(PathPrefix(`/dex`))) || Host(`web.geti.localhost`)"
+      - "traefik.http.routers.geti-web.rule=(Host(`geti.localhost`) && !(PathPrefix(`/dex`)) && !(PathPrefix(`/api`))) || Host(`web.geti.localhost`)"
+      - "traefik.http.routers.geti-web-feature-flags.rule=Host(`geti.localhost`) && Path(`/api/v1/feature_flags`)"
+      - "traefik.http.routers.geti-web-feature-flags.priority=200"
+      - "traefik.http.routers.geti-web-feature-flags.service=geti-web"
       - "traefik.http.routers.geti-web.priority=1"
       - "traefik.http.services.geti-web.loadbalancer.server.port=3000"
 
