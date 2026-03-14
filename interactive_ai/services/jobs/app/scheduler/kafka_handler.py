@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from model.job import Job, JobConsumedResource, JobCost
 from scheduler.context import job_context
-from scheduler.flyte import ExecutionType
+from scheduler.execution_type import ExecutionType
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 

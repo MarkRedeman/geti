@@ -5,7 +5,7 @@ import logging
 import os
 
 from model.job import Job
-from scheduler.flyte import ExecutionType
+from scheduler.execution_type import ExecutionType
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_revert_execution_name, resolve_revert_job
@@ -119,4 +119,3 @@ def start_revert_execution(job: Job) -> str | None:
         f"Revert execution started locally (compose mode): execution_name={execution_name}, container_id={container_id}"
     )
     return execution_name
-

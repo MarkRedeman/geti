@@ -7,11 +7,11 @@ Jobs Scheduler Flyte integration
 
 import logging
 import os
-from enum import Enum
 from typing import TYPE_CHECKING, Any, cast
 
 from model.job import Job
 from model.telemetry import Telemetry
+from scheduler.execution_type import ExecutionType
 
 from geti_types import Session, Singleton
 
@@ -66,16 +66,6 @@ def _load_flyte_symbols() -> dict[str, Any]:
         "Options": Options,
     }
     return _FLYTE_SYMBOLS
-
-
-class ExecutionType(Enum):
-    """
-    Job state groups enumeration
-    Represents the state group of the job, it matches with UI job states
-    """
-
-    MAIN = "MAIN"
-    REVERT = "REVERT"
 
 
 class FlyteUnavailableInComposeError(RuntimeError):

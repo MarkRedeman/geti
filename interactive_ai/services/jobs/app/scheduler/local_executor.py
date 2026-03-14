@@ -46,7 +46,7 @@ from typing import cast
 from geti_kafka_tools import publish_event
 from geti_types import CTX_SESSION_VAR, ID, RequestSource, Singleton, make_session, session_context
 
-from scheduler.flyte import ExecutionType
+from scheduler.execution_type import ExecutionType
 from scheduler.celery_tasks import run_job_execution as run_job_execution_task
 
 logger = logging.getLogger(__name__)

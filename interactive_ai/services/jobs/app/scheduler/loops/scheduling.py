@@ -6,7 +6,7 @@ import os
 
 from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType
+from scheduler.execution_type import ExecutionType
 from scheduler.jobs_templates import JobsTemplates
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
@@ -131,4 +131,3 @@ def start_main_execution(job: Job) -> tuple[str, str]:
         f"Job execution started locally (compose mode): execution_name={execution_name}, container_id={container_id}"
     )
     return execution_name, execution_name
-
