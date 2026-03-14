@@ -160,12 +160,6 @@ services:
       - "traefik.http.routers.platform-auth-proxy.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/set_cookie/?$`)"
       - "traefik.http.routers.platform-auth-proxy.priority=100"
       - "traefik.http.services.platform-auth-proxy.loadbalancer.server.port=7002"
-      # forwardAuth middleware: Traefik calls /api/v1/auth on this service; if it
-      # returns 200 the x-auth-request-access-token response header is forwarded to
-      # the upstream (platform_account).
-      - "traefik.http.middlewares.geti-auth.forwardauth.address=http://platform_auth_proxy:7002/api/v1/auth"
-      - "traefik.http.middlewares.geti-auth.forwardauth.trustForwardHeader=true"
-      - "traefik.http.middlewares.geti-auth.forwardauth.authResponseHeaders=x-auth-request-access-token"
     depends_on:
       platform_account:
         condition: service_started
@@ -396,6 +390,8 @@ services:
     depends_on:
       migration_job:
         condition: service_completed_successfully
+      init-kafka-topics:
+        condition: service_completed_successfully
 
   interactive_ai_director:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/director:${TAG-main}
@@ -418,6 +414,8 @@ services:
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
       migration_job:
+        condition: service_completed_successfully
+      init-kafka-topics:
         condition: service_completed_successfully
 
   interactive_ai_inference_gateway:
@@ -471,6 +469,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_started
+      init-kafka-topics:
+        condition: service_completed_successfully
 
   interactive_ai_jobs_scheduler:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -503,6 +503,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      init-kafka-topics:
+        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
       redis:
@@ -596,6 +598,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      init-kafka-topics:
+        condition: service_completed_successfully
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -698,6 +702,8 @@ services:
       <<: *iai-runtime-env
     depends_on:
       migration_job:
+        condition: service_completed_successfully
+      init-kafka-topics:
         condition: service_completed_successfully
 
   interactive_ai_visual_prompt:
@@ -878,6 +884,9 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
       - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.middlewares.geti-auth.forwardauth.address=http://platform_auth_proxy:7002/api/v1/auth"
+      - "traefik.http.middlewares.geti-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.geti-auth.forwardauth.authResponseHeaders=x-auth-request-access-token"
     restart: unless-stopped
 
   # https://geek-cookbook.funkypenguin.co.nz/docker-swarm/authelia/
@@ -949,6 +958,17 @@ services:
       retries: 5
       timeout: 10s
     restart: always
+
+  init-kafka-topics:
+    image: bitnami/kafka:3.7.1-debian-12-r7
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - for topic in annotation_scenes_to_revisit configuration_changes dataset_counters_updated dataset_updated training_successful media_deletions media_preprocessing media_uploads new_annotation_scene predictions_and_metadata_created project_creations project_deletions project_updates thumbnail_video_missing model_activated model_reverted flyte_event job_step_details job_update on_job_cancelled on_job_failed on_job_finished project_notifications credits_lease; do kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic "$$topic" --partitions 1 --replication-factor 1; done
+    restart: "no"
 
   s3:
     image: chrislusf/seaweedfs:3.69
