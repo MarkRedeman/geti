@@ -243,21 +243,21 @@ class StateMachine(metaclass=Singleton):
     def set_scheduled_state(
         self,
         job_id: ID,
-        flyte_launch_plan_id: str,
-        flyte_execution_id: str,
+        launch_plan_id: str,
+        execution_id: str,
         step_details: Sequence[JobStepDetails],
     ) -> bool:
         """
-        Updates job's state to SCHEDULED and sets Flyte related fields
+        Updates job's state to SCHEDULED and sets execution-related fields
         :param job_id: identifier of a job to update state
-        :param flyte_launch_plan_id: Flyte launch plan ID
-        :param flyte_execution_id: Flyte execution ID
-        :param step_details: Flyte user visible tasks
+        :param launch_plan_id: workflow launch plan ID
+        :param execution_id: workflow execution ID
+        :param step_details: user visible task steps
         :return bool: True if job document has been updated
         """
         logger.debug(
-            f"Setting a scheduled state for job {job_id}, flyte_launch_plan_id={flyte_launch_plan_id}, "
-            + f"flyte_execution_id={flyte_execution_id}, step_details={step_details}"
+            f"Setting a scheduled state for job {job_id}, launch_plan_id={launch_plan_id}, "
+            + f"execution_id={execution_id}, step_details={step_details}"
         )
         job_repo = SessionBasedSchedulerJobRepo()
         with job_repo._mongo_client.start_session():
@@ -267,8 +267,8 @@ class StateMachine(metaclass=Singleton):
                     "$set": {
                         "state": JobState.SCHEDULED.value,
                         "state_group": JobStateGroup.SCHEDULED.value,
-                        "executions.main.launch_plan_id": flyte_launch_plan_id,
-                        "executions.main.execution_id": flyte_execution_id,
+                        "executions.main.launch_plan_id": launch_plan_id,
+                        "executions.main.execution_id": execution_id,
                         "step_details": [JobStepDetailsMapper.forward(step_details) for step_details in step_details],
                     },
                     "$unset": {"executions.main.process_start_time": ""},
@@ -604,12 +604,12 @@ class StateMachine(metaclass=Singleton):
     def set_revert_scheduled_state(
         self,
         job_id: ID,
-        flyte_execution_id: str,
+        execution_id: str,
     ) -> bool:
         """
         Updates job's state to REVERT_SCHEDULED and sets execution ID
         :param job_id: identifier of a job to update state
-        :param flyte_execution_id: Flyte revert execution ID
+        :param execution_id: revert execution ID
         :return bool: True if job document has been updated
         """
         logger.debug(f"Setting a revert scheduled state for job {job_id}")
@@ -620,7 +620,7 @@ class StateMachine(metaclass=Singleton):
                 update={
                     "$set": {
                         "state": JobState.REVERT_SCHEDULED.value,
-                        "executions.revert.execution_id": flyte_execution_id,
+                        "executions.revert.execution_id": execution_id,
                     },
                     "$unset": {"executions.revert.process_start_time": ""},
                 },
@@ -970,7 +970,7 @@ class StateMachine(metaclass=Singleton):
 
     def get_scheduled_jobs_not_in_final_state(self) -> tuple[Job, ...]:
         """
-        Returns a list of active jobs - jobs which have Flyte executions scheduled and not yet finished
+        Returns a list of active jobs - jobs which have executions scheduled and not yet finished
         :return found job or None
         """
         logger.debug("Getting scheduled jobs not in final states")

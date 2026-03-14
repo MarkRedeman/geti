@@ -404,8 +404,8 @@ def test_set_scheduled_state(mock_repo_update, updated, request) -> None:
     # Act
     result = StateMachine().set_scheduled_state(
         job_id=job_id,
-        flyte_launch_plan_id="launch_plan_id",
-        flyte_execution_id="execution_id",
+        launch_plan_id="launch_plan_id",
+        execution_id="execution_id",
         step_details=[
             JobStepDetails(
                 index=1,
@@ -880,7 +880,7 @@ def test_set_revert_scheduled_state(mock_repo_update, updated, request) -> None:
     # Act
     result = StateMachine().set_revert_scheduled_state(
         job_id=job_id,
-        flyte_execution_id="execution_id",
+        execution_id="execution_id",
     )
 
     # Assert

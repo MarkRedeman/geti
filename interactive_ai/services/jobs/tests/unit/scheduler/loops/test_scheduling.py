@@ -243,8 +243,8 @@ def test_schedule_main_job_success(
     mock_js_reset_scheduling_job.assert_not_called()
     mock_js_set_scheduled_state.assert_called_once_with(
         job_id=job_id,
-        flyte_launch_plan_id=launch_plan_id,
-        flyte_execution_id=execution_name,
+        launch_plan_id=launch_plan_id,
+        execution_id=execution_name,
         step_details=[
             JobStepDetails(
                 index=1,

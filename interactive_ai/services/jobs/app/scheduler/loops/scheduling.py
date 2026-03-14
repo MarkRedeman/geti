@@ -46,10 +46,10 @@ def schedule_main_job(job_id: ID) -> None:
     If this is not the first attempt to schedule this job and number of retries exceeded allowed maximum, transfers
     the job to FAILED state.
     If this is not the first attempt to schedule this job and the maximum number of retries has not been reached,
-    attempt to obtain Flyte execution.
-    If execution is found, uses it. Otherwise starts execution in Flyte.
+    attempt to obtain an existing execution.
+    If execution is found, uses it. Otherwise starts a new execution.
     Updates the job and sets SCHEDULED state.
-    If Flyte execution start fails, sets READY_FOR_SCHEDULING state.
+    If execution start fails, sets READY_FOR_SCHEDULING state.
     :param job_id: Job ID
     """
     logger.info(f"Job to be scheduled: {job_id}")
@@ -95,8 +95,8 @@ def schedule_main_job(job_id: ID) -> None:
         # Update job in database
         StateMachine().set_scheduled_state(
             job_id=job_id,
-            flyte_launch_plan_id=launch_plan_id,
-            flyte_execution_id=execution_name,
+            launch_plan_id=launch_plan_id,
+            execution_id=execution_name,
             step_details=step_details,
         )
     except Exception:

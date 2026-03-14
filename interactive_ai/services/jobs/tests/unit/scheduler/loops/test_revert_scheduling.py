@@ -289,7 +289,7 @@ def test_schedule_revert_job_revert(
     mock_js_reset_revert_scheduling_job.assert_not_called()
     mock_js_set_revert_scheduled_state.assert_called_once_with(
         job_id=job_id,
-        flyte_execution_id="execution-id",
+        execution_id="execution-id",
     )
     mock_js_set_and_publish_cancelled_state.assert_not_called()
     mock_js_set_and_publish_failed_state.assert_not_called()

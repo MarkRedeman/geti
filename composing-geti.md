@@ -744,6 +744,7 @@ The repository is now in a **workable compose-first local state** for developer 
    - Recovery loop now runs in compose and re-queues orphaned local executions by resetting stuck jobs to `SUBMITTED` via `LocalExecutor` metadata checks.
    - Scheduler runtime paths for scheduling/revert/cancellation/recovery, gRPC job updates, and Kafka event/update handlers are now compose-only code paths (no Flyte-mode runtime branching).
    - Kafka and gRPC scheduler update handlers resolve execution metadata via `LocalExecutor` instead of Flyte fetches.
+   - Scheduler internals are being normalized away from Flyte naming (`flyte_*` local params/helpers/log wording) while preserving persisted execution schema keys and runtime behavior.
 
 3. **Auth model is intentionally insecure for local mode**
    - `AUTH_MODE=mock` bypasses identity/authorization.

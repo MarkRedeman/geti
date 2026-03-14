@@ -10,7 +10,7 @@ class WorkflowAdapterError(RuntimeError):
     """Raised when a workflow job payload cannot be adapted/executed."""
 
 
-def _patched_flyte_wrappers() -> ExitStack:
+def _patched_workflow_wrappers() -> ExitStack:
     stack = ExitStack()
     stack.enter_context(patch("jobs_common.tasks.utils.secrets.set_env_vars", lambda: None))
     stack.enter_context(patch("jobs_common.tasks.utils.progress.report_progress", lambda *args, **kwargs: None))
@@ -20,9 +20,9 @@ def _patched_flyte_wrappers() -> ExitStack:
 
 def run_import_export_job(job_type: str, payload: dict) -> None:
     """
-    Execute dataset/project import-export workflow tasks directly (without Flyte orchestration).
+    Execute dataset/project import-export workflow tasks directly (without workflow orchestration).
     """
-    with _patched_flyte_wrappers():
+    with _patched_workflow_wrappers():
         if job_type == "export_dataset":
             fn = importlib.import_module("job.tasks.export_tasks.export_dataset_task").export_dataset_task
             fn(

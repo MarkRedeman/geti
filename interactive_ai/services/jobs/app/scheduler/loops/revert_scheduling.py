@@ -44,10 +44,10 @@ def schedule_revert_job(job_id: ID) -> None:
     If this is not the first attempt to schedule this job and number of retries exceeded allowed maximum, transfers
     the job either to FAILED state or to CANCELLED state depending ob cancelled flag.
     If this is not the first attempt to schedule this job and the maximum number of retries has not been reached,
-    attempt to obtain Flyte execution.
-    If execution is found, uses it. Otherwise starts execution in Flyte.
+    attempt to obtain an existing execution.
+    If execution is found, uses it. Otherwise starts a new execution.
     Updates the job and sets SCHEDULED state.
-    If Flyte execution start fails, sets READY_FOR_REVERT state.
+    If execution start fails, sets READY_FOR_REVERT state.
     :param job_id: Job ID
     """
     logger.info(f"Job a revert execution to be scheduled for: {job_id}")
@@ -80,7 +80,7 @@ def schedule_revert_job(job_id: ID) -> None:
         execution_id = execution
         StateMachine().set_revert_scheduled_state(
             job_id=job_id,
-            flyte_execution_id=execution_id,
+            execution_id=execution_id,
         )
     except Exception:
         logger.exception(f"Failed to schedule revert execution for job {job_id}")
