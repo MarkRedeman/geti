@@ -378,6 +378,7 @@ services:
         - supported_models=./interactive_ai/supported_models/
     environment:
       <<: *iai-runtime-env
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
       mongodb:
         condition: service_healthy
@@ -449,6 +450,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-inference-gateway.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`))"
       - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
+      - "traefik.http.routers.interactive-ai-inference-gateway.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
     environment:
       OVMS_SERVICE: ovms
@@ -732,6 +734,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-visual-prompt.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:prompt$`)"
       - "traefik.http.routers.interactive-ai-visual-prompt.priority=80"
+      - "traefik.http.routers.interactive-ai-visual-prompt.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
