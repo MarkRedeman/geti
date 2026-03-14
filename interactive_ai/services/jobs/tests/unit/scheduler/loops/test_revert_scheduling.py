@@ -3,15 +3,13 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from flytekit.exceptions.user import FlyteUserException
 
 from model.job import JobRevertFlyteExecution
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.flyte import Flyte
 from scheduler.loops.revert_scheduling import (
     run_revert_scheduling_loop,
     schedule_revert_job,
-    start_execution,
     start_revert_execution,
 )
 from scheduler.state_machine import StateMachine
@@ -19,11 +17,6 @@ from scheduler.state_machine import StateMachine
 from geti_types import ID
 
 job_id = ID("test_job")
-
-
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
 
 
 def mock_state_machine(self, *args, **kwargs) -> None:
@@ -374,37 +367,6 @@ def test_schedule_revert_job_max_retry_counter_failed(
     mock_start_revert_execution.assert_not_called()
 
 
-@patch(
-    "scheduler.loops.revert_scheduling.start_execution",
-)
-@patch(
-    "scheduler.loops.revert_scheduling.get_revert_execution_name",
-)
-@patch.object(Flyte, "fetch_workflow")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_start_revert_execution_no_workflow_env_vars(
-    mock_flyte_fetch_workflow,
-    mock_get_revert_execution_name,
-    mock_start_execution,
-    fxt_job,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Arrange
-    mock_get_revert_execution_name.return_value = "execution_name"
-    with patch("scheduler.loops.revert_scheduling.resolve_revert_job", return_value=None) as mock_resolve_revert_job:
-        # Act
-        result = start_revert_execution(job=fxt_job)
-
-        # Assert
-        mock_flyte_fetch_workflow.assert_not_called()
-        mock_get_revert_execution_name.assert_called_once_with(job_id=fxt_job.id)
-        mock_resolve_revert_job.assert_called_once_with(job_type=fxt_job.type)
-        mock_start_execution.assert_not_called()
-        assert result is None
-
-
 @patch("scheduler.loops.revert_scheduling.LocalExecutor")
 @patch(
     "scheduler.loops.revert_scheduling.get_revert_execution_name",
@@ -454,51 +416,3 @@ def test_start_revert_execution(
     assert result == "execution_name"
 
 
-@patch.object(Flyte, "start_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_start_execution_existing(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_start_workflow_execution,
-    fxt_job,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Act / Assert
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        start_execution(
-            job=fxt_job,
-            workflow=MagicMock(),
-            execution_type=ExecutionType.MAIN,
-            execution_name="execution_name",
-            payload={"key": "value"},
-        )
-
-    mock_flyte_fetch_workflow_execution.assert_not_called()
-    mock_flyte_start_workflow_execution.assert_not_called()
-
-
-@patch.object(Flyte, "start_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_start_execution_new(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_start_workflow_execution,
-    fxt_job,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Act / Assert
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        start_execution(
-            job=fxt_job,
-            workflow=MagicMock(),
-            execution_type=ExecutionType.MAIN,
-            execution_name="execution_name",
-            payload={"key": "value"},
-        )
-
-    mock_flyte_fetch_workflow_execution.assert_not_called()
-    mock_flyte_start_workflow_execution.assert_not_called()

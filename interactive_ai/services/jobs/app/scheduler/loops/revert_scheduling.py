@@ -120,10 +120,3 @@ def start_revert_execution(job: Job) -> str | None:
     )
     return execution_name
 
-
-@unified_tracing
-def start_execution(*args, **kwargs):  # noqa: ANN002, ANN003, ANN201
-    raise RuntimeError(
-        "Feature unavailable outside compose mode: jobs.start_execution. "
-        "Flyte-backed revert scheduling path has been removed."
-    )

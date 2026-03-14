@@ -132,9 +132,3 @@ def start_main_execution(job: Job) -> tuple[str, str]:
     )
     return execution_name, execution_name
 
-
-@unified_tracing
-def start_execution(*args, **kwargs):  # noqa: ANN002, ANN003, ANN201
-    raise RuntimeError(
-        "Feature unavailable outside compose mode: jobs.start_execution. Flyte-backed scheduling path has been removed."
-    )

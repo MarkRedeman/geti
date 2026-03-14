@@ -3,19 +3,17 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from bson import ObjectId
 from flytekit.exceptions.user import FlyteUserException
 
 from model.job import JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.flyte import Flyte
 from scheduler.jobs_templates import JobsTemplates, JobTemplateStep
 from scheduler.local_executor import LocalExecutor
 from scheduler.loops.scheduling import (
     run_scheduling_loop,
     schedule_main_job,
-    start_execution,
     start_main_execution,
 )
 from scheduler.state_machine import StateMachine
@@ -24,11 +22,6 @@ from geti_types import ID
 
 ORG = ID(ObjectId())
 job_id = ID("test_job")
-
-
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
 
 
 def mock_state_machine(self, *args, **kwargs) -> None:
@@ -356,51 +349,3 @@ def test_start_main_execution(
     assert result == ("execution_name", "execution_name")
 
 
-@patch.object(Flyte, "start_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_start_execution_existing(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_start_workflow_execution,
-    fxt_job,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Act / Assert
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        start_execution(
-            job=fxt_job,
-            workflow=MagicMock(),
-            execution_type=ExecutionType.MAIN,
-            execution_name="execution_name",
-            payload={"key": "value"},
-        )
-
-    mock_flyte_fetch_workflow_execution.assert_not_called()
-    mock_flyte_start_workflow_execution.assert_not_called()
-
-
-@patch.object(Flyte, "start_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_start_execution_new(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_start_workflow_execution,
-    fxt_job,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Act / Assert
-    with pytest.raises(RuntimeError, match="outside compose mode"):
-        start_execution(
-            job=fxt_job,
-            workflow=MagicMock(),
-            execution_type=ExecutionType.MAIN,
-            execution_name="execution_name",
-            payload={"key": "value"},
-        )
-
-    mock_flyte_fetch_workflow_execution.assert_not_called()
-    mock_flyte_start_workflow_execution.assert_not_called()
