@@ -542,6 +542,7 @@ services:
       - policies/main.py
     environment:
       <<: *iai-runtime-env
+      MAX_JOBS_RUNNING_PER_ORGANIZATION: 1
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
       RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
@@ -559,6 +560,8 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
     command:
+      - python
+      - -m
       - celery
       - -A
       - scheduler.celery_app.celery_app
