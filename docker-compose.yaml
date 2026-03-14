@@ -399,9 +399,11 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`))"
       - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
+      - "traefik.http.routers.interactive-ai-dataset-ie.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -683,9 +685,11 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
       - "traefik.http.routers.interactive-ai-project-ie.priority=75"
+      - "traefik.http.routers.interactive-ai-project-ie.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-project-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
       migration_job:
         condition: service_completed_successfully
