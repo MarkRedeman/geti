@@ -11,7 +11,7 @@ LocalExecutor that:
   2. Maintains an in-process registry mapping execution_name → metadata so
      that the existing Kafka-handler and gRPC-update paths can resolve
      job/workspace/org IDs without a live remote orchestrator connection.
-  3. Publishes synthetic ``flyte_event`` Kafka messages on state transitions
+  3. Publishes synthetic Kafka messages on the ``flyte_event`` topic on state transitions
      (RUNNING, SUCCEEDED, FAILED/ABORTED) so the existing ProgressHandler
      state-machine transitions are reused unchanged.
 
@@ -452,8 +452,8 @@ class LocalExecutor(metaclass=Singleton):
 
     def _publish_workflow_event(self, record: _ExecutionRecord, phase: str) -> None:
         """
-        Publish a synthetic ``flyte_event`` Kafka message that mimics a
-        WorkflowExecutionEventRequest so the existing ProgressHandler picks it up.
+        Publish a synthetic Kafka message on ``flyte_event`` that follows the
+        WorkflowExecutionEventRequest shape so the existing ProgressHandler picks it up.
 
         The message body follows the shape that ProgressHandler.on_flyte_event()
         and handle_workflow_event() expect:

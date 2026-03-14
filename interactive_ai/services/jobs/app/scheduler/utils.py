@@ -15,6 +15,7 @@ def resolve_revert_job(job_type: str) -> tuple[str, str] | None:
 
     Workflow name env var mapping: job_type -> "JOB_{job_type.upper()}_REVERT_FLYTE_WORKFLOW_NAME"
     Workflow version env var mapping: job_type -> "JOB_{job_type.upper()}_REVERT_FLYTE_WORKFLOW_VERSION"
+    Note: these env var names retain "FLYTE" for backward compatibility.
 
     Example: job_type = train
     Workflow name env var: JOB_TRAIN_REVERT_FLYTE_WORKFLOW_NAME
@@ -58,4 +59,3 @@ def get_main_execution_name(job_id: str) -> str:
     """
 
     return f"ex-{job_id}"
-

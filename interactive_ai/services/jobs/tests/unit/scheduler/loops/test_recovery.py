@@ -17,11 +17,6 @@ WORK = ID("00000000-0000-0000-0000-000000000002")
 job_id = ID("test_job")
 
 
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
-
-
 def mock_state_machine(self, *args, **kwargs) -> None:
     return None
 

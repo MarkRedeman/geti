@@ -106,6 +106,7 @@ class JobCancellationInfo:
 
 @dataclass
 class JobMainFlyteExecution:
+    # Compatibility note: class name retained for backward compatibility.
     """
     Job main execution
 
@@ -125,6 +126,7 @@ class JobMainFlyteExecution:
 
 @dataclass
 class JobRevertFlyteExecution:
+    # Compatibility note: class name retained for backward compatibility.
     """
     Job revert execution
 
@@ -138,6 +140,7 @@ class JobRevertFlyteExecution:
 
 @dataclass
 class JobFlyteExecutions:
+    # Compatibility note: class name retained for backward compatibility.
     """
     Job executions
 
