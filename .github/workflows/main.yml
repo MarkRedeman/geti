@@ -282,6 +282,37 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  compose-parity:
+    name: Compose parity acceptance
+    needs: get-vars
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Docker compose config
+        run: make compose-config
+
+      - name: Start compose stack
+        run: docker compose up -d --build
+
+      - name: Wait for startup
+        run: sleep 30
+
+      - name: Run compose parity acceptance tests
+        run: make compose-parity
+
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose down -v
+
   success:
     name: Required status checks
     needs:
@@ -290,6 +321,7 @@ jobs:
       - web-ui-workflow
       - package-distribution-workflow
       - compose-smoke
+      - compose-parity
     permissions:
       discussions: write # to publish discussion/daily build
     runs-on: ubuntu-latest

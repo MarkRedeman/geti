@@ -141,3 +141,11 @@ Any PR that changes compose runtime behavior for in-scope areas must:
 1. Update this policy if boundaries/expectations changed.
 2. Include acceptance command output for affected sections.
 3. Keep unsupported behavior explicit (501 or warning contract).
+
+---
+
+## CI Enforcement
+
+- Main CI includes a dedicated **Compose parity acceptance** job.
+- The job executes `make compose-parity`, which runs the required checks above.
+- The required-status-checks gate depends on this job, so regressions block merge.
