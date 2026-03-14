@@ -26,7 +26,10 @@ func (s *OVMSModelAccessService) InferImageBytes(
 	ctx context.Context,
 	params InferParameters,
 ) (*pb.ModelInferResponse, error) {
-	request := createModelInferRequest(params)
+	request, reqErr := createModelInferRequest(ctx, params)
+	if reqErr != nil {
+		return nil, reqErr
+	}
 	response, err := s.ovmsClient.ModelInfer(ctx, request)
 	if err != nil {
 		logger.TracingLog(ctx).Infof("ovms grpc error encountered: %v", err)

@@ -344,6 +344,7 @@ services:
       additional_contexts:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
+        - supported_models=./interactive_ai/supported_models/
 
   interactive_ai_dataset_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_import_export:${TAG-main}
@@ -353,6 +354,7 @@ services:
       additional_contexts:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
+        - supported_models=./interactive_ai/supported_models/
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`))"
@@ -613,15 +615,6 @@ services:
       migration_job:
         condition: service_completed_successfully
 
-  interactive_ai_mlflow_geti_store:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/mlflow_geti_store:${TAG-main}
-    build:
-      <<: *proxies
-      context: ./interactive_ai/services/mlflow_geti_store
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-
   interactive_ai_model_registration:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/model_registration:${TAG-main}
     build:
@@ -684,6 +677,7 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathPrefix(`/api/`))"
@@ -753,21 +747,22 @@ services:
   interactive_ai_workflows_dataset_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_dataset_import_export:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/dataset_ie
+      context: ./interactive_ai/workflows/dataset_ie
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
 
   interactive_ai_workflows_model_test:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/model_test
+      context: ./interactive_ai/workflows/model_test
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
@@ -775,10 +770,10 @@ services:
   interactive_ai_workflows_project_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_project_import_export:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/project_ie
+      context: ./interactive_ai/workflows/project_ie
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
@@ -787,10 +782,10 @@ services:
   interactive_ai_workflows_optimize:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_optimize:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/optimize
+      context: ./interactive_ai/workflows/optimize
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
@@ -798,18 +793,19 @@ services:
   interactive_ai_workflows_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/train
+      context: ./interactive_ai/workflows/train
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
 
   interactive_ai_workflows_otx_v2_gpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2
+      context: ./interactive_ai/workflows/train/trainer
       dockerfile: ./gpu/Dockerfile
       <<: *proxies
       additional_contexts:
@@ -818,7 +814,7 @@ services:
   interactive_ai_workflows_otx_v2_xpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2
+      context: ./interactive_ai/workflows/train/trainer
       dockerfile: ./xpu/Dockerfile
       <<: *proxies
       additional_contexts:

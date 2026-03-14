@@ -1,0 +1,5 @@
+*
+!jobs_common
+!jobs_common_extras
+!pyproject.toml
+!uv.lock
