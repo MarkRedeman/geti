@@ -23,7 +23,7 @@ if ENABLE_TRACING:
 
 if "pytest" in sys.modules:
     logger.warning("Running inside a pytest session. Skipping sherlock configuration.")
-elif os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+elif os.getenv("DEPLOYMENT_MODE", "compose").lower() == "compose":
     logger.warning("Running in compose mode. Skipping sherlock Kubernetes backend configuration.")
 else:
     sherlock.configure(

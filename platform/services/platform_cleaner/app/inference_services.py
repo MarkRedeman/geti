@@ -47,7 +47,7 @@ async def cleanup_inference_services_older_than_threshold(
     """
     Remove Inference Services older than max_age_hours in given namespace.
     """
-    if os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+    if os.getenv("DEPLOYMENT_MODE", "compose").lower() == "compose":
         logger.warning("[COMPOSE MODE] Skipping KServe inference service cleanup")
         return
 

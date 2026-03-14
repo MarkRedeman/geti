@@ -17,7 +17,7 @@ from geti_types import RequestSource, make_session, session_context
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)  # type: ignore[attr-defined]
-DEPLOYMENT_MODE = os.environ.get("DEPLOYMENT_MODE", "").lower()
+DEPLOYMENT_MODE = os.environ.get("DEPLOYMENT_MODE", "compose").lower()
 
 
 def _is_compose_mode() -> bool:

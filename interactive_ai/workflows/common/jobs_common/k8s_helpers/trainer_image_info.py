@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_compose_mode() -> bool:
-    return os.getenv("DEPLOYMENT_MODE", "").lower() == "compose"
+    return os.getenv("DEPLOYMENT_MODE", "compose").lower() == "compose"
 
 
 async def get_config_map(namespace: str, name: str = "impt-configuration") -> client.V1ConfigMap:

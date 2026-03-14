@@ -231,9 +231,6 @@ services:
       - "traefik.http.routers.platform-observability.rule=Host(`geti.localhost`) && PathPrefix(`/api/v1/logs`)"
       - "traefik.http.routers.platform-observability.priority=55"
       - "traefik.http.services.platform-observability.loadbalancer.server.port=9000"
-    environment:
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
-
   platform_onboarding:
     image: ${REGISTRY-ghcr.io/geti}/platform_onboarding:${TAG-main}
     build:
@@ -333,7 +330,6 @@ services:
       KAFKA_PASSWORD: ${KAFKA_PASSWORD}
       KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       LOGS_DIR: /logs
       LOGGING_CONFIG_DIR: /
       USE_KUBECONFIG: "true"
@@ -370,6 +366,15 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - supported_models=./interactive_ai/supported_models/
+    environment:
+      <<: *iai-runtime-env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      init-kafka-topics:
+        condition: service_completed_successfully
 
   interactive_ai_dataset_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_import_export:${TAG-main}
@@ -434,7 +439,6 @@ services:
       - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
     environment:
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       OVMS_SERVICE: ovms
       OVMS_PORT: 9000
     depends_on:
@@ -459,7 +463,6 @@ services:
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
@@ -485,7 +488,6 @@ services:
       - scheduler/main.py
     environment:
       <<: *iai-runtime-env
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       JOBS_TEMPLATES_DIR: /config
       JOBS_TEMPLATES_FILE: jobs_templates.yaml
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
@@ -526,7 +528,6 @@ services:
       - policies/main.py
     environment:
       <<: *iai-runtime-env
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
       RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
@@ -553,7 +554,6 @@ services:
       - --concurrency=1
     environment:
       <<: *iai-runtime-env
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
       DATASET_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_ie_workflow:${TAG-main}
@@ -635,7 +635,6 @@ services:
       additional_contexts:
         - libs=./libs
     environment:
-      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       S3_CREDENTIALS_PROVIDER: local
       S3_HOST: s3:8333
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}

@@ -59,7 +59,7 @@ class SMTPClient:
         """
         Loads SMTP server configuration stored in k8s secret.
         """
-        if os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+        if os.getenv("DEPLOYMENT_MODE", "compose").lower() == "compose":
             logger.warning(
                 "[COMPOSE MODE] SMTP configuration loaded from environment variables; "
                 "Kubernetes secrets path is bypassed."
@@ -118,7 +118,7 @@ class SMTPClient:
         :return: dictionary with topic and message of email template
         :raise: KeyError when `topic` and `message` does not exist in configmap
         """
-        if os.getenv("DEPLOYMENT_MODE", "").lower() == "compose":
+        if os.getenv("DEPLOYMENT_MODE", "compose").lower() == "compose":
             defaults = SMTPClient._COMPOSE_EMAIL_TEMPLATES.get(template, {})
             topic = os.getenv(f"EMAIL_TEMPLATE_{template.upper()}_TOPIC", defaults.get("topic", ""))
             message = os.getenv(f"EMAIL_TEMPLATE_{template.upper()}_MESSAGE", defaults.get("message", ""))

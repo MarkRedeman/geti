@@ -14,7 +14,7 @@ from telemetry import cleanup_telemetry_samples
 
 
 def _is_compose_mode() -> bool:
-    return os.getenv("DEPLOYMENT_MODE", "").lower() == "compose"
+    return os.getenv("DEPLOYMENT_MODE", "compose").lower() == "compose"
 
 
 if not _is_compose_mode():

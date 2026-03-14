@@ -12,7 +12,7 @@ IMPT_CONFIGURATION_CM = os.getenv("IMPT_CONFIGURATION_CM", "impt-configuration")
 K8S_CR_NAMESPACE = os.getenv("K8S_CR_NAMESPACE", "default")
 
 USE_KUBECONFIG = os.getenv("USE_KUBECONFIG", "False").lower() == "true"
-DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "").lower()
+DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "compose").lower()
 
 IMPT_RESOURCE_SERVICE_HOST = os.getenv("IMPT_RESOURCE_SERVICE_HOST", "10.0.0.0")
 IMPT_RESOURCE_SERVICE_PORT = int(os.getenv("IMPT_RESOURCE_SERVICE_PORT", "5000"))
