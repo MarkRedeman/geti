@@ -301,9 +301,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.platform-user-directory.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/users/reset_password/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/create/?$`) || PathRegexp(`^/api/v[0-9]+/users/.*/update_password/?$`) || PathRegexp(`^/api/v[0-9]+/users/confirm_registration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/invitations/?$`) || PathPrefix(`/confirm-action/registration/reset-password`))"
-      - "traefik.http.routers.platform-user-directory.priority=85"
+      - "traefik.http.routers.platform-user-directory.priority=95"
       - "traefik.http.services.platform-user-directory.loadbalancer.server.port=9000"
     environment:
+      ACCOUNT_SERVICE_HOST: platform_account
+      ACCOUNT_SERVICE_PORT: 5001
       LDAP_HOST: ${LDAP_HOST}
       LDAP_PORT: ${LDAP_PORT}
       LDAP_ADMIN_USER: ${LDAP_ADMIN_USER}
