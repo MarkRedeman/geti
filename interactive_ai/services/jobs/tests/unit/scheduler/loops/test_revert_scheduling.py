@@ -3,8 +3,6 @@
 
 from unittest.mock import MagicMock, patch
 
-from flytekit.exceptions.user import FlyteUserException
-
 from model.job import JobRevertFlyteExecution
 from scheduler.flyte import Flyte
 from scheduler.loops.revert_scheduling import (
@@ -140,7 +138,7 @@ def test_schedule_revert_job_not_found(
 
 @patch(
     "scheduler.loops.revert_scheduling.start_revert_execution",
-    side_effect=FlyteUserException("Failed to start execution"),
+    side_effect=Exception("Failed to start execution"),
 )
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")

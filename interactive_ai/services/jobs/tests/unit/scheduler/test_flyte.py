@@ -6,13 +6,6 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from bson import ObjectId
-from flytekit import Annotations, Labels
-from flytekit.exceptions.user import FlyteEntityNotExistException
-from flytekit.models.core.workflow import NodeMetadata
-from flytekit.models.filters import ValueIn
-from flytekit.remote import FlyteLaunchPlan, FlyteNode, FlyteTask, FlyteWorkflow, FlyteWorkflowExecution
-from flytekit.remote.entities import FlyteBranchNode
-from flytekit.tools.translator import Options
 
 from model.telemetry import Telemetry
 from scheduler.flyte import ExecutionType, Flyte
@@ -21,6 +14,8 @@ from geti_types import ID, make_session
 
 if TYPE_CHECKING:
     from flytekit.models.execution import Execution
+    from flytekit.remote import FlyteLaunchPlan, FlyteNode, FlyteTask, FlyteWorkflow, FlyteWorkflowExecution
+    from flytekit.remote.entities import FlyteBranchNode
 
 ORGANIZATION_ID = str(ObjectId())
 
@@ -117,22 +112,46 @@ def test_start_workflow_execution(request, workspace_id, project_id, execution_t
     request.addfinalizer(reset_singletons)
 
     # Arrange
-    workflow: FlyteWorkflow = MagicMock()
+    workflow = MagicMock()  # FlyteWorkflow
 
-    # Act
-    Flyte().start_workflow_execution(
-        workspace_id=workspace_id,
-        job=fxt_job,
-        project_id=project_id,
-        execution_type=execution_type,
-        execution_name="execution_name",
-        workflow=workflow,
-        payload={"a": 1, "b": 2, "c": 3, "d": 4},
-        telemetry=Telemetry(context=values["opentelemetry_context"]),
-        session=make_session(
-            organization_id=ID(ORGANIZATION_ID),
-        ),
-    )
+    # Patch the lazy-loaded flytekit symbols so no real flytekit import is needed
+    mock_labels = MagicMock()
+    mock_annotations = MagicMock()
+    mock_options_cls = MagicMock()
+    mock_options_instance = MagicMock()
+    mock_options_cls.return_value = mock_options_instance
+
+    mock_symbols = {
+        "Labels": mock_labels,
+        "Annotations": mock_annotations,
+        "Options": mock_options_cls,
+        "FlyteEntityNotExistException": Exception,
+        "ValueIn": MagicMock(),
+        "FlyteLaunchPlan": MagicMock(),
+        "FlyteNode": MagicMock(),
+        "FlyteRemote": MagicMock(),
+        "FlyteTask": MagicMock(),
+        "FlyteWorkflow": MagicMock(),
+        "FlyteWorkflowExecution": MagicMock(),
+        "FlyteBranchNode": MagicMock(),
+        "Config": MagicMock(),
+    }
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        Flyte().start_workflow_execution(
+            workspace_id=workspace_id,
+            job=fxt_job,
+            project_id=project_id,
+            execution_type=execution_type,
+            execution_name="execution_name",
+            workflow=workflow,
+            payload={"a": 1, "b": 2, "c": 3, "d": 4},
+            telemetry=Telemetry(context=values["opentelemetry_context"]),
+            session=make_session(
+                organization_id=ID(ORGANIZATION_ID),
+            ),
+        )
 
     # Assert
     Flyte().client.execute_remote_wf.assert_called_once_with(
@@ -140,10 +159,7 @@ def test_start_workflow_execution(request, workspace_id, project_id, execution_t
         execution_name="execution_name",
         wait=False,
         inputs={"a": 1, "b": 2, "c": 3, "d": 4},
-        options=Options(
-            labels=Labels(values),
-            annotations=Annotations(annotations),
-        ),
+        options=mock_options_instance,
     )
 
 
@@ -156,7 +172,7 @@ def test_start_workflow_execution(request, workspace_id, project_id, execution_t
 )
 def test_get_execution_type(execution_type, result) -> None:
     # Arrange
-    execution: FlyteWorkflowExecution = MagicMock()
+    execution = MagicMock()  # FlyteWorkflowExecution
     execution.spec.annotations.values = {"execution_type": execution_type}
 
     # Act
@@ -168,7 +184,7 @@ def test_get_execution_type(execution_type, result) -> None:
 
 def test_get_execution_workspace_id() -> None:
     # Arrange
-    execution: FlyteWorkflowExecution = MagicMock()
+    execution = MagicMock()  # FlyteWorkflowExecution
     execution.spec.annotations.values = {"workspace_id": "workspace"}
 
     # Act
@@ -180,7 +196,7 @@ def test_get_execution_workspace_id() -> None:
 
 def test_get_execution_job_id() -> None:
     # Arrange
-    execution: FlyteWorkflowExecution = MagicMock()
+    execution = MagicMock()  # FlyteWorkflowExecution
     execution.spec.annotations.values = {"job_id": "job"}
 
     # Act
@@ -195,7 +211,7 @@ def test_cancel_workflow_execution(request) -> None:
     request.addfinalizer(reset_singletons)
 
     # Arrange
-    execution: FlyteWorkflowExecution = MagicMock()
+    execution = MagicMock()  # FlyteWorkflowExecution
 
     # Act
     Flyte().cancel_workflow_execution(execution=execution)
@@ -208,11 +224,16 @@ def test_cancel_workflow_execution(request) -> None:
 def test_fetch_execution_not_found(request) -> None:
     request.addfinalizer(reset_singletons)
 
-    # Arrange
-    Flyte().client.fetch_execution.side_effect = FlyteEntityNotExistException()
+    # Arrange – use a unique sentinel exception type so isinstance check in runtime passes
+    class _FlyteEntityNotExistException(Exception):
+        pass
 
-    # Act
-    found_execution = Flyte().fetch_workflow_execution(execution_name="execution_name")
+    mock_symbols = {"FlyteEntityNotExistException": _FlyteEntityNotExistException}
+    Flyte().client.fetch_execution.side_effect = _FlyteEntityNotExistException()
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        found_execution = Flyte().fetch_workflow_execution(execution_name="execution_name")
 
     # Assert
     Flyte().client.fetch_execution.assert_called_once_with(name="execution_name")
@@ -224,11 +245,14 @@ def test_fetch_execution_found(request) -> None:
     request.addfinalizer(reset_singletons)
 
     # Arrange
-    execution: Execution = MagicMock()
+    execution = MagicMock()  # Execution
     Flyte().client.fetch_execution.return_value = execution
 
-    # Act
-    found_execution = Flyte().fetch_workflow_execution(execution_name="execution_name")
+    mock_symbols = {"FlyteEntityNotExistException": Exception}
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        found_execution = Flyte().fetch_workflow_execution(execution_name="execution_name")
 
     # Assert
     Flyte().client.fetch_execution.assert_called_once_with(name="execution_name")
@@ -262,14 +286,29 @@ def test_list_workflow_executions(request) -> None:
     Flyte().client.client = client
     client.list_executions_paginated.return_value = ([execution], "")
 
-    # Act
-    executions = Flyte().list_workflow_executions(execution_names=["execution_name"])
+    mock_value_in_cls = MagicMock()
+    mock_value_in_instance = MagicMock()
+    mock_value_in_cls.return_value = mock_value_in_instance
+
+    mock_fwe_cls = MagicMock()
+    promoted = MagicMock()
+    promoted.id = execution.id
+    mock_fwe_cls.promote_from_model.return_value = promoted
+
+    mock_symbols = {
+        "ValueIn": mock_value_in_cls,
+        "FlyteWorkflowExecution": mock_fwe_cls,
+    }
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        executions = Flyte().list_workflow_executions(execution_names=["execution_name"])
 
     # Assert
     client.list_executions_paginated.assert_called_once_with(
         project="impt-jobs",
         domain="production",
-        filters=[ValueIn(key="execution_name", values=["execution_name"])],
+        filters=[mock_value_in_instance],
     )
     assert len(executions) == 1
     assert executions[0].id == execution.id
@@ -280,10 +319,15 @@ def test_fetch_task_not_found(request) -> None:
     request.addfinalizer(reset_singletons)
 
     # Arrange
-    Flyte().client.fetch_task.side_effect = FlyteEntityNotExistException()
+    class _FlyteEntityNotExistException(Exception):
+        pass
 
-    # Act
-    found_execution = Flyte().fetch_task(name="step_name", version="task_version")
+    mock_symbols = {"FlyteEntityNotExistException": _FlyteEntityNotExistException}
+    Flyte().client.fetch_task.side_effect = _FlyteEntityNotExistException()
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        found_execution = Flyte().fetch_task(name="step_name", version="task_version")
 
     # Assert
     Flyte().client.fetch_task.assert_called_once_with(
@@ -300,11 +344,14 @@ def test_fetch_task_found(request) -> None:
     request.addfinalizer(reset_singletons)
 
     # Arrange
-    task: FlyteTask = MagicMock()
+    task = MagicMock()  # FlyteTask
     Flyte().client.fetch_task.return_value = task
 
-    # Act
-    found_task = Flyte().fetch_task(name="step_name", version="task_version")
+    mock_symbols = {"FlyteEntityNotExistException": Exception}
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        found_task = Flyte().fetch_task(name="step_name", version="task_version")
 
     # Assert
     Flyte().client.fetch_task.assert_called_once_with(
@@ -319,9 +366,9 @@ def test_fetch_task_found(request) -> None:
 @patch("scheduler.flyte.Flyte.get_node_branch_nodes")
 def test_get_workflow_branch_nodes(mock_get_node_branch_nodes) -> None:
     # Arrange
-    workflow: FlyteWorkflow = MagicMock()
-    node1: FlyteNode = MagicMock()
-    node2: FlyteNode = MagicMock()
+    workflow = MagicMock()  # FlyteWorkflow
+    node1 = MagicMock()  # FlyteNode
+    node2 = MagicMock()  # FlyteNode
 
     workflow.flyte_nodes = [node1, node2]
 
@@ -339,14 +386,32 @@ def test_get_workflow_branch_nodes(mock_get_node_branch_nodes) -> None:
 
 
 def test_get_node_branch_nodes_task_node() -> None:
-    # Arrange
-    node: FlyteNode = MagicMock()
-    task: FlyteTask = MagicMock(spec=FlyteTask)
+    # Arrange – task node: flyte_entity is not a workflow/launch_plan/branch_node
+    # Use a unique class so isinstance checks in runtime don't match
+    class _FlyteTask:
+        pass
 
-    node.flyte_entity = task
+    class _FlyteWorkflow:
+        pass
 
-    # Act
-    branch_nodes = Flyte.get_node_branch_nodes(node=node)
+    class _FlyteLaunchPlan:
+        pass
+
+    class _FlyteBranchNode:
+        pass
+
+    mock_symbols = {
+        "FlyteWorkflow": _FlyteWorkflow,
+        "FlyteLaunchPlan": _FlyteLaunchPlan,
+        "FlyteBranchNode": _FlyteBranchNode,
+    }
+
+    node = MagicMock()
+    node.flyte_entity = _FlyteTask()
+
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        branch_nodes = Flyte.get_node_branch_nodes(node=node)
 
     # Assert
     assert branch_nodes == {}
@@ -355,16 +420,31 @@ def test_get_node_branch_nodes_task_node() -> None:
 @patch("scheduler.flyte.Flyte.get_workflow_branch_nodes")
 def test_get_node_branch_nodes_workflow_node(mock_get_workflow_branch_nodes) -> None:
     # Arrange
-    node: FlyteNode = MagicMock()
-    workflow: FlyteWorkflow = MagicMock(spec=FlyteWorkflow)
+    class _FlyteWorkflow:
+        pass
 
+    class _FlyteLaunchPlan:
+        pass
+
+    class _FlyteBranchNode:
+        pass
+
+    mock_symbols = {
+        "FlyteWorkflow": _FlyteWorkflow,
+        "FlyteLaunchPlan": _FlyteLaunchPlan,
+        "FlyteBranchNode": _FlyteBranchNode,
+    }
+
+    node = MagicMock()
+    workflow = _FlyteWorkflow()
     node.flyte_entity = workflow
 
-    branch_node: FlyteNode = MagicMock()
+    branch_node = MagicMock()
     mock_get_workflow_branch_nodes.return_value = {"n0": branch_node}
 
-    # Act
-    branch_nodes = Flyte.get_node_branch_nodes(node=node)
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        branch_nodes = Flyte.get_node_branch_nodes(node=node)
 
     # Assert
     mock_get_workflow_branch_nodes.assert_called_once_with(workflow=workflow)
@@ -373,14 +453,29 @@ def test_get_node_branch_nodes_workflow_node(mock_get_workflow_branch_nodes) -> 
 
 def test_get_node_branch_nodes_launch_plan_node_none_workflow() -> None:
     # Arrange
-    node: FlyteNode = MagicMock()
-    launch_plan: FlyteLaunchPlan = MagicMock(spec=FlyteLaunchPlan)
-    launch_plan.flyte_workflow = None
+    class _FlyteWorkflow:
+        pass
 
+    class _FlyteLaunchPlan:
+        pass
+
+    class _FlyteBranchNode:
+        pass
+
+    mock_symbols = {
+        "FlyteWorkflow": _FlyteWorkflow,
+        "FlyteLaunchPlan": _FlyteLaunchPlan,
+        "FlyteBranchNode": _FlyteBranchNode,
+    }
+
+    node = MagicMock()
+    launch_plan = _FlyteLaunchPlan()
+    launch_plan.flyte_workflow = None  # type: ignore[attr-defined]
     node.flyte_entity = launch_plan
 
-    # Act
-    branch_nodes = Flyte.get_node_branch_nodes(node=node)
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        branch_nodes = Flyte.get_node_branch_nodes(node=node)
 
     # Assert
     assert branch_nodes == {}
@@ -391,18 +486,33 @@ def test_get_node_branch_nodes_launch_plan_node_workflow(
     mock_get_workflow_branch_nodes,
 ) -> None:
     # Arrange
-    node: FlyteNode = MagicMock()
-    launch_plan: FlyteTask = MagicMock(spec=FlyteLaunchPlan)
-    workflow: FlyteWorkflow = MagicMock(spec=FlyteWorkflow)
-    launch_plan.flyte_workflow = workflow
+    class _FlyteWorkflow:
+        pass
 
+    class _FlyteLaunchPlan:
+        pass
+
+    class _FlyteBranchNode:
+        pass
+
+    mock_symbols = {
+        "FlyteWorkflow": _FlyteWorkflow,
+        "FlyteLaunchPlan": _FlyteLaunchPlan,
+        "FlyteBranchNode": _FlyteBranchNode,
+    }
+
+    node = MagicMock()
+    launch_plan = _FlyteLaunchPlan()
+    workflow = _FlyteWorkflow()
+    launch_plan.flyte_workflow = workflow  # type: ignore[attr-defined]
     node.flyte_entity = launch_plan
 
-    branch_node: FlyteNode = MagicMock()
+    branch_node = MagicMock()
     mock_get_workflow_branch_nodes.return_value = {"n0": branch_node}
 
-    # Act
-    branch_nodes = Flyte.get_node_branch_nodes(node=node)
+    with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+        # Act
+        branch_nodes = Flyte.get_node_branch_nodes(node=node)
 
     # Assert
     mock_get_workflow_branch_nodes.assert_called_once_with(workflow=workflow)
@@ -411,32 +521,50 @@ def test_get_node_branch_nodes_launch_plan_node_workflow(
 
 def test_get_node_branch_nodes_branch_node() -> None:
     # Arrange
-    flyte_node: FlyteNode = MagicMock()
-    flyte_node.metadata = NodeMetadata("condition")
-    branch_node: FlyteBranchNode = MagicMock(spec=FlyteBranchNode)
+    class _FlyteWorkflow:
+        pass
 
-    then_node: FlyteNode = MagicMock()
-    then_node.metadata = NodeMetadata("then")
-    branch_node.if_else.case.then_node = then_node
+    class _FlyteLaunchPlan:
+        pass
 
-    else_node: FlyteNode = MagicMock()
-    else_node.metadata = NodeMetadata("else")
-    branch_node.if_else.else_node = else_node
+    class _FlyteBranchNode:
+        pass
 
-    flyte_node.flyte_entity = branch_node
+    mock_symbols = {
+        "FlyteWorkflow": _FlyteWorkflow,
+        "FlyteLaunchPlan": _FlyteLaunchPlan,
+        "FlyteBranchNode": _FlyteBranchNode,
+    }
+
+    flyte_node = MagicMock()
+    flyte_node.metadata.name = "condition"
+
+    branch_node_entity = _FlyteBranchNode()
+
+    then_node = MagicMock()
+    then_node.metadata.name = "then"
+    branch_node_entity.if_else = MagicMock()  # type: ignore[attr-defined]
+    branch_node_entity.if_else.case.then_node = then_node
+    else_node = MagicMock()
+    else_node.metadata.name = "else"
+    branch_node_entity.if_else.else_node = else_node
+
+    flyte_node.flyte_entity = branch_node_entity
 
     original_get_node_branch_nodes = Flyte.get_node_branch_nodes
     with patch("scheduler.flyte.Flyte.get_node_branch_nodes") as mock_get_node_branch_nodes:
 
         def side_effect(node):
             if node == flyte_node:
-                return original_get_node_branch_nodes(node=node)
+                with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+                    return original_get_node_branch_nodes(node=node)
             return {}
 
         mock_get_node_branch_nodes.side_effect = side_effect
 
-        # Act
-        branch_nodes = Flyte.get_node_branch_nodes(node=flyte_node)
+        with patch("scheduler.flyte._load_flyte_symbols", return_value=mock_symbols):
+            # Act
+            branch_nodes = Flyte.get_node_branch_nodes(node=flyte_node)
 
         # Assert
         mock_get_node_branch_nodes.assert_has_calls(

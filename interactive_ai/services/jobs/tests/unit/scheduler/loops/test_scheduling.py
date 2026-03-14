@@ -4,8 +4,6 @@
 from unittest.mock import MagicMock, patch
 
 from bson import ObjectId
-from flytekit.exceptions.user import FlyteUserException
-
 from model.job import JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
 from scheduler.flyte import Flyte
@@ -151,7 +149,7 @@ def test_schedule_main_job_not_found(
 @patch.object(JobsTemplates, "get_job_steps")
 @patch(
     "scheduler.loops.scheduling.start_main_execution",
-    side_effect=FlyteUserException("Failed to start execution"),
+    side_effect=Exception("Failed to start execution"),
 )
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_scheduled_state")

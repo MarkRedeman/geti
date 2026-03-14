@@ -746,6 +746,7 @@ The repository is now in a **workable compose-first local state** for developer 
    - Kafka and gRPC scheduler update handlers resolve execution metadata via `LocalExecutor` instead of Flyte fetches.
    - Scheduler internals are being normalized away from Flyte naming (`flyte_*` local params/helpers/log wording) while preserving persisted execution schema keys and runtime behavior.
    - Removed dead scheduler compatibility stubs (`loops.start_execution` wrappers) and unused main-workflow utility remnants from runtime code.
+   - Scheduler loop unit tests no longer require direct runtime `flytekit` imports; remaining Flyte-oriented test coverage is isolated behind type-checking-only imports/mocked symbols.
 
 3. **Auth model is intentionally insecure for local mode**
    - `AUTH_MODE=mock` bypasses identity/authorization.

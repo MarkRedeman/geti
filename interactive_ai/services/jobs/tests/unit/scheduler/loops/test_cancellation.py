@@ -3,8 +3,6 @@
 
 from unittest.mock import MagicMock, call, patch
 
-from flytekit.exceptions.user import FlyteUserException
-
 from model.job_state import JobState
 from scheduler.loops.cancellation import cancel_execution, cancel_main_job, run_cancellation_loop
 from scheduler.state_machine import StateMachine
@@ -169,7 +167,7 @@ def test_cancel_main_job_not_found(
 
 @patch(
     "scheduler.loops.cancellation.cancel_execution",
-    side_effect=FlyteUserException("Failed to cancel execution"),
+    side_effect=Exception("Failed to cancel execution"),
 )
 @patch.object(StateMachine, "set_ready_for_revert_state")
 @patch.object(StateMachine, "drop_cancelled_flag")
