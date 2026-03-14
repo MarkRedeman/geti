@@ -8,7 +8,7 @@ issuer: http://geti.localhost/dex
 storage:
   type: sqlite3
   config:
-    file: var/dex/dex.db
+    file: /var/dex/dex.db
     #file: ":memory:"
 
 web:
@@ -41,11 +41,11 @@ logger:
   level: "debug"
 
 staticPasswords:
-- email: "mark.s.redeman@intel.com"
+- email: "admin@geti.local"
   # bcrypt hash of the string "password"
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
-  userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+  userID: "admin@geti.local"
 
 
 # Custom templates
@@ -56,9 +56,36 @@ frontend:
     # isSMTPDefined: {{ .Values.isSMTPDefined }}
 
 connectors:
-- type: mockCallback
-  id: regular_users
-  name: Mock
+- id: regular_users
+  type: ldap
+  name: OpenLDAP
+  config:
+    host: "openldap:389"
+
+    # No TLS for local compose setup.
+    insecureNoSSL: true
+    insecureSkipVerify: true
+
+    # Use LDAP admin bind for local compose.
+    bindDN: "cn=admin,dc=example,dc=org"
+    bindPW: "admin"
+
+    userSearch:
+      baseDN: dc=example,dc=org
+      filter: "(&(!(gidNumber=502))(objectClass=posixAccount))"
+      username: mail
+      idAttr: DN
+      emailAttr: mail
+      nameAttr: cn
+      preferredUsernameAttr: uid
+
+    groupSearch:
+      baseDN: dc=example,dc=org
+      filter: "(objectClass=posixGroup)"
+      userMatchers:
+        - userAttr: uid
+          groupAttr: memberuid
+      nameAttr: cn
 
 
 # # define OpenLDAP as a LDAP

@@ -53,6 +53,10 @@ make compose-prepare-certs
 
 This generates `tls.key` and `tls.crt` under `infrastructure/data/auth_proxy/certs/` using OpenSSL (skipped silently if the files already exist).
 
+The script also normalizes permissions to world-readable (`0644`) because the
+distroless `platform_auth_proxy` container runs as non-root and must be able to
+read the mounted key/cert files.
+
 ### 2c. Bootstrap infrastructure and run migrations
 
 This single command wires together three steps in order:
@@ -61,11 +65,43 @@ This single command wires together three steps in order:
 2. Starts the infrastructure prerequisites — MongoDB, Kafka, and S3 — detached.
 3. Builds and runs the `migration_job` container, which creates the MongoDB service user, runs data migrations, and initialises the S3 bucket.
 
+`compose-bootstrap` now waits for SeaweedFS S3 readiness before launching
+`migration_job`, to avoid intermittent `Connection refused` failures on fresh
+resets.
+
+After `platform_initial_user` runs, bootstrap also synchronizes the LDAP user
+password to `INITIAL_USER_PASSWORD` from `.env` to ensure Dex LDAP login works
+immediately after a clean reset.
+
+Bootstrap also ensures Dex-compatible LDAP groups exist (`ou=Groups` and
+`cn=regular_users`) and adds the initial user UID as `memberUid`.
+
 ```bash
 make compose-bootstrap
 ```
 
 Wait for the migration job to exit with code `0` before proceeding.
+
+`make compose-bootstrap` now also runs the initial user/org/workspace seed step
+(`platform_initial_user`) by default.
+
+> `Aborting on container exit...` after `migration_job` finishes is expected in
+> this flow, because bootstrap runs compose with `--abort-on-container-exit`.
+> Treat the bootstrap as successful when you see:
+>
+> - `migration_job-1 exited with code 0`
+> - `Compose bootstrap completed.`
+
+> If bootstrap fails with `S3_CREDENTIALS_PROVIDER` or a host lookup for
+> `impt-seaweed-fs`, update to the latest `docker-compose.yaml` from this
+> branch and re-run `make compose-bootstrap`.
+
+For a full clean re-bootstrap (drop compose volumes + reset Dex DB + re-migrate
++ re-seed), run:
+
+```bash
+make compose-bootstrap-reset
+```
 
 ### 2d. Build service images
 
@@ -80,6 +116,36 @@ Add `--parallel` to build multiple services concurrently if your machine has spa
 ---
 
 ## 3. Common Startup Examples
+
+Recommended progression for first bring-up (service-by-service):
+
+1. `reverse-proxy + web + dex + platform_account + platform_auth_proxy`
+2. Add user and onboarding APIs:
+   - `platform_user_directory`, `platform_onboarding`, `platform_initial_user`
+3. Add interactive AI control plane:
+   - `interactive_ai_jobs_scheduler`, `interactive_ai_jobs`, `interactive_ai_jobs_worker`,
+     `interactive_ai_resource`, `interactive_ai_model_registration`, `ovms`
+4. Add remaining interactive AI APIs/workers:
+   - `interactive_ai_director`, `interactive_ai_dataset_import_export`,
+     `interactive_ai_project_import_export`, `interactive_ai_inference_gateway`,
+     `interactive_ai_visual_prompt`, `interactive_ai_media`
+5. Add workflow and trainer images/services only when needed:
+   - `interactive_ai_workflows_*`, `interactive_ai_workflows_otx_v2_*`, `otx`
+
+Use this for each step:
+
+```bash
+# start selected services detached
+docker compose up -d <service...>
+
+# inspect current service health/status
+docker compose ps
+
+# inspect logs for failing service(s)
+docker compose logs --tail=200 <service>
+```
+
+If a service fails, fix that service before moving to the next step.
 
 ### Minimal UI + auth stack
 
@@ -154,6 +220,31 @@ Avoid `docker system prune -a` unless you are happy to re-pull/rebuild all base 
 
 ---
 
+### Migration job fails with S3 credential/provider or host resolution errors
+
+**Symptoms during `make compose-bootstrap`:**
+
+- `Environment variable S3_CREDENTIALS_PROVIDER should be set to either 'local' or 'aws'`
+- `HTTPConnectionPool(host='impt-seaweed-fs', port=8333) ... Failed to resolve`
+
+**Cause:** `migration_job` did not receive compose-local S3 settings.
+
+**Expected compose env for `migration_job`:**
+
+```yaml
+S3_CREDENTIALS_PROVIDER: local
+S3_HOST: s3:8333
+```
+
+**Fix:** ensure your `docker-compose.yaml` includes those variables under
+`migration_job.environment`, then rerun:
+
+```bash
+make compose-bootstrap
+```
+
+---
+
 ### Inspecting logs for a single service
 
 ```bash
@@ -163,6 +254,147 @@ docker compose logs -f platform_auth_proxy
 # Last 100 lines, no follow
 docker compose logs --tail=100 interactive_ai_jobs
 ```
+
+---
+
+### Account startup log: `object definition 'user_directory' not found`
+
+**Symptom while starting UI/auth stack:**
+
+```text
+unable to migrate user_directory: ... object definition `user_directory` not found
+```
+
+**Status:** expected, non-fatal in current compose flow.
+
+`platform_account` writes the active SpiceDB schema at startup. The
+`user_directory` migration check runs first and can log this warning on a fresh
+or already-updated schema, then startup continues normally.
+
+Treat this as healthy if `platform_account` still logs:
+
+- `grpc server listening at [::]:5001`
+- `grpc gateway server listening at :5002`
+
+Quick check:
+
+```bash
+docker compose ps platform_account
+docker compose logs --tail=100 platform_account
+```
+
+---
+
+### Dex login works but `/api/v1/profile` returns `User not found`
+
+If authentication succeeds but `/api/v1/profile` still returns a 404-like
+`User not found`, ensure identity bootstrap values are aligned:
+
+- `.env`:
+  - `INITIAL_USER_EMAIL=admin@geti.local`
+  - `DEX_STATIC_USER_ID=admin@geti.local`
+- `infrastructure/data/dex/config.yml` static password entry:
+  - `email: "admin@geti.local"`
+  - `userID: "admin@geti.local"`
+
+Then recreate Dex and rerun initial-user bootstrap:
+
+```bash
+docker compose up -d --force-recreate dex platform_initial_user
+docker compose logs --tail=200 platform_initial_user
+```
+
+Ensure SpiceDB credentials use token mode in compose:
+
+```bash
+SPICEDB_CREDENTIALS=token
+```
+
+If `platform_initial_user` exits with `StatusCode.UNAVAILABLE` mentioning
+`Endpoint is neither UDS or TCP loopback address`, verify
+`SPICEDB_CREDENTIALS=token` for compose services.
+
+> Note: if Dex is configured with `mockCallback`, it always authenticates as a
+> fixed demo identity (`kilgore@kilgore.trout`) for `/auth/regular_users` and
+> ignores `staticPasswords` for that browser flow. Use the LDAP connector if
+> you need login identity to match seeded `INITIAL_USER_EMAIL`.
+
+### Dex login error: `LDAP Result Code 32 "No Such Object"` while querying groups
+
+This means Dex is searching groups under an LDAP base DN that does not exist.
+In this compose setup, OpenLDAP does not create `ou=Groups,dc=example,dc=org`
+by default.
+
+Use this in `infrastructure/data/dex/config.yml`:
+
+```yaml
+connectors:
+- id: regular_users
+  type: ldap
+  config:
+    # ...
+    groupSearch:
+      baseDN: dc=example,dc=org
+      filter: "(objectClass=posixGroup)"
+      userMatchers:
+        - userAttr: uid
+          groupAttr: memberuid
+      nameAttr: cn
+```
+
+Then recreate Dex:
+
+```bash
+docker compose up -d --force-recreate dex
+```
+
+If login still fails, clear browser cookies for `geti.localhost` and retry.
+
+---
+
+### Dex auth URL returns 404 + Traefik logs `unable to find the IP address for /geti-dex-1`
+
+If Dex is crash-looping, Traefik cannot route `/dex/*` and you may see 404s.
+
+Common root causes and fixes:
+
+1) **Dex sqlite path in config is relative**
+
+`infrastructure/data/dex/config.yml` must use an absolute in-container path:
+
+```yaml
+storage:
+  type: sqlite3
+  config:
+    file: /var/dex/dex.db
+```
+
+2) **Host bind target became directory or is not writable**
+
+Dex requires `infrastructure/data/dex/dex.db` to be a writable file.
+
+```bash
+rm -rf infrastructure/data/dex/dex.db
+touch infrastructure/data/dex/dex.db
+chmod 666 infrastructure/data/dex/dex.db
+docker compose up -d --force-recreate dex reverse-proxy
+```
+
+3) **Use bootstrap helper (now normalizes Dex DB path automatically)**
+
+```bash
+make compose-bootstrap-reset
+```
+
+Health check commands:
+
+```bash
+docker compose ps dex reverse-proxy
+docker compose logs --tail=100 dex reverse-proxy
+curl -i -H "Host: geti.localhost" http://127.0.0.1/dex/.well-known/openid-configuration
+```
+
+Expected: Dex `Up`, OIDC config returns `HTTP/1.1 200`.
 
 ---
 
@@ -191,16 +423,6 @@ Run this after any compose-related code changes to verify that parity contracts 
 ---
 
 ## 6. Notes
-
-### Auth mode in compose
-
-Compose runs with `AUTH_MODE=mock`. In this mode:
-
-- Missing or invalid access tokens are replaced with a deterministic local identity (`local-admin`).
-- SpiceDB permission checks return allow-all.
-- Token validation in onboarding and user-directory flows is bypassed.
-
-This is intentional for local developer velocity. **Do not run `AUTH_MODE=mock` in any environment that is network-accessible or carries real data.**
 
 For the full parity policy, including in-scope service behavior, unsupported-behavior contracts, and CI enforcement details, see:
 

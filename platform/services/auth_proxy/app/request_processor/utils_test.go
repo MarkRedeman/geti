@@ -38,3 +38,58 @@ func TestGetAuthenticationTime(t *testing.T) {
 	_, err = GetAuthenticationTime(claims)
 	assert.Error(t, err)
 }
+
+func TestExtractBearerToken(t *testing.T) {
+	tests := []struct {
+		name      string
+		header    string
+		wantToken string
+		wantOk    bool
+	}{
+		{
+			name:      "valid Bearer token",
+			header:    "Bearer mytoken123",
+			wantToken: "mytoken123",
+			wantOk:    true,
+		},
+		{
+			name:      "Bearer with extra whitespace",
+			header:    "Bearer   spaced_token",
+			wantToken: "spaced_token",
+			wantOk:    true,
+		},
+		{
+			name:      "case-insensitive bearer prefix",
+			header:    "bearer mytoken",
+			wantToken: "mytoken",
+			wantOk:    true,
+		},
+		{
+			name:      "missing bearer prefix",
+			header:    "Basic somebase64==",
+			wantToken: "",
+			wantOk:    false,
+		},
+		{
+			name:      "empty header",
+			header:    "",
+			wantToken: "",
+			wantOk:    false,
+		},
+		{
+			name:      "bearer only, no token",
+			header:    "Bearer",
+			wantToken: "",
+			wantOk:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotToken, gotOk := ExtractBearerToken(tt.header)
+			assert.Equal(t, tt.wantOk, gotOk)
+			assert.Equal(t, tt.wantToken, gotToken)
+		})
+	}
+}
+

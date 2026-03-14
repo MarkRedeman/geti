@@ -23,9 +23,16 @@ func BuildGetiCookie(r *http.Request) (http.Cookie, error) {
 		HttpOnly: true,
 		Path:     "/",
 		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		MaxAge:   maxAge,
 	}, nil
+}
+
+func isSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 func getCookieValue(r *http.Request) (string, error) {

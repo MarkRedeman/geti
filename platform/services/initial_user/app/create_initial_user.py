@@ -2,10 +2,12 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import time
+import os
 
 from geti_logger_tools.logger_config import initialize_logger
-from geti_spicedb_tools import SpiceDB
 from grpc import RpcError
+from grpc_interfaces.account_service.pb.user_common_pb2 import UserRole, UserRoleOperation
+from grpc_interfaces.account_service.pb.user_pb2 import UserRolesRequest
 from users_handler_client import UsersHandlerConnection
 
 from account_service_client import AccountServiceConnection
@@ -40,13 +42,34 @@ def main() -> None:
     else:
         raise RuntimeError("Connection to account service has timed out - no healthy upstream.")
     uh_connection = UsersHandlerConnection()
-    SpiceDB().link_organization_to_workspace_in_spicedb(workspace_id=workspace_id, organization_id=organization_id)
     user_id = acc_svc.client.create_initial_user(organization_id=organization_id)
     try:
-        uh_connection.create_initial_user(uid=user_id, workspace_id=workspace_id, organization_id=organization_id)
+        uh_connection.create_initial_user(
+            uid=user_id,
+            workspace_id=workspace_id,
+            organization_id=organization_id,
+            apply_roles_in_spicedb=False,
+        )
     except EmailAlreadyExists:
         logger.info("User exists in ldap")
-    sub = get_sub_from_jwt_token(uid=user_id)
+
+    # Assign bootstrap roles via account service API instead of direct SpiceDB writes.
+    role_ops = [
+        UserRoleOperation(
+            role=UserRole(role="organization_admin", resource_type="organization", resource_id=organization_id),
+            operation="TOUCH",
+        ),
+        UserRoleOperation(
+            role=UserRole(role="workspace_admin", resource_type="workspace", resource_id=workspace_id),
+            operation="TOUCH",
+        ),
+    ]
+    acc_svc.client.user_stub.set_roles(
+        UserRolesRequest(user_id=user_id, organization_id=organization_id, roles=role_ops)
+    )
+    dex_static_user_id = os.getenv("DEX_STATIC_USER_ID", "")
+    sub_source_uid = dex_static_user_id if dex_static_user_id else user_id
+    sub = get_sub_from_jwt_token(uid=sub_source_uid)
     acc_svc.client.update_user_external_id(uid=user_id, organization_id=organization_id, external_id=sub)
 
 

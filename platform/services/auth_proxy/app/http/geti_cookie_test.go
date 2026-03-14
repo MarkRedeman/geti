@@ -26,6 +26,14 @@ func TestBuildGetiCookie(t *testing.T) {
 			wantMaxAge: 0,
 		},
 		{
+			name:       "Valid Authorization Header over HTTP keeps non-secure cookie",
+			method:     http.MethodPost,
+			authHeader: "Bearer token123",
+			wantErr:    false,
+			wantValue:  "token123",
+			wantMaxAge: 0,
+		},
+		{
 			name:       "Missing Authorization Header",
 			method:     http.MethodPost,
 			authHeader: "",
@@ -66,6 +74,9 @@ func TestBuildGetiCookie(t *testing.T) {
 				}
 				if cookie.MaxAge != tt.wantMaxAge {
 					t.Errorf("BuildGetiCookie() maxAge = %v, want %v", cookie.MaxAge, tt.wantMaxAge)
+				}
+				if !tt.wantErr && tt.name == "Valid Authorization Header over HTTP keeps non-secure cookie" && cookie.Secure {
+					t.Errorf("BuildGetiCookie() secure = %v, want false for plain HTTP", cookie.Secure)
 				}
 			}
 		})

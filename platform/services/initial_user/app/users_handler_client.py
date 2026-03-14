@@ -58,7 +58,13 @@ class UsersHandlerConnection:
             operation=RoleMutationOperations.TOUCH,
         )
 
-    def create_initial_user(self, uid: str, workspace_id: str, organization_id: str) -> bool:
+    def create_initial_user(
+        self,
+        uid: str,
+        workspace_id: str,
+        organization_id: str,
+        apply_roles_in_spicedb: bool = True,
+    ) -> bool:
         roles = [
             {"role": "ADMIN", "resource_id": organization_id, "resource_type": "organization"},
         ]
@@ -67,20 +73,26 @@ class UsersHandlerConnection:
             roles.append({"role": "ADMIN", "resource_id": workspace_id, "resource_type": "workspace"})
 
         password = base64.b64encode(INITIAL_USER_PASSWORD.encode("ascii")).decode("ascii")
-        user_auth_relationships = [
-            AuthorizationRelationships(
-                resource_type=role["resource_type"],
-                resource_id=role["resource_id"],
-                relations=[SpiceDBUserRoles[role["resource_type"].upper()].value[role["role"].lower()]],
-                operation=RoleMutationOperations.TOUCH,
-            )
-            for role in roles
-        ]
+        user_auth_relationships = []
+        if apply_roles_in_spicedb:
+            user_auth_relationships = [
+                AuthorizationRelationships(
+                    resource_type=role["resource_type"],
+                    resource_id=role["resource_id"],
+                    relations=[SpiceDBUserRoles[role["resource_type"].upper()].value[role["role"].lower()]],
+                    operation=RoleMutationOperations.TOUCH,
+                )
+                for role in roles
+            ]
         try:
             find_user = self.users_handler.get_user(uid=uid)
             logger.debug(f"Received response from OpenLDAP when searching for user with uid {uid}: {find_user}")
             if find_user:
                 logger.info("User already exist in openldap.")
+                # Ensure role relationships exist in SpiceDB even when user is already present in LDAP.
+                if apply_roles_in_spicedb:
+                    for role in roles:
+                        self.update_roles_in_spicedb(user_id=uid, role=role)
                 return False
         except UserDoesNotExist:
             logger.debug("User not found. Proceed with creation.")

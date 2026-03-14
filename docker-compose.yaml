@@ -77,6 +77,7 @@ services:
       - "traefik.http.routers.platform-account.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/logout/?$`) || PathRegexp(`^/api/v[0-9]+/profile/?$`) || PathRegexp(`^/api/v[0-9]+/personal_access_tokens(/.*)?$`))"
       - "traefik.http.routers.platform-account.priority=90"
       - "traefik.http.services.platform-account.loadbalancer.server.port=5002"
+      - "traefik.http.routers.platform-account.middlewares=geti-auth@docker"
     environment:
       POSTGRES_HOST: db
       POSTGRES_USER: ${DB_USER}
@@ -118,6 +119,7 @@ services:
     environment:
       ACCOUNT_SERVICE_HOST: "platform_account"
       ACCOUNT_SERVICE_PORT: "5001"
+      ACCOUNT_SERVICE_ADDRESS: "platform_account:5001"
       JWT_CERTIFICATE_PRIVATE_KEY_PATH: "/etc/geti-jwt-secret/tls.key"
       JWT_CERTIFICATE_PUBLIC_KEY_PATH: "/etc/geti-jwt-secret/tls.crt"
       HTTP_SERVER_PORT: "7002"
@@ -137,6 +139,12 @@ services:
       - "traefik.http.routers.platform-auth-proxy.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/set_cookie/?$`)"
       - "traefik.http.routers.platform-auth-proxy.priority=100"
       - "traefik.http.services.platform-auth-proxy.loadbalancer.server.port=7002"
+      # forwardAuth middleware: Traefik calls /api/v1/auth on this service; if it
+      # returns 200 the x-auth-request-access-token response header is forwarded to
+      # the upstream (platform_account).
+      - "traefik.http.middlewares.geti-auth.forwardauth.address=http://platform_auth_proxy:7002/api/v1/auth"
+      - "traefik.http.middlewares.geti-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.geti-auth.forwardauth.authResponseHeaders=x-auth-request-access-token"
     depends_on:
       platform_account:
         condition: service_started
@@ -254,13 +262,14 @@ services:
     environment:
       INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL}
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD}
+      DEX_STATIC_USER_ID: ${DEX_STATIC_USER_ID}
       LDAP_HOST: ${LDAP_HOST}
       LDAP_PORT: ${LDAP_PORT}
       LDAP_ADMIN_USER: ${LDAP_ADMIN_USER}
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
       SPICEDB_TOKEN: ${SPICEDB_TOKEN}
-      SPICEDB_CREDENTIALS: ${SPICEDB_CREDENTIALS}
+      SPICEDB_CREDENTIALS: token
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${DB_NAME}
@@ -301,13 +310,12 @@ services:
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
       SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
       SPICEDB_TOKEN: ${SPICEDB_TOKEN}
-      SPICEDB_CREDENTIALS: ${SPICEDB_CREDENTIALS}
+      SPICEDB_CREDENTIALS: token
       KAFKA_ADDRESS: ${KAFKA_ADDRESS}
       KAFKA_USERNAME: ${KAFKA_USERNAME}
       KAFKA_PASSWORD: ${KAFKA_PASSWORD}
       KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
-      AUTH_MODE: ${AUTH_MODE}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
       LOGS_DIR: /logs
       LOGGING_CONFIG_DIR: /
@@ -423,7 +431,6 @@ services:
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}
-      AUTH_MODE: ${AUTH_MODE}
       DATABASE_ADDRESS: ${DATABASE_ADDRESS}
       DATABASE_USERNAME: ${DATABASE_USERNAME}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
@@ -730,6 +737,8 @@ services:
       MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
       MONGODB_CREDENTIALS_PROVIDER: local
       S3_ADDRESS: ${S3_ENDPOINT}
+      S3_CREDENTIALS_PROVIDER: local
+      S3_HOST: s3:8333
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET: ${S3_BUCKET}

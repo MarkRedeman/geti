@@ -35,9 +35,6 @@ func registerBackgroundTasks() {
 func main() {
 	registerBackgroundTasks()
 
-	httpPort := utils.GetEnv("HTTP_SERVER_PORT", "7002")
-	go http.StartServer(httpPort)
-
 	grpcPort := utils.GetEnv("GRPC_SERVER_PORT", "7001")
 	grpcAddress := fmt.Sprintf(":%v", grpcPort)
 	tcpListener := CreateTcpListener(grpcAddress)
@@ -47,6 +44,13 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to initialize external processing server: %v", err) //calls os.Exit(1)
 	}
+	// Share the initialised server with the HTTP forwardAuth handler so it can
+	// reuse JWT / cache logic without re-reading config.
+	http.SetExtProcServer(externalProcessor)
+
+	httpPort := utils.GetEnv("HTTP_SERVER_PORT", "7002")
+	go http.StartServer(httpPort)
+
 	extProcPb.RegisterExternalProcessorServer(grpcServer, externalProcessor)
 	logger.Infof("Starting gRPC server on address %s", grpcAddress)
 	err = grpcServer.Serve(tcpListener)

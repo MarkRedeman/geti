@@ -147,11 +147,9 @@ func (m *RolesManager) DeleteUserDirectory() error {
 }
 
 func (m *RolesManager) GetUserRelationships(userID string, resourceType string) ([]*v1.Relationship, error) {
-	_, err := base64.StdEncoding.DecodeString(userID)
-	if err != nil {
-		// If there's an error in decoding, userID is not in base64
-		userID = base64.StdEncoding.EncodeToString([]byte(userID))
-	}
+	// Always normalize to base64-encoded user id. Raw UUID strings can be
+	// decodable by base64 without error, which leads to incorrect subject lookup.
+	userID = base64.StdEncoding.EncodeToString([]byte(userID))
 	filter := v1.RelationshipFilter{
 		ResourceType: resourceType,
 		OptionalSubjectFilter: &v1.SubjectFilter{
