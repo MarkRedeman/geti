@@ -10,10 +10,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from model.job import Job, JobConsumedResource, JobCost
-from model.job_state import JobTaskState
 from scheduler.context import job_context
-from scheduler.flyte import ExecutionType, Flyte
-from scheduler.jobs_templates import JobsTemplates
+from scheduler.flyte import ExecutionType
 from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
@@ -194,128 +192,6 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             # If job has not been cancelled by user, setting final FAILED state
             logger.info(f"Job changes applied: job_id={job.id}, state=FAILED")
             StateMachine().set_and_publish_failed_state(job_id=job.id)
-
-    @staticmethod
-    def handle_task_event(event: dict, execution: "FlyteWorkflowExecution", job: Job) -> None:
-        logger.info(f"Handling task event {event}")
-
-        phase_state_map = {
-            PHASE_RUNNING: JobTaskState.RUNNING,
-            PHASE_DYNAMIC_RUNNING: JobTaskState.RUNNING,  # Map PHASE_DYNAMIC_RUNNING to JobTaskState.RUNNING too
-            PHASE_SUCCEEDED: JobTaskState.FINISHED,
-            PHASE_FAILED: JobTaskState.FAILED,
-            PHASE_ABORTED: JobTaskState.CANCELLED,
-        }
-
-        phase = event.get("phase")
-        if phase not in phase_state_map:
-            # Do not handle states other than RUNNING, FINISHED, FAILED OR CANCELLED
-            return
-
-        state = phase_state_map.get(phase)
-        error_code = event.get("error", {}).get("code", None)
-        error_message = event.get("error", {}).get("message", None)
-        oom = (error_code is not None and "OOMKilled" in error_code) or (
-            error_message is not None and "OOM-killed" in error_message
-        )
-        message = (
-            (
-                "The job failed due to insufficient memory. "
-                "This may happen if the chosen model is too large for the available hardware, "
-                "or if there is an internal bug in the training pipeline. Please try again with a more "
-                "lightweight model if possible: if the problem persists, please report the issue."
-            )
-            if state == JobTaskState.FAILED and oom
-            else None
-        )
-
-        try:
-            task_id = event["taskId"]["name"]
-        except KeyError:
-            logger.warning("Unable to obtain task ID from event")
-            return
-
-        task = next((step for step in list(job.step_details) if step.task_id == task_id), None)
-        if state == JobTaskState.FAILED and message is None and task is not None and task.message is None:
-            message = (
-                "An issue was encountered while initializing this workload. Please retry or reach out to "
-                "us on GitHub if problem persists."
-            )
-
-        execution_type = Flyte.get_execution_type(execution)
-        if execution_type == ExecutionType.REVERT:
-            # Do not handle revert tasks progress
-            return
-
-        steps = JobsTemplates().get_job_steps(job_type=job.type)
-        step = next((step for step in steps if step.task_id == task_id), None)
-        if message is None and step is not None:
-            if state == JobTaskState.RUNNING and step.start_message is not None:
-                message = step.start_message
-            elif state == JobTaskState.FINISHED and step.finish_message is not None:
-                message = step.finish_message
-            elif state == JobTaskState.FAILED and step.failure_message is not None:
-                message = f"{step.failure_message} (ID: {job.id})"
-
-        logger.info(f"Job changes applied: job_id={job.id}, task_id={task_id}, state={state}, message={message}")
-        StateMachine().set_step_details(
-            job_id=job.id,
-            task_id=task_id,
-            state=state,
-            start_time=now() if state == JobTaskState.RUNNING else None,
-            end_time=now() if state != JobTaskState.RUNNING else None,
-            message=message,
-            progress=100.0 if state == JobTaskState.FINISHED else None,
-        )
-
-    @staticmethod
-    def handle_node_event(event: dict, execution: "FlyteWorkflowExecution", job: Job) -> None:
-        logger.info(f"Handling node event {event}")
-
-        phase = event.get("phase")
-        if phase != PHASE_QUEUED:
-            # Do not handle states other than QUEUED
-            return
-
-        try:
-            node_name = event["nodeName"]
-        except KeyError:
-            # Skip, if there is no information about parent node or node name
-            logger.debug("Unable to process event data, skipping")
-            return
-
-        execution_type = Flyte.get_execution_type(execution)
-        if execution_type == ExecutionType.REVERT:
-            # Do not handle revert tasks progress
-            return
-
-        workflow = execution.flyte_workflow
-
-        branch_nodes = Flyte.get_workflow_branch_nodes(workflow=workflow)
-        condition_node = branch_nodes.get(node_name)
-
-        if condition_node is None:
-            logger.warning("Unable to calculate branch node")
-            return
-
-        condition = condition_node.metadata.name
-
-        steps = JobsTemplates().get_job_steps(job_type=job.type)
-        for step in steps:
-            branch = step.get_branch(condition)
-
-            if branch is not None and branch.branch != node_name:
-                skip_message = branch.skip_message
-                logger.info(
-                    f"Job changes applied: job_id={job.id}, task_id={step.task_id}, "
-                    f"state={JobTaskState.SKIPPED.value}, message={skip_message}"
-                )
-                StateMachine().set_step_details(
-                    job_id=job.id,
-                    task_id=step.task_id,
-                    state=JobTaskState.SKIPPED,
-                    message=skip_message,
-                )
 
     @staticmethod
     @setup_session_kafka
