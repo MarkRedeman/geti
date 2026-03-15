@@ -208,34 +208,40 @@ EOF
 }
 
 seed_pretrained_weights() {
-	if ! command -v uv >/dev/null 2>&1; then
-		echo "Skipping pretrained weights upload: 'uv' is not installed."
-		echo "Install uv (https://docs.astral.sh/uv/) or run without --seed-weights."
-		return 1
-	fi
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "Cannot seed pretrained weights: 'uv' is not installed."
+    echo "Install uv (https://docs.astral.sh/uv/) or run bootstrap without --seed-weights."
+    return 1
+  fi
 
 	local s3_access_key
 	local s3_secret_key
 	local weights_url
 	local weights_dir
 	local config_dir
+	local disable_weight_uploading
 
 	s3_access_key="$(get_bootstrap_env S3_ACCESS_KEY "${S3_ACCESS_KEY:-minio}")"
 	s3_secret_key="$(get_bootstrap_env S3_SECRET_KEY "${S3_SECRET_KEY:-minio123}")"
 	weights_url="$(get_bootstrap_env WEIGHTS_URL "https://storage.geti.intel.com/weights")"
 	weights_dir="$(get_bootstrap_env COMPOSE_BOOTSTRAP_WEIGHTS_DIR "/tmp/geti-pretrained-weights")"
-	config_dir="platform/services/weights_uploader/app/pretrained_models"
+	config_dir="$(get_bootstrap_env COMPOSE_BOOTSTRAP_WEIGHTS_CONFIG_DIR "app/pretrained_models")"
+	disable_weight_uploading="$(get_bootstrap_env COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING "0")"
 
 	mkdir -p "${weights_dir}"
 
 	echo "Running pretrained weights uploader (this may take time on first run)..."
+	if [[ "${disable_weight_uploading}" == "1" || "${disable_weight_uploading}" == "true" || "${disable_weight_uploading}" == "TRUE" ]]; then
+		echo "Weight binary downloading disabled; only metadata file will be uploaded."
+	fi
 	S3_HOST="127.0.0.1:8333" \
 		S3_ACCESS_KEY="${s3_access_key}" \
 		S3_SECRET_KEY="${s3_secret_key}" \
 		WEIGHTS_DIR="${weights_dir}" \
 		WEIGHTS_URL="${weights_url}" \
 		CONFIG_DIR="${config_dir}" \
-		uv run --project platform/services/weights_uploader python app/weights_uploader.py
+		DISABLE_WEIGHT_UPLOADING="${disable_weight_uploading}" \
+		uv run --directory platform/services/weights_uploader python app/weights_uploader.py
 
 	echo "Pretrained weights uploader completed."
 }

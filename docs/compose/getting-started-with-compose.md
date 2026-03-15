@@ -94,6 +94,8 @@ Notes:
 - Optional overrides:
   - `WEIGHTS_URL` (defaults to `https://storage.geti.intel.com/weights`)
   - `COMPOSE_BOOTSTRAP_WEIGHTS_DIR` (defaults to `/tmp/geti-pretrained-weights`)
+  - `COMPOSE_BOOTSTRAP_WEIGHTS_CONFIG_DIR` (defaults to `app/pretrained_models`)
+  - `COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING=1` (upload only metadata, skip downloading weight binaries)
 
 Wait for the migration job to exit with code `0` before proceeding.
 
@@ -177,8 +179,10 @@ Access the UI at: `http://geti.localhost` (add `geti.localhost` → `127.0.0.1` 
 Start everything (infra + platform + interactive AI services):
 
 ```bash
-docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_director interactive_ai_resource interactive_ai_jobs interactive_ai_media interactive_ai_auto_train interactive_ai_dataset_import_export interactive_ai_project_import_export interactive_ai_model_registration interactive_ai_inference_gateway ovms
+docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_director interactive_ai_resource interactive_ai_jobs interactive_ai_media interactive_ai_auto_train interactive_ai_dataset_import_export interactive_ai_project_import_export interactive_ai_model_registration interactive_ai_inference_gateway ovms interactive_ai_jobs_policy interactive_ai_jobs_worker interactive_ai_jobs_scheduler
 ```
+
+
 
 ```bash
 docker compose up -d
@@ -263,59 +267,44 @@ If your environment is restricted:
 
 #### Pre-populating `pretrainedweights` bucket (compose)
 
-Use this when training hosts cannot download weights from the public internet.
-
-1) Ensure compose bootstrap completed (S3/SeaweedFS bucket exists):
+Preferred path (simplest): run the compose bootstrap weights step.
 
 ```bash
-make compose-bootstrap
+make compose-bootstrap-seed-weights
 ```
 
-2) Generate expected weight filenames from the repository model list:
+Equivalent direct command:
 
 ```bash
-python3 - <<'PY' > /tmp/geti-weight-files.txt
-import json, os
-p = "platform/services/weights_uploader/app/pretrained_models/pretrained_models_v2.json"
-for model in json.load(open(p)):
-    print(os.path.basename(model["url"]))
+S3_HOST=127.0.0.1:8333 \
+S3_ACCESS_KEY=dummy \
+S3_SECRET_KEY=dummy \
+WEIGHTS_DIR=/tmp/geti-pretrained-weights \
+WEIGHTS_URL=https://storage.geti.intel.com/weights \
+CONFIG_DIR=app/pretrained_models \
+uv run --directory "platform/services/weights_uploader" python app/weights_uploader.py
+```
+
+If internet access to `WEIGHTS_URL` is blocked, seed metadata only:
+
+```bash
+COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING=1 make compose-bootstrap-seed-weights
+```
+
+Verify metadata exists in S3:
+
+```bash
+python - <<'PY'
+import boto3
+s3 = boto3.client(
+    "s3",
+    endpoint_url="http://127.0.0.1:8333",
+    aws_access_key_id="dummy",
+    aws_secret_access_key="dummy",
+)
+print(s3.head_object(Bucket="pretrainedweights", Key="pretrained_models_v2.json")["ContentLength"])
 PY
 ```
-
-3) Download files to a local folder (or pull from your internal mirror):
-
-```bash
-mkdir -p /tmp/geti-weights
-while read -r f; do
-  curl -fL "https://storage.geti.intel.com/weights/$f" -o "/tmp/geti-weights/$f" || echo "FAILED $f"
-done < /tmp/geti-weight-files.txt
-```
-
-4) Upload all files into compose S3 bucket `pretrainedweights`:
-
-```bash
-export AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY}"
-export AWS_SECRET_ACCESS_KEY="${S3_SECRET_KEY}"
-
-docker run --rm \
-  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
-  -v "/tmp/geti-weights:/weights:ro" \
-  amazon/aws-cli \
-  --endpoint-url "http://host.docker.internal:8333" \
-  s3 cp /weights "s3://pretrainedweights/" --recursive --no-verify-ssl
-```
-
-5) Verify objects are present:
-
-```bash
-docker run --rm \
-  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
-  amazon/aws-cli \
-  --endpoint-url "http://host.docker.internal:8333" \
-  s3 ls "s3://pretrainedweights/"
-```
-
-> On Linux hosts where `host.docker.internal` is unavailable, replace it with your host IP.
 
 ### Auth proxy error: missing `/etc/geti-jwt-secret/tls.crt`
 
