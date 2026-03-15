@@ -41,7 +41,7 @@ func logRequestMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lrw := newLoggingResponseWriter(w)
 		next.ServeHTTP(lrw, r)
-		logger.Infof("Accessed route: %s %s, Response status: %d", r.Method, r.URL.Path, lrw.statusCode)
+		logger.Debugf("Accessed route: %s %s, Response status: %d", r.Method, r.URL.Path, lrw.statusCode)
 	})
 }
 

@@ -36,7 +36,11 @@ func GenerateRandomString(n int) string {
 func GetAuthenticationTime(claims jwt.MapClaims) (time.Time, error) {
 	authTimeClaim, ok := claims["auth_time"]
 	if !ok {
-		return time.Time{}, fmt.Errorf("authentication time claim not found")
+		issuedAt, err := claims.GetIssuedAt()
+		if err != nil || issuedAt == nil {
+			return time.Time{}, fmt.Errorf("authentication time claim not found")
+		}
+		return issuedAt.Time, nil
 	}
 	switch exp := authTimeClaim.(type) {
 	case float64:

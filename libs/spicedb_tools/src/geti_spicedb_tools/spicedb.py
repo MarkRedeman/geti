@@ -339,7 +339,7 @@ class SpiceDB(metaclass=Singleton):
         Check permission on given resource_type/resource_id for subject_type/subject_id.
         Returns True if User has the permission, returns False otherwise.
         """
-        logger.info(f"Checking {subject_type}/{subject_id} {permission} permission on {resource_type}/{resource_id}")
+        logger.debug(f"Checking {subject_type}/{subject_id} {permission} permission on {resource_type}/{resource_id}")
         if self._mock_auth_mode:
             logger.warning("[MOCK AUTH] check_permission bypass active; allowing request.")
             return True

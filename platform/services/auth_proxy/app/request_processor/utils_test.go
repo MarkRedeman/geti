@@ -37,6 +37,17 @@ func TestGetAuthenticationTime(t *testing.T) {
 	claims["auth_time"] = "invalid"
 	_, err = GetAuthenticationTime(claims)
 	assert.Error(t, err)
+
+	claims = jwt.MapClaims{
+		"iat": float64(1633072801),
+	}
+	authTime, err = GetAuthenticationTime(claims)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Unix(1633072801, 0), authTime)
+
+	claims = jwt.MapClaims{}
+	_, err = GetAuthenticationTime(claims)
+	assert.Error(t, err)
 }
 
 func TestExtractBearerToken(t *testing.T) {
@@ -92,4 +103,3 @@ func TestExtractBearerToken(t *testing.T) {
 		})
 	}
 }
-
