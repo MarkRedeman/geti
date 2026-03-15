@@ -28,6 +28,15 @@ class TestRestUtils:
         )
         assert isinstance(response, RedirectResponse)
 
+    def test_send_media_from_url_https_host(self, fxt_resource_rest, fxt_mongo_id) -> None:
+        response = send_file_from_path_or_url(
+            request_host="https://dummy.ip",
+            file_location="http://impt-seaweed-fs:8333/temporaryfiles/abc",
+            mimetype="image/jpeg",
+        )
+        assert isinstance(response, RedirectResponse)
+        assert response.headers["location"].startswith("https://dummy.ip/api/v1/fileservice")
+
     def test_get_project_query_data(self):
         result = project_query_data(
             skip=10,

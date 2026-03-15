@@ -161,7 +161,8 @@ def download_dataset_endpoint(
         # Create the URL to redirect the user to
         s3_internal_address = os.environ.get("S3_HOST", "impt-seaweed-fs:8333")
         external_presigned_url = internal_presigned_url.replace(s3_internal_address, s3_external_address)
-        external_presigned_url = external_presigned_url.replace("http://", "https://")
+        if request.url.scheme == "https":
+            external_presigned_url = external_presigned_url.replace("http://", "https://")
     except GetiBaseException as e:
         raise HTTPException(status_code=e.http_status, detail=e.message)
     except HTTPException:

@@ -126,9 +126,7 @@ class ExportController:
         # Mangle the URL to hide internal S3 details from the user
         s3_internal_address = os.environ.get("S3_HOST", "impt-seaweed-fs:8333")
         s3_external_address = domain_name + "/api/v1/fileservice"
-        external_presigned_url = internal_presigned_url.replace(s3_internal_address, s3_external_address).replace(
-            "http://", "https://"
-        )
+        external_presigned_url = internal_presigned_url.replace(s3_internal_address, s3_external_address)
 
         headers = {
             "Content-Type": "application/zip",

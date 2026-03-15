@@ -44,5 +44,7 @@ def download_exported_project(
 ) -> RedirectResponse:
     """Get the pre-signed URL to download the exported project archive"""
     return ExportController.get_exported_archive_presigned_url(
-        project_identifier=project_identifier, export_operation_id=export_operation_id, domain_name=domain_name
+        project_identifier=project_identifier,
+        export_operation_id=export_operation_id,
+        domain_name=domain_name,
     )
