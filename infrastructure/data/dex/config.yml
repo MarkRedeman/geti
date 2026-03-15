@@ -52,7 +52,7 @@ staticPasswords:
 frontend:
   dir: /web
   extra:
-    isSMTPDefined: false
+    isSMTPDefined: "false"
     # isSMTPDefined: {{ .Values.isSMTPDefined }}
 
 connectors:
