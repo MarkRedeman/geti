@@ -131,6 +131,23 @@ Director returns a **job id**; from this point, lifecycle is owned by jobs sched
   - consumes workflow events and step details
   - updates state machine (`RUNNING`, `FINISHED`, `READY_FOR_REVERT`, etc.)
 
+### 5) Where job state is actually persisted
+
+In compose mode, **source-of-truth job state is persisted in MongoDB** (the same MongoDB used by other core services), primarily in the `job` collection.
+
+- Scheduler state transitions go through:
+  - `interactive_ai/services/jobs/app/scheduler/state_machine.py`
+  - `interactive_ai/services/jobs/app/scheduler/job_repo.py` (`SessionBasedSchedulerJobRepo`, `collection_name = "job"`)
+- Jobs microservice APIs use:
+  - `interactive_ai/services/jobs/app/microservice/job_repo.py` (`WorkspaceBasedMicroserviceJobRepo`, also `collection_name = "job"`)
+
+Other runtime data stores are **not** the durable source of truth:
+
+- `LocalExecutor` registry (`interactive_ai/services/jobs/app/scheduler/local_executor.py`) is in-memory/process-local metadata for currently launched executions.
+- Kafka topics carry workflow progress/events, but events are transient transport; scheduler writes resulting state into MongoDB.
+
+Related persisted test metadata (`ModelTestResult`) is also stored in MongoDB through resource/director repos, while model binaries/artifacts are stored in object storage.
+
 ---
 
 ## Model testing flow (request → job → result query)
@@ -209,6 +226,36 @@ After training artifacts are produced and persisted, model registration is initi
 - `app/grpc/ovms_client.go`
 
 When graph registration is correct, OVMS returns serialized prediction payload and gateway responds with standard prediction JSON.
+
+### Inference on non-active models without loading everything into memory
+
+Today, the system is optimized around active pipelines, but endpoint shape (`/pipelines/{pipeline_id}:predict`) already gives us a good seam to support arbitrary model IDs.
+
+To support inference on **any** model while keeping OVMS memory bandwidth bounded, use a **lazy registration + bounded residency** strategy:
+
+1. **On-demand registration/loading**
+   - Keep only active (and optionally a few hot) models pre-registered in OVMS.
+   - If request targets a non-loaded model, inference gateway asks model_registration to register/recover that specific pipeline, then retries inference.
+
+2. **Bounded model residency policy**
+   - Introduce per-node limit such as `max_loaded_models` (global or per project).
+   - Evict least-recently-used cold models from OVMS registration when limit is exceeded (keep artifacts in object storage, not in OVMS memory).
+
+3. **Fast cold-start path**
+   - During first request for a cold model, either:
+     - synchronously wait (short timeout) then serve, or
+     - return `202` + polling endpoint for large models.
+
+4. **Model-aware caching and routing**
+   - Cache keys must include `model_id` (not only media).
+   - Track per-model hit rates/latency to keep hot models resident.
+
+5. **Safety controls**
+   - admission control when too many cold loads are requested concurrently,
+   - project/user quotas to prevent one tenant from thrashing model loads,
+   - observability for load/unload counts and cold-start latency.
+
+This gives multi-model inference without preloading every model (which would increase OVMS memory pressure and degrade stability on single-node systems).
 
 ---
 
