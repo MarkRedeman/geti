@@ -209,6 +209,43 @@ Notes:
 - In `xpu` mode, trainer containers are launched with `--device` mappings from `TRAINER_RUNTIME_XPU_DEVICES`.
 - This choice is currently environment-based (global for the worker). Per-job accelerator selection can be added later.
 
+### Training fails because pretrained weights cannot be downloaded
+
+On fresh systems, training can fail if pretrained weights are not available in the `pretrainedweights` bucket and the trainer cannot reach the weights URL.
+
+Typical symptom in trainer logs:
+
+```text
+Failed to download ... from https://storage.geti.intel.com/weights/...
+```
+
+How it works in compose:
+
+1. A weights upload/bootstrap stage should populate S3 bucket `pretrainedweights`.
+2. During training, the trainer first tries that S3 bucket.
+3. If missing, it falls back to `WEIGHTS_URL`.
+
+> Important: current compose jobs worker code passes `WEIGHTS_URL=https://storage.geti.intel.com/weights` to trainer runtime by default. On restricted networks, this fallback will fail unless you provide internet/proxy access or pre-populate the bucket.
+
+Recommended checks/fixes:
+
+```bash
+# 1) Make sure bootstrap/migration completed successfully
+make compose-bootstrap
+
+# 2) Check jobs worker logs for weights/download errors
+docker compose logs --tail=300 interactive_ai_jobs_worker
+
+# 3) Check trainer/workflow logs while a train job runs
+docker compose logs --tail=300 interactive_ai_workflows_train
+```
+
+If your environment is restricted:
+
+- Prefer pre-populating `pretrainedweights` (internal mirror / offline seed), so training does not need external fallback.
+- If you use proxies, ensure compose services have the required proxy environment (`HTTPS_PROXY`/`NO_PROXY`, etc.) and that weight hosts are reachable.
+- If you maintain an internal mirror, use a mirror URL as your weights source and keep expected filenames identical to upstream basenames.
+
 ### Auth proxy error: missing `/etc/geti-jwt-secret/tls.crt`
 
 **Symptom:** `platform_auth_proxy` fails to start with a message like:
