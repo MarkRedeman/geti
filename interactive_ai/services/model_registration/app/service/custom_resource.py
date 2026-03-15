@@ -17,14 +17,10 @@ from kubernetes_asyncio.client import CoreV1Api, CustomObjectsApi
 from kubernetes_asyncio.client.rest import ApiException
 from kubernetes_asyncio.config import ConfigException
 
-from service.config import DEPLOYMENT_MODE
-
 logger = logging.getLogger(__name__)
 
 
 def _ensure_k8s_available(operation: str) -> None:
-    if DEPLOYMENT_MODE != "compose":
-        return
     message = f"Feature unavailable in compose mode: {operation}. This path currently requires Kubernetes/Flyte."
     logger.error(message)
     raise NotImplementedError(message)

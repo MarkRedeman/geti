@@ -455,12 +455,16 @@ services:
       - "traefik.http.routers.interactive-ai-inference-gateway.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
     environment:
+      <<: *iai-runtime-env
       OVMS_SERVICE: ovms
       OVMS_PORT: 9000
+      DIRECTOR_MS_SERVICE: interactive_ai_director
     depends_on:
       migration_job:
         condition: service_completed_successfully
       ovms:
+        condition: service_started
+      interactive_ai_model_registration:
         condition: service_started
 
   interactive_ai_jobs:
@@ -582,6 +586,7 @@ services:
       OPTIMIZE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_optimize:${TAG-main}
       TRAINER_RUNTIME_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
       TRAINER_RUNTIME_COMMAND: run
+      DEFAULT_TRAINER_VERSION: ${DEFAULT_TRAINER_VERSION:-1.6.2}
       SHARD_FILES_DIR: /shard_files
       BUCKET_NAME_MLFLOWEXPERIMENTS: mlflowexperiments
       BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
@@ -664,11 +669,14 @@ services:
       additional_contexts:
         - libs=./libs
     environment:
+      <<: *iai-runtime-env
       S3_CREDENTIALS_PROVIDER: local
       S3_HOST: s3:8333
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
-      BUCKET_NAME_MODELMESH: ${S3_BUCKET}
+      BUCKET_NAME_MODELMESH: models
+      RESOURCE_MS_SERVICE: interactive_ai_resource
+      RESOURCE_MS_PORT: 5000
       OVMS_MODELS_DIR: /ovms_models
     depends_on:
       migration_job:
@@ -677,7 +685,7 @@ services:
       - ./infrastructure/data/ovms:/ovms_models
 
   ovms:
-    image: openvino/model_server:latest
+    image: openvino/model_server:2025.0
     command:
       - --port=9000
       - --rest_port=8080

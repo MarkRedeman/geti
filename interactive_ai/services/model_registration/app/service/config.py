@@ -13,4 +13,3 @@ S3_BUCKETNAME = os.getenv("BUCKET_NAME_MODELMESH", "modelmesh")
 S3_STORAGE = os.getenv("S3_STORAGE", "modelmesh")  # points to a name of ConfigMap with S3 storage config
 RESOURCE_MS_SERVICE = os.getenv("RESOURCE_MS_SERVICE", "impt-resource")
 RESOURCE_MS_PORT = os.getenv("RESOURCE_MS_PORT", "5000")
-DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "compose").lower()

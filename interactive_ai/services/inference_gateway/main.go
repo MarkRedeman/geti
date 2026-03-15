@@ -5,8 +5,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"strings"
 
 	"geti.com/iai_core/frames"
 	"geti.com/iai_core/logger"
@@ -45,48 +43,17 @@ func main() {
 		logger.Log().Fatalf("Cannot parse environment variables: %s", err)
 	}
 
-	if isComposeMode() {
-		logger.Log().Warn("[COMPOSE MODE] inference_gateway uses OVMS backend bridge.")
+	logger.Log().Info("inference_gateway uses OVMS backend bridge")
 
-		ovmsClient, err := grpc.NewOVMSClient()
-		if err != nil {
-			logger.Log().Fatalf("Cannot create OVMS gRPC client: %s", err)
-		}
-		defer func() {
-			_ = ovmsClient.Close()
-		}()
-
-		modelAccessSrv := service.NewOVMSModelAccessService(ovmsClient)
-		clientManager, err := minio.NewClientManager()
-		if err != nil {
-			logger.Log().Fatalf("Cannot instantiate minio client manager: %s", err)
-		}
-		defer clientManager.Close()
-
-		router := createRouter(cfg.MaxMultipartMemoryMB, modelAccessSrv, clientManager)
-		if err := router.Run(":" + cfg.InferenceGatewayPort); err != nil {
-			logger.Log().Fatalf("Cannot run server: %s", err)
-		}
-		return
-	}
-
-	meshClient, err := grpc.NewModelMeshClient()
+	ovmsClient, err := grpc.NewOVMSClient()
 	if err != nil {
-		logger.Log().Fatalf("Cannot run server: %s", err)
+		logger.Log().Fatalf("Cannot create OVMS gRPC client: %s", err)
 	}
 	defer func() {
-		_ = meshClient.Close()
+		_ = ovmsClient.Close()
 	}()
 
-	registrationClient, err := grpc.NewModelMeshRegistrationClient()
-	if err != nil {
-		logger.Log().Fatalf("Cannot run server: %s", err)
-	}
-	defer func() {
-		_ = registrationClient.Close()
-	}()
-
-	modelAccessSrv := service.NewModelAccessService(meshClient, registrationClient)
+	modelAccessSrv := service.NewOVMSModelAccessService(ovmsClient)
 	clientManager, err := minio.NewClientManager()
 	if err != nil {
 		logger.Log().Fatalf("Cannot instantiate minio client manager: %s", err)
@@ -97,10 +64,6 @@ func main() {
 	if err = router.Run(":" + cfg.InferenceGatewayPort); err != nil {
 		logger.Log().Fatalf("Cannot run server: %s", err)
 	}
-}
-
-func isComposeMode() bool {
-	return strings.EqualFold(os.Getenv("DEPLOYMENT_MODE"), "compose")
 }
 
 // createRouter initializes and returns a new instance of *gin.Engine.

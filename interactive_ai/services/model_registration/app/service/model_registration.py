@@ -34,7 +34,7 @@ from grpc_interfaces.model_registration.pb.service_pb2 import (
 from grpc_interfaces.model_registration.pb.service_pb2_grpc import ModelRegistrationServicer
 from kubernetes_asyncio.client.rest import ApiException
 
-from service.config import DEPLOYMENT_MODE, MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
+from service.config import MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
 from service.inference_manager import InferenceManager
 from service.model_converter import GraphVariant, ModelConverter, UnsupportedModelType
 from service.ovms_config import OvmsConfigManager
@@ -44,9 +44,12 @@ from service.s3client import S3Client
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Backward-compatibility constant kept for unit tests that patch this symbol.
+DEPLOYMENT_MODE = "compose"
+
 
 def _is_compose_mode() -> bool:
-    return DEPLOYMENT_MODE == "compose"
+    return True
 
 
 def _registry_key(pipeline_name: str) -> str:
@@ -84,7 +87,7 @@ class ModelRegistration(ModelRegistrationServicer):
             "pipeline_name": pipeline_name,
             "project_id": project_id,
             "created_at": datetime.now(tz=timezone.utc).isoformat(),
-            "deployment_mode": DEPLOYMENT_MODE,
+            "deployment_mode": "compose",
         }
         self.s3.put_json_object(bucket_name=S3_BUCKETNAME, object_key=_registry_key(pipeline_name), payload=payload)
 
