@@ -778,12 +778,14 @@ class StateMachine(metaclass=Singleton):
                 "state_group": JobStateGroup.FAILED.value,
                 "end_time": end_time,
             }
-            # When a job fails, it must not have "running" tasks
+            # When a job fails, it must not have running/waiting tasks
             for i, step in enumerate(job.step_details):
-                if step.state == JobTaskState.RUNNING:
+                if step.state in (JobTaskState.RUNNING, JobTaskState.WAITING):
                     update_set[f"step_details.{i}.state"] = JobTaskState.FAILED.value
                     if step.progress is None:
                         update_set[f"step_details.{i}.progress"] = 0
+                    if step.state == JobTaskState.WAITING and not step.message:
+                        update_set[f"step_details.{i}.message"] = "Step did not execute due to earlier failure"
             if job.gpu is not None and job.gpu.state == JobGpuRequestState.RESERVED:
                 update_set["gpu.state"] = JobGpuRequestState.RELEASED.value
             updated = job_repo.update(

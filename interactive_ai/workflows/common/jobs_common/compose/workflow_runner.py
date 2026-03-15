@@ -115,10 +115,14 @@ def _run_job_type(job_type: str, payload: dict) -> None:
     if job_type == "perform_import_to_existing_project":
         from job.tasks.import_tasks.import_dataset_to_project import import_dataset_to_project
 
+        label_ids_map = payload.get("label_ids_map", payload.get("labels_map"))
+        if label_ids_map is None:
+            raise KeyError("label_ids_map")
+
         import_dataset_to_project(
             project_id=payload["project_id"],
             import_id=payload["import_id"],
-            label_ids_map=payload["label_ids_map"],
+            label_ids_map=label_ids_map,
             dataset_storage_id=payload["dataset_storage_id"],
             dataset_name=payload["dataset_name"],
             user_id=payload["user_id"],
