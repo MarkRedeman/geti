@@ -4,6 +4,7 @@ set -euo pipefail
 
 RESET=0
 SEED=1
+SEED_WEIGHTS=0
 DEX_DB_PATH="infrastructure/data/dex/dex.db"
 S3_READY_URL="http://127.0.0.1:8333"
 
@@ -186,11 +187,12 @@ LDIF
 
 usage() {
 	cat <<'EOF'
-Usage: infrastructure/compose-bootstrap.sh [--reset] [--no-seed]
+Usage: infrastructure/compose-bootstrap.sh [--reset] [--no-seed] [--seed-weights]
 
 Options:
   --reset     Stop stack, remove compose volumes, and delete Dex sqlite DB before bootstrap.
   --no-seed   Skip initial user/org/workspace seeding step.
+  --seed-weights  Run pretrained weights uploader via uv after migration.
   -h, --help  Show this help message.
 
 Examples:
@@ -199,7 +201,43 @@ Examples:
 
   # Full clean re-bootstrap and re-seed
   bash infrastructure/compose-bootstrap.sh --reset
+
+  # Bootstrap and pre-populate pretrainedweights bucket
+  bash infrastructure/compose-bootstrap.sh --seed-weights
 EOF
+}
+
+seed_pretrained_weights() {
+	if ! command -v uv >/dev/null 2>&1; then
+		echo "Skipping pretrained weights upload: 'uv' is not installed."
+		echo "Install uv (https://docs.astral.sh/uv/) or run without --seed-weights."
+		return 1
+	fi
+
+	local s3_access_key
+	local s3_secret_key
+	local weights_url
+	local weights_dir
+	local config_dir
+
+	s3_access_key="$(get_bootstrap_env S3_ACCESS_KEY "${S3_ACCESS_KEY:-minio}")"
+	s3_secret_key="$(get_bootstrap_env S3_SECRET_KEY "${S3_SECRET_KEY:-minio123}")"
+	weights_url="$(get_bootstrap_env WEIGHTS_URL "https://storage.geti.intel.com/weights")"
+	weights_dir="$(get_bootstrap_env COMPOSE_BOOTSTRAP_WEIGHTS_DIR "/tmp/geti-pretrained-weights")"
+	config_dir="platform/services/weights_uploader/app/pretrained_models"
+
+	mkdir -p "${weights_dir}"
+
+	echo "Running pretrained weights uploader (this may take time on first run)..."
+	S3_HOST="127.0.0.1:8333" \
+		S3_ACCESS_KEY="${s3_access_key}" \
+		S3_SECRET_KEY="${s3_secret_key}" \
+		WEIGHTS_DIR="${weights_dir}" \
+		WEIGHTS_URL="${weights_url}" \
+		CONFIG_DIR="${config_dir}" \
+		uv run --project platform/services/weights_uploader python app/weights_uploader.py
+
+	echo "Pretrained weights uploader completed."
 }
 
 while [[ $# -gt 0 ]]; do
@@ -210,6 +248,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--no-seed)
 		SEED=0
+		shift
+		;;
+	--seed-weights)
+		SEED_WEIGHTS=1
 		shift
 		;;
 	-h | --help)
@@ -245,6 +287,10 @@ wait_for_s3
 
 echo "Running migration bootstrap job..."
 docker compose up --build --abort-on-container-exit --exit-code-from migration_job migration_job
+
+if [[ "${SEED_WEIGHTS}" -eq 1 ]]; then
+	seed_pretrained_weights
+fi
 
 if [[ "${SEED}" -eq 1 ]]; then
 	echo "Starting seed prerequisites (db, spicedb, kafka, openldap, platform_account)..."

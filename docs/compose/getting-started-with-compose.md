@@ -80,6 +80,21 @@ Bootstrap also ensures Dex-compatible LDAP groups exist (`ou=Groups` and
 make compose-bootstrap
 ```
 
+To also pre-populate the `pretrainedweights` bucket during bootstrap (uses
+`uv` + `platform/services/weights_uploader/app/weights_uploader.py`):
+
+```bash
+make compose-bootstrap-seed-weights
+```
+
+Notes:
+
+- Requires `uv` installed on the host.
+- Uses local S3 endpoint `127.0.0.1:8333` and `.env` credentials (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
+- Optional overrides:
+  - `WEIGHTS_URL` (defaults to `https://storage.geti.intel.com/weights`)
+  - `COMPOSE_BOOTSTRAP_WEIGHTS_DIR` (defaults to `/tmp/geti-pretrained-weights`)
+
 Wait for the migration job to exit with code `0` before proceeding.
 
 `make compose-bootstrap` now also runs the initial user/org/workspace seed step
@@ -245,6 +260,62 @@ If your environment is restricted:
 - Prefer pre-populating `pretrainedweights` (internal mirror / offline seed), so training does not need external fallback.
 - If you use proxies, ensure compose services have the required proxy environment (`HTTPS_PROXY`/`NO_PROXY`, etc.) and that weight hosts are reachable.
 - If you maintain an internal mirror, use a mirror URL as your weights source and keep expected filenames identical to upstream basenames.
+
+#### Pre-populating `pretrainedweights` bucket (compose)
+
+Use this when training hosts cannot download weights from the public internet.
+
+1) Ensure compose bootstrap completed (S3/SeaweedFS bucket exists):
+
+```bash
+make compose-bootstrap
+```
+
+2) Generate expected weight filenames from the repository model list:
+
+```bash
+python3 - <<'PY' > /tmp/geti-weight-files.txt
+import json, os
+p = "platform/services/weights_uploader/app/pretrained_models/pretrained_models_v2.json"
+for model in json.load(open(p)):
+    print(os.path.basename(model["url"]))
+PY
+```
+
+3) Download files to a local folder (or pull from your internal mirror):
+
+```bash
+mkdir -p /tmp/geti-weights
+while read -r f; do
+  curl -fL "https://storage.geti.intel.com/weights/$f" -o "/tmp/geti-weights/$f" || echo "FAILED $f"
+done < /tmp/geti-weight-files.txt
+```
+
+4) Upload all files into compose S3 bucket `pretrainedweights`:
+
+```bash
+export AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY}"
+export AWS_SECRET_ACCESS_KEY="${S3_SECRET_KEY}"
+
+docker run --rm \
+  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
+  -v "/tmp/geti-weights:/weights:ro" \
+  amazon/aws-cli \
+  --endpoint-url "http://host.docker.internal:8333" \
+  s3 cp /weights "s3://pretrainedweights/" --recursive --no-verify-ssl
+```
+
+5) Verify objects are present:
+
+```bash
+docker run --rm \
+  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
+  amazon/aws-cli \
+  --endpoint-url "http://host.docker.internal:8333" \
+  s3 ls "s3://pretrainedweights/"
+```
+
+> On Linux hosts where `host.docker.internal` is unavailable, replace it with your host IP.
 
 ### Auth proxy error: missing `/etc/geti-jwt-secret/tls.crt`
 

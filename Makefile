@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component compose-config compose-smoke compose-parity compose-bootstrap compose-bootstrap-reset compose-prepare-certs
+.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component compose-config compose-smoke compose-parity compose-bootstrap compose-bootstrap-reset compose-bootstrap-seed-weights compose-prepare-certs
 .DEFAULT_GOAL := build
 PROJECTS = interactive_ai platform web_ui web_ui/dex_templates
 DISTRIB_CHARTS := deploy/charts interactive_ai/migration_job
@@ -105,6 +105,9 @@ compose-bootstrap:
 
 compose-bootstrap-reset:
 	bash infrastructure/compose-bootstrap.sh --reset
+
+compose-bootstrap-seed-weights:
+	bash infrastructure/compose-bootstrap.sh --seed-weights
 
 compose-prepare-certs:
 	bash infrastructure/compose-prepare-certs.sh
