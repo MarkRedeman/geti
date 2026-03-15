@@ -586,6 +586,9 @@ services:
       TRAIN_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
       OPTIMIZE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_optimize:${TAG-main}
       TRAINER_RUNTIME_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
+      TRAINER_RUNTIME_XPU_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
+      TRAINER_RUNTIME_ACCELERATOR: ${TRAINER_RUNTIME_ACCELERATOR:-gpu}
+      TRAINER_RUNTIME_XPU_DEVICES: ${TRAINER_RUNTIME_XPU_DEVICES:-/dev/dri}
       TRAINER_RUNTIME_COMMAND: run
       DEFAULT_TRAINER_VERSION: ${DEFAULT_TRAINER_VERSION:-1.6.2}
       SHARD_FILES_DIR: /shard_files

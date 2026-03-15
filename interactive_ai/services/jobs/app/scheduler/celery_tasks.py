@@ -79,7 +79,14 @@ def _train_workflow_image() -> str:
 
 
 def _trainer_runtime_image() -> str:
+    accelerator = os.environ.get("TRAINER_RUNTIME_ACCELERATOR", "gpu").lower()
+    if accelerator == "xpu":
+        return os.environ.get("TRAINER_RUNTIME_XPU_IMAGE", "")
     return os.environ.get("TRAINER_RUNTIME_IMAGE", "")
+
+
+def _trainer_runtime_accelerator() -> str:
+    return os.environ.get("TRAINER_RUNTIME_ACCELERATOR", "gpu").lower()
 
 
 def _trainer_shard_files_dir() -> str:
@@ -102,7 +109,7 @@ def _optimize_workflow_image() -> str:
 def _run_optimize_trainer_container(payload: dict) -> None:
     image = _trainer_runtime_image()
     if not image:
-        raise RuntimeError("Missing TRAINER_RUNTIME_IMAGE for optimize_pot job")
+        raise RuntimeError("Missing trainer runtime image for optimize_pot job")
 
     org_id = payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", "")
     workspace_id = payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", "")
@@ -141,6 +148,14 @@ def _run_optimize_trainer_container(payload: dict) -> None:
     for key in os.environ:
         if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
+
+    accelerator = _trainer_runtime_accelerator()
+    if accelerator == "xpu":
+        xpu_devices = os.environ.get("TRAINER_RUNTIME_XPU_DEVICES", "/dev/dri")
+        for device in xpu_devices.split(","):
+            device = device.strip()
+            if device:
+                cmd += ["--device", device]
 
     cmd += ["--env", f"IDENTIFIER_JSON={identifier_json}"]
     cmd += ["--env", f"SHARD_FILES_DIR={_trainer_shard_files_dir()}"]
@@ -236,7 +251,7 @@ def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
     """
     image = _trainer_runtime_image()
     if not image:
-        raise RuntimeError("Missing TRAINER_RUNTIME_IMAGE for train job")
+        raise RuntimeError("Missing trainer runtime image for train job")
 
     org_id = payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", "")
     workspace_id = payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", "")
@@ -281,9 +296,17 @@ def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
     if trainer_shm_size:
         cmd += ["--shm-size", trainer_shm_size]
 
-    trainer_gpu_request = os.environ.get("TRAINER_RUNTIME_GPU_REQUEST", "all")
-    if trainer_gpu_request:
-        cmd += ["--gpus", trainer_gpu_request]
+    accelerator = _trainer_runtime_accelerator()
+    if accelerator == "xpu":
+        xpu_devices = os.environ.get("TRAINER_RUNTIME_XPU_DEVICES", "/dev/dri")
+        for device in xpu_devices.split(","):
+            device = device.strip()
+            if device:
+                cmd += ["--device", device]
+    else:
+        trainer_gpu_request = os.environ.get("TRAINER_RUNTIME_GPU_REQUEST", "all")
+        if trainer_gpu_request:
+            cmd += ["--gpus", trainer_gpu_request]
 
     cmd += ["--env", f"IDENTIFIER_JSON={identifier_json}"]
     cmd += ["--env", f"EXECUTION_ID={execution_name}"]

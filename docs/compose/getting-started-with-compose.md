@@ -175,6 +175,36 @@ docker compose logs -f
 
 ## 4. Known Gotchas / Troubleshooting
 
+### Selecting trainer accelerator (NVIDIA GPU vs Intel XPU)
+
+Compose training now supports selecting the trainer runtime image via env vars used by `interactive_ai_jobs_worker`.
+
+Relevant vars:
+
+- `TRAINER_RUNTIME_ACCELERATOR` — `gpu` (default) or `xpu`
+- `TRAINER_RUNTIME_IMAGE` — NVIDIA trainer image (`otx_v2_gpu`)
+- `TRAINER_RUNTIME_XPU_IMAGE` — Intel XPU trainer image (`otx_v2_xpu`)
+- `TRAINER_RUNTIME_XPU_DEVICES` — device mounts for XPU mode (default: `/dev/dri`)
+
+Example (`.env`) for Intel XPU mode:
+
+```bash
+TRAINER_RUNTIME_ACCELERATOR=xpu
+TRAINER_RUNTIME_XPU_DEVICES=/dev/dri
+```
+
+Then recreate the jobs worker:
+
+```bash
+docker compose up -d --force-recreate interactive_ai_jobs_worker
+```
+
+Notes:
+
+- In `gpu` mode, trainer containers are launched with `--gpus`.
+- In `xpu` mode, trainer containers are launched with `--device` mappings from `TRAINER_RUNTIME_XPU_DEVICES`.
+- This choice is currently environment-based (global for the worker). Per-job accelerator selection can be added later.
+
 ### Auth proxy error: missing `/etc/geti-jwt-secret/tls.crt`
 
 **Symptom:** `platform_auth_proxy` fails to start with a message like:
