@@ -668,6 +668,7 @@ services:
       <<: *proxies
       additional_contexts:
         - libs=./libs
+    user: "0:0"
     environment:
       <<: *iai-runtime-env
       S3_CREDENTIALS_PROVIDER: local
