@@ -185,6 +185,49 @@ class TestMediaManager:
         assert isinstance(image, Image)
         assert image.width == 50 and image.height == 50
 
+    @patch("tempfile.NamedTemporaryFile")
+    @patch("PIL.Image.open")
+    def test_upload_image_converts_rgba_thumbnail_to_rgb(
+        self,
+        mock_image_open,
+        mock_temp_file_context,
+        fxt_dataset_storage_identifier,
+    ) -> None:
+        mock_temp_file = MagicMock()
+        mock_temp_file.name = "/tmp/file.jpg"
+        mock_temp_file_context.return_value.__enter__.return_value = mock_temp_file
+
+        data_stream = MagicMock()
+        pil_image = MagicMock()
+        pil_image.width = 50
+        pil_image.height = 50
+
+        resized_rgba = MagicMock()
+        resized_rgba.mode = "RGBA"
+        resized_rgb = MagicMock()
+        resized_rgba.convert.return_value = resized_rgb
+        pil_image.resize.return_value = resized_rgba
+        mock_image_open.return_value = pil_image
+
+        with (
+            patch.object(MediaManager, "validate_image_dimensions"),
+            patch.object(ImageRepo, "save"),
+            patch.object(ImageBinaryRepo, "save"),
+            patch.object(ThumbnailBinaryRepo, "save"),
+        ):
+            MediaManager.upload_image(
+                dataset_storage_identifier=fxt_dataset_storage_identifier,
+                basename="test_image",
+                extension=ImageExtensions.PNG,
+                image_bytes=data_stream,
+                length=100,
+                user_id=ID("dummy_user"),
+                update_metrics=False,
+            )
+
+        resized_rgba.convert.assert_called_once_with("RGB")
+        resized_rgb.save.assert_called_once_with("/tmp/file.jpg")
+
     @patch("PIL.Image.open")
     @patch.dict(os.environ, {"FEATURE_FLAG_ASYNCHRONOUS_MEDIA_PREPROCESSING": "true"})
     @pytest.mark.parametrize("extension", [ImageExtensions.JPG, ImageExtensions.PNG, ImageExtensions.TIFF])
