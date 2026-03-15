@@ -31,12 +31,25 @@ def test_add_remove_graph_model(tmp_path, monkeypatch):
     graph_dir = tmp_path / "graph-pipeline"
     graph_dir.mkdir()
     (graph_dir / "graph.pbtxt").write_text("graph")
-    (graph_dir / "config.json").write_text('{"model_config_list": []}')
+    (graph_dir / "config.json").write_text(
+        '{"model_config_list": [{"config": {"name": "submodel-a", "base_path": "submodel-a"}}]}'
+    )
+
+    (graph_dir / "submodel-a").mkdir()
+    (graph_dir / "submodel-a" / "1").mkdir()
+    (graph_dir / "submodel-a" / "1" / "model.xml").write_text("xml")
 
     manager.add_model("graph-pipeline")
 
     cfg = json.loads((tmp_path / "models.json").read_text())
-    assert cfg["model_config_list"] == []
+    assert cfg["model_config_list"] == [
+        {
+            "config": {
+                "name": "submodel-a",
+                "base_path": "/models/graph-pipeline/submodel-a",
+            }
+        }
+    ]
     assert cfg["mediapipe_config_list"] == [{"name": "graph-pipeline"}]
 
     manager.remove_model("graph-pipeline")

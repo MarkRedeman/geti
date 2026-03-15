@@ -37,6 +37,38 @@ class OvmsConfigManager:
         target_path = self.model_dir(pipeline_name)
         return (target_path / "graph.pbtxt").exists() and (target_path / "config.json").exists()
 
+    def _load_graph_submodels(self, pipeline_name: str) -> list[dict]:
+        config_path = self.model_dir(pipeline_name) / "config.json"
+        if not config_path.exists():
+            return []
+
+        try:
+            graph_cfg = json.loads(config_path.read_text())
+        except json.JSONDecodeError:
+            logger.warning(f"OVMS config: invalid graph subconfig for {pipeline_name}: {config_path}")
+            return []
+
+        submodels: list[dict] = []
+        for item in graph_cfg.get("model_config_list", []):
+            model_cfg = item.get("config", {})
+            model_name = model_cfg.get("name")
+            base_path = model_cfg.get("base_path")
+            if not model_name or not base_path:
+                continue
+
+            absolute_base_path = base_path if str(base_path).startswith("/") else f"/models/{pipeline_name}/{base_path}"
+            submodels.append(
+                {
+                    "config": {
+                        **model_cfg,
+                        "name": model_name,
+                        "base_path": absolute_base_path,
+                    }
+                }
+            )
+
+        return submodels
+
     def _write(self, cfg: dict) -> None:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         tmp = self.config_path.with_suffix(".json.tmp")
@@ -53,9 +85,15 @@ class OvmsConfigManager:
                 item for item in model_config_list if item.get("config", {}).get("name") != pipeline_name
             ]
             mediapipe_config_list = [item for item in mediapipe_config_list if item.get("name") != pipeline_name]
+            model_config_list = [
+                item
+                for item in model_config_list
+                if not str(item.get("config", {}).get("base_path", "")).startswith(f"/models/{pipeline_name}/")
+            ]
 
             if self._is_graph_export(pipeline_name=pipeline_name):
                 mediapipe_config_list.append({"name": pipeline_name})
+                model_config_list.extend(self._load_graph_submodels(pipeline_name=pipeline_name))
             else:
                 model_config_list.append(
                     {
@@ -77,7 +115,16 @@ class OvmsConfigManager:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         # Ensure OVMS container user can traverse/read model directories from the
         # shared bind mount in compose mode.
-        self.models_dir.chmod(self.models_dir.stat().st_mode | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+        self.models_dir.chmod(
+            self.models_dir.stat().st_mode
+            | stat.S_IRUSR
+            | stat.S_IWUSR
+            | stat.S_IXUSR
+            | stat.S_IRGRP
+            | stat.S_IXGRP
+            | stat.S_IROTH
+            | stat.S_IXOTH
+        )
         if target_path.exists():
             shutil.rmtree(target_path)
         shutil.copytree(source_path, target_path)
@@ -91,9 +138,7 @@ class OvmsConfigManager:
         # version directories directly under base_path (e.g. <base_path>/1/).
         has_numeric_versions = any(p.is_dir() and p.name.isdigit() for p in target_path.iterdir())
         if not is_graph_export and not has_numeric_versions:
-            wrapped_model_dirs = [
-                p for p in target_path.iterdir() if p.is_dir() and (p / "1" / "model.xml").exists()
-            ]
+            wrapped_model_dirs = [p for p in target_path.iterdir() if p.is_dir() and (p / "1" / "model.xml").exists()]
             if len(wrapped_model_dirs) == 1:
                 wrapped_model_dir = wrapped_model_dirs[0]
                 normalized_version_dir = target_path / "1"
@@ -122,6 +167,11 @@ class OvmsConfigManager:
             mediapipe_config_list = cfg.get("mediapipe_config_list", [])
             cfg["model_config_list"] = [
                 item for item in model_config_list if item.get("config", {}).get("name") != pipeline_name
+            ]
+            cfg["model_config_list"] = [
+                item
+                for item in cfg["model_config_list"]
+                if not str(item.get("config", {}).get("base_path", "")).startswith(f"/models/{pipeline_name}/")
             ]
             cfg["mediapipe_config_list"] = [item for item in mediapipe_config_list if item.get("name") != pipeline_name]
             self._write(cfg)
