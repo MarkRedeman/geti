@@ -467,8 +467,6 @@ services:
         condition: service_started
       interactive_ai_model_registration:
         condition: service_started
-    volumes:
-      - ./infrastructure/data/ovms:/ovms_models:ro
 
   interactive_ai_jobs:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
@@ -738,6 +736,10 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathRegexp(`^/api/v[0-9]+/user_settings/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/tests/.*/results:query$`))"
       - "traefik.http.routers.interactive-ai-resource.priority=50"
+      - "traefik.http.routers.interactive-ai-resource-test-results.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/tests/.*/results:query$`))"
+      - "traefik.http.routers.interactive-ai-resource-test-results.priority=70"
+      - "traefik.http.routers.interactive-ai-resource-test-results.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-resource-test-results.service=interactive-ai-resource"
       - "traefik.http.routers.interactive-ai-resource.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-resource.loadbalancer.server.port=5000"
     environment:
