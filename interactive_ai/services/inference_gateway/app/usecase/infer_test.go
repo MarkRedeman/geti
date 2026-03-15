@@ -4,7 +4,14 @@
 package usecase
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	sdkentities "geti.com/iai_core/entities"
@@ -157,5 +164,91 @@ func TestInferBatch(t *testing.T) {
 			mockModelAccess.ExpectedCalls = nil
 			mockFrameExtractor.ExpectedCalls = nil
 		})
+	}
+}
+
+func TestInferOne_MissingPredictionsParam(t *testing.T) {
+	ctx := t.Context()
+	mockModelAccess := service.NewMockModelAccessService(t)
+	mockVideoRepo := storage.NewMockVideoRepository(t)
+	mockFrameExtractor := frames.NewMockCLIFrameExtractor(t)
+
+	request := &entities.PredictionRequestData{
+		ProjectID: sdkentities.ID{ID: "69b6afc6c369ebbc276fd8ae"},
+		ModelID:   sdkentities.ID{ID: "active"},
+		Media:     bytes.NewBuffer([]byte("test-image")),
+	}
+
+	mockModelAccess.EXPECT().
+		InferImageBytes(mock.Anything, mock.AnythingOfType("service.InferParameters")).
+		Return(&pb.ModelInferResponse{Parameters: map[string]*pb.InferParameter{}}, nil).
+		Once()
+
+	infer := NewInferImpl(mockModelAccess, mockVideoRepo, mockFrameExtractor)
+	_, err := infer.One(ctx, request, false)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "missing 'predictions' parameter")
+}
+
+func TestInferOne_BuildsPredictionsFromOVMSTensors(t *testing.T) {
+	ctx := t.Context()
+	labelIDsByModel = sync.Map{}
+	modelsDir := t.TempDir()
+	t.Setenv("OVMS_MODELS_DIR", modelsDir)
+	modelName := "69b6afc6c369ebbc276fd8ae-active"
+	modelDir := filepath.Join(modelsDir, modelName, "1")
+	require.NoError(t, os.MkdirAll(modelDir, 0o755))
+	modelXML := `<net><rt_info><model_info><label_ids value="111111111111111111111111 222222222222222222222222 333333333333333333333333 444444444444444444444444 555555555555555555555555 666666666666666666666666 777777777777777777777777 888888888888888888888888" /></model_info></rt_info></net>`
+	require.NoError(t, os.WriteFile(filepath.Join(modelDir, "model.xml"), []byte(modelXML), 0o644))
+
+	mockModelAccess := service.NewMockModelAccessService(t)
+	mockVideoRepo := storage.NewMockVideoRepository(t)
+	mockFrameExtractor := frames.NewMockCLIFrameExtractor(t)
+
+	request := &entities.PredictionRequestData{
+		ProjectID: sdkentities.ID{ID: "69b6afc6c369ebbc276fd8ae"},
+		ModelID:   sdkentities.ID{ID: "active"},
+		Media:     bytes.NewBuffer([]byte("test-image")),
+	}
+
+	bboxes := []float32{10, 20, 30, 45, 0.9}
+	bboxesRaw := make([]byte, 4*len(bboxes))
+	for i, value := range bboxes {
+		binary.LittleEndian.PutUint32(bboxesRaw[i*4:(i+1)*4], math.Float32bits(value))
+	}
+	labelsRaw := make([]byte, 8)
+	binary.LittleEndian.PutUint64(labelsRaw, uint64(7))
+
+	resp := &pb.ModelInferResponse{
+		Outputs: []*pb.ModelInferResponse_InferOutputTensor{
+			{Name: "bboxes", Datatype: "FP32", Shape: []int64{1, 1, 5}},
+			{Name: "labels", Datatype: "INT64", Shape: []int64{1, 1}},
+		},
+		RawOutputContents: [][]byte{bboxesRaw, labelsRaw},
+	}
+
+	mockModelAccess.EXPECT().
+		InferImageBytes(mock.Anything, mock.Anything).
+		Return(resp, nil).
+		Once()
+
+	infer := NewInferImpl(mockModelAccess, mockVideoRepo, mockFrameExtractor)
+	predictionStr, err := infer.One(ctx, request, false)
+	require.NoError(t, err)
+
+	var payload map[string][]map[string]any
+	require.NoError(t, json.Unmarshal([]byte(predictionStr), &payload))
+	assert.Contains(t, payload, "predictions")
+	if assert.Len(t, payload["predictions"], 1) {
+		prediction := payload["predictions"][0]
+		shape := prediction["shape"].(map[string]any)
+		labels := prediction["labels"].([]any)
+		label := labels[0].(map[string]any)
+		assert.Equal(t, "RECTANGLE", shape["type"])
+		assert.EqualValues(t, 10, shape["x"])
+		assert.EqualValues(t, 20, shape["y"])
+		assert.EqualValues(t, 20, shape["width"])
+		assert.EqualValues(t, 25, shape["height"])
+		assert.Equal(t, "888888888888888888888888", label["id"])
 	}
 }

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import stat
 import shutil
 import threading
 
@@ -26,8 +27,14 @@ class OvmsConfigManager:
 
     def _read(self) -> dict:
         if self.config_path.exists():
-            return json.loads(self.config_path.read_text())
+            cfg = json.loads(self.config_path.read_text())
+            cfg.setdefault("model_config_list", [])
+            return cfg
         return {"model_config_list": []}
+
+    def _is_graph_export(self, pipeline_name: str) -> bool:
+        target_path = self.model_dir(pipeline_name)
+        return (target_path / "graph.pbtxt").exists() and (target_path / "config.json").exists()
 
     def _write(self, cfg: dict) -> None:
         self.models_dir.mkdir(parents=True, exist_ok=True)
@@ -39,17 +46,32 @@ class OvmsConfigManager:
         with _lock:
             cfg = self._read()
             model_config_list = cfg.get("model_config_list", [])
-            names = {item.get("config", {}).get("name") for item in model_config_list if isinstance(item, dict)}
-            if pipeline_name in names:
-                return
-            model_config_list.append(
-                {
-                    "config": {
-                        "name": pipeline_name,
-                        "base_path": f"/models/{pipeline_name}",
+
+            model_config_list = [
+                item for item in model_config_list if item.get("config", {}).get("name") != pipeline_name
+            ]
+
+            if self._is_graph_export(pipeline_name=pipeline_name):
+                model_config_list.append(
+                    {
+                        "config": {
+                            "name": pipeline_name,
+                            "base_path": f"/models/{pipeline_name}",
+                            "graph_path": "graph.pbtxt",
+                            "subconfig": "config.json",
+                        }
                     }
-                }
-            )
+                )
+            else:
+                model_config_list.append(
+                    {
+                        "config": {
+                            "name": pipeline_name,
+                            "base_path": f"/models/{pipeline_name}",
+                        }
+                    }
+                )
+
             cfg["model_config_list"] = model_config_list
             self._write(cfg)
             logger.info(f"OVMS config: added model {pipeline_name}")
@@ -57,9 +79,39 @@ class OvmsConfigManager:
     def sync_model_directory(self, pipeline_name: str, source_dir: str | Path) -> None:
         source_path = Path(source_dir)
         target_path = self.model_dir(pipeline_name)
+        self.models_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure OVMS container user can traverse/read model directories from the
+        # shared bind mount in compose mode.
+        self.models_dir.chmod(self.models_dir.stat().st_mode | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
         if target_path.exists():
             shutil.rmtree(target_path)
         shutil.copytree(source_path, target_path)
+
+        # Normalize exported layout only for plain-model exports.
+        # Graph exports rely on graph.pbtxt + config.json where nested model
+        # directories are referenced by relative base_path values in subconfig.
+        is_graph_export = (target_path / "graph.pbtxt").exists() and (target_path / "config.json").exists()
+
+        # Some plain exports place IR files under <model_id>/1/, while OVMS expects
+        # version directories directly under base_path (e.g. <base_path>/1/).
+        has_numeric_versions = any(p.is_dir() and p.name.isdigit() for p in target_path.iterdir())
+        if not is_graph_export and not has_numeric_versions:
+            wrapped_model_dirs = [
+                p for p in target_path.iterdir() if p.is_dir() and (p / "1" / "model.xml").exists()
+            ]
+            if len(wrapped_model_dirs) == 1:
+                wrapped_model_dir = wrapped_model_dirs[0]
+                normalized_version_dir = target_path / "1"
+                if normalized_version_dir.exists():
+                    shutil.rmtree(normalized_version_dir)
+                shutil.move(str(wrapped_model_dir / "1"), str(normalized_version_dir))
+                if wrapped_model_dir.exists() and len(list(wrapped_model_dir.iterdir())) == 0:
+                    wrapped_model_dir.rmdir()
+
+        for directory in [target_path, *[p for p in target_path.rglob("*") if p.is_dir()]]:
+            directory.chmod(0o755)
+        for file_path in [p for p in target_path.rglob("*") if p.is_file()]:
+            file_path.chmod(0o644)
         logger.info(f"OVMS config: synced model directory for {pipeline_name}")
 
     def remove_model_directory(self, pipeline_name: str) -> None:

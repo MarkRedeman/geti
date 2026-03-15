@@ -139,7 +139,7 @@ func TestInferImageBytes(t *testing.T) {
 	inferInput := pb.ModelInferRequest_InferInputTensor{
 		Name:     "input",
 		Datatype: "UINT8",
-		Shape:    []int64{-1, -1, -1, -1},
+		Shape:    []int64{1},
 	}
 	pbRequest.Inputs = []*pb.ModelInferRequest_InferInputTensor{&inferInput}
 
@@ -307,7 +307,7 @@ func TestHandleModelNotFoundError(t *testing.T) {
 	inferInput := pb.ModelInferRequest_InferInputTensor{
 		Name:     "input",
 		Datatype: "UINT8",
-		Shape:    []int64{-1, -1, -1, -1},
+		Shape:    []int64{1},
 	}
 	pbRequest.Inputs = []*pb.ModelInferRequest_InferInputTensor{&inferInput}
 	xaiParam := pb.InferParameter{

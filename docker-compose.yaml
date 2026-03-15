@@ -459,6 +459,7 @@ services:
       OVMS_SERVICE: ovms
       OVMS_PORT: 9000
       DIRECTOR_MS_SERVICE: interactive_ai_director
+      DIRECTOR_MS_ADDRESS: http://interactive_ai_director:4999
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -466,6 +467,8 @@ services:
         condition: service_started
       interactive_ai_model_registration:
         condition: service_started
+    volumes:
+      - ./infrastructure/data/ovms:/ovms_models:ro
 
   interactive_ai_jobs:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}

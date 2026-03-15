@@ -26,7 +26,18 @@ func (s *OVMSModelAccessService) InferImageBytes(
 	ctx context.Context,
 	params InferParameters,
 ) (*pb.ModelInferResponse, error) {
-	request, reqErr := createModelInferRequest(ctx, params)
+	inputName := s.ovmsClient.GetInputName(ctx, params.pipelineName)
+	isMediapipe := s.ovmsClient.IsMediapipeGraph(ctx, params.pipelineName)
+
+	var (
+		request *pb.ModelInferRequest
+		reqErr  error
+	)
+	if isMediapipe {
+		request, reqErr = createMediapipeModelInferRequest(ctx, params, inputName)
+	} else {
+		request, reqErr = createModelInferRequestWithInputName(ctx, params, inputName)
+	}
 	if reqErr != nil {
 		return nil, reqErr
 	}
@@ -35,6 +46,12 @@ func (s *OVMSModelAccessService) InferImageBytes(
 		logger.TracingLog(ctx).Infof("ovms grpc error encountered: %v", err)
 		return nil, fmt.Errorf("failed to infer from OVMS: %w", err)
 	}
+	logger.TracingLog(ctx).Infof(
+		"OVMS infer response summary: parameters=%d outputs=%d raw_output_contents=%d",
+		len(response.GetParameters()),
+		len(response.GetOutputs()),
+		len(response.GetRawOutputContents()),
+	)
 	return response, nil
 }
 

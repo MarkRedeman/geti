@@ -23,6 +23,34 @@ def test_add_remove_model(tmp_path, monkeypatch):
     assert names_after == ["p2"]
 
 
+def test_add_remove_graph_model(tmp_path, monkeypatch):
+    monkeypatch.setenv("OVMS_MODELS_DIR", str(tmp_path))
+    manager = OvmsConfigManager()
+
+    graph_dir = tmp_path / "graph-pipeline"
+    graph_dir.mkdir()
+    (graph_dir / "graph.pbtxt").write_text("graph")
+    (graph_dir / "config.json").write_text('{"model_config_list": []}')
+
+    manager.add_model("graph-pipeline")
+
+    cfg = json.loads((tmp_path / "models.json").read_text())
+    assert cfg["model_config_list"] == [
+        {
+            "config": {
+                "name": "graph-pipeline",
+                "base_path": "/models/graph-pipeline",
+                "graph_path": "graph.pbtxt",
+                "subconfig": "config.json",
+            }
+        }
+    ]
+
+    manager.remove_model("graph-pipeline")
+    cfg_after = json.loads((tmp_path / "models.json").read_text())
+    assert cfg_after["model_config_list"] == []
+
+
 def test_sync_and_remove_model_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("OVMS_MODELS_DIR", str(tmp_path))
     manager = OvmsConfigManager()
@@ -39,3 +67,37 @@ def test_sync_and_remove_model_directory(tmp_path, monkeypatch):
 
     manager.remove_model_directory("pipeline")
     assert not (tmp_path / "pipeline").exists()
+
+
+def test_sync_model_directory_keeps_graph_layout(tmp_path, monkeypatch):
+    monkeypatch.setenv("OVMS_MODELS_DIR", str(tmp_path))
+    manager = OvmsConfigManager()
+
+    source = tmp_path / "graph_source"
+    source.mkdir()
+    (source / "graph.pbtxt").write_text("graph")
+    (source / "config.json").write_text('{"model_config_list": []}')
+    (source / "model-a").mkdir()
+    (source / "model-a" / "1").mkdir()
+    (source / "model-a" / "1" / "model.xml").write_text("xml")
+
+    manager.sync_model_directory("pipeline", source)
+
+    assert (tmp_path / "pipeline" / "model-a" / "1" / "model.xml").exists()
+    assert not (tmp_path / "pipeline" / "1" / "model.xml").exists()
+
+
+def test_sync_model_directory_normalizes_plain_model_layout(tmp_path, monkeypatch):
+    monkeypatch.setenv("OVMS_MODELS_DIR", str(tmp_path))
+    manager = OvmsConfigManager()
+
+    source = tmp_path / "plain_source"
+    source.mkdir()
+    (source / "model-a").mkdir()
+    (source / "model-a" / "1").mkdir()
+    (source / "model-a" / "1" / "model.xml").write_text("xml")
+
+    manager.sync_model_directory("pipeline", source)
+
+    assert (tmp_path / "pipeline" / "1" / "model.xml").exists()
+    assert not (tmp_path / "pipeline" / "model-a").exists()

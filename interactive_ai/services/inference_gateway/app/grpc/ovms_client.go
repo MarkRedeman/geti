@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"geti.com/iai_core/logger"
@@ -15,6 +16,7 @@ import (
 )
 
 const OVMSModelReadyTimeoutSeconds = 3
+const OVMSDefaultInputName = "image"
 
 type ovmsConfig struct {
 	Service string `env:"OVMS_SERVICE"        envDefault:"ovms"`
@@ -65,4 +67,35 @@ func (oc *OVMSClient) GetModelReady(ctx context.Context, modelID string) bool {
 		return false
 	}
 	return resp.GetReady()
+}
+
+func (oc *OVMSClient) GetInputName(ctx context.Context, modelID string) string {
+	rCtx, cancel := context.WithTimeout(ctx, time.Duration(OVMSModelReadyTimeoutSeconds)*time.Second)
+	defer cancel()
+
+	resp, err := oc.ModelMetadata(rCtx, &pb.ModelMetadataRequest{Name: modelID})
+	if err != nil || len(resp.GetInputs()) == 0 {
+		logger.TracingLog(ctx).Infof(
+			"OVMS metadata unavailable for `%s` (err=%v), using default input `%s`",
+			modelID,
+			err,
+			OVMSDefaultInputName,
+		)
+		return OVMSDefaultInputName
+	}
+
+	return resp.GetInputs()[0].GetName()
+}
+
+func (oc *OVMSClient) IsMediapipeGraph(ctx context.Context, modelID string) bool {
+	rCtx, cancel := context.WithTimeout(ctx, time.Duration(OVMSModelReadyTimeoutSeconds)*time.Second)
+	defer cancel()
+
+	resp, err := oc.ModelMetadata(rCtx, &pb.ModelMetadataRequest{Name: modelID})
+	if err != nil {
+		return false
+	}
+
+	platform := strings.ToLower(resp.GetPlatform())
+	return strings.Contains(platform, "mediapipe")
 }
