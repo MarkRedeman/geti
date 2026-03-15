@@ -197,12 +197,14 @@ def upload_full_log(full_log_text: str) -> None:
 def upload_model_artifact(
     src_filepath: Path,
     dst_filepath: Path,
+    overwrite: bool = False,
 ) -> None:
     """Upload model artifact."""
     S3ClientSingleton.instance().upload_file_from_local_disk(
         bucket_name=_get_bucket_name(),
         relative_path=_get_object_name_base() / dst_filepath,
         local_file_path=src_filepath,
+        overwrite=overwrite,
     )
 
 

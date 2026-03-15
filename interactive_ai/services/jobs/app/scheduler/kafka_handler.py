@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from model.job import Job, JobConsumedResource, JobCost
+from model.job_state import JobTaskState
 from scheduler.context import job_context
 from scheduler.execution_type import ExecutionType
 from scheduler.local_executor import LocalExecutor
@@ -44,6 +45,28 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
 
     def __init__(self) -> None:
         super().__init__(group_id="job_scheduler")
+
+    @staticmethod
+    def _resolve_job_id_by_execution(execution_name: str) -> str | None:
+        record = LocalExecutor().get_execution_metadata(execution_name)
+        if record is not None:
+            return record.job_id
+
+        logger.warning(
+            f"[compose mode] Unable to find execution {execution_name} in local registry, "
+            "falling back to DB lookup"
+        )
+        job = StateMachine().get_by_execution_id(execution_name)
+        if job is None:
+            logger.error(f"Unable to resolve execution {execution_name}")
+            return None
+        return str(job.id)
+
+    @staticmethod
+    def _is_execution_current_for_job(job: Job, execution_name: str) -> bool:
+        main_execution_id = job.executions.main.execution_id
+        revert_execution_id = job.executions.revert.execution_id if job.executions.revert is not None else None
+        return execution_name in {main_execution_id, revert_execution_id}
 
     @property
     def topics_subscriptions(self) -> list[TopicSubscription]:
@@ -196,7 +219,10 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_step_details(raw_message: KafkaRawMessage) -> None:
-        value: dict = raw_message.value
+        value = raw_message.value
+        if not isinstance(value, dict):
+            logger.error("Missing or invalid step details payload")
+            return
 
         if "execution_id" not in value:
             logger.error("Missing execution ID")
@@ -204,27 +230,59 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
 
         execution_name = value["execution_id"]
 
-        record = LocalExecutor().get_execution_metadata(execution_name)
-        if record is None:
-            logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
+        job_id = ProgressHandler._resolve_job_id_by_execution(execution_name)
+        if job_id is None:
             return
-        job_id = record.job_id
 
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if job is None:
             logger.error(f"Unable to find job by it's ID {job_id}")
             return
+        if not ProgressHandler._is_execution_current_for_job(job=job, execution_name=execution_name):
+            logger.warning(
+                "Ignoring stale step-details event for execution=%s job_id=%s "
+                "(current main=%s revert=%s)",
+                execution_name,
+                job_id,
+                job.executions.main.execution_id,
+                job.executions.revert.execution_id if job.executions.revert is not None else None,
+            )
+            return
         if job.cancellation_info.is_cancelled:
             return
+
+        if job.state != "running":
+            StateMachine().set_running_state(job_id=ID(job_id))
 
         progress: float | None = value.get("progress")
         message: str | None = value.get("message")
         warning: str | None = value.get("warning")
+        task_id = value.get("task_id")
+        if not isinstance(task_id, str):
+            logger.error("Missing task_id in step details payload")
+            return
+
+        state: JobTaskState | None = JobTaskState.RUNNING
+        if progress is not None and progress >= 100:
+            state = JobTaskState.FINISHED
+
+            # Keep step ordering coherent for train jobs: only allow evaluation
+            # step updates after training step has completed.
+            if task_id == "job.tasks.evaluate_and_infer.evaluate_and_infer.evaluate_and_infer":
+                train_step = next((step for step in job.step_details if step.task_id == "train"), None)
+                if train_step is not None and train_step.state != JobTaskState.FINISHED:
+                    StateMachine().set_step_details(
+                        job_id=ID(job_id),
+                        state=JobTaskState.FINISHED,
+                        task_id="train",
+                        progress=100,
+                        message="Stage: Training",
+                    )
 
         StateMachine().set_step_details(
             job_id=ID(job_id),
-            state=None,
-            task_id=value["task_id"],
+            state=state,
+            task_id=task_id,
             progress=progress,
             message=message,
             warning=warning,
@@ -234,7 +292,10 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_update(raw_message: KafkaRawMessage) -> None:
-        value: dict = raw_message.value
+        value = raw_message.value
+        if not isinstance(value, dict):
+            logger.error("Missing or invalid job update payload")
+            return
 
         if "execution_id" not in value:
             logger.error("Missing execution ID")
@@ -242,11 +303,24 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
 
         execution_name = value["execution_id"]
 
-        record = LocalExecutor().get_execution_metadata(execution_name)
-        if record is None:
-            logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
+        job_id = ProgressHandler._resolve_job_id_by_execution(execution_name)
+        if job_id is None:
             return
-        job_id = record.job_id
+
+        job = StateMachine().get_by_id(job_id=ID(job_id))
+        if job is None:
+            logger.error(f"Unable to find job by it's ID {job_id}")
+            return
+        if not ProgressHandler._is_execution_current_for_job(job=job, execution_name=execution_name):
+            logger.warning(
+                "Ignoring stale job-update event for execution=%s job_id=%s "
+                "(current main=%s revert=%s)",
+                execution_name,
+                job_id,
+                job.executions.main.execution_id,
+                job.executions.revert.execution_id if job.executions.revert is not None else None,
+            )
+            return
 
         if "metadata" in value:
             StateMachine().update_metadata(job_id=ID(job_id), metadata=value["metadata"])
@@ -270,7 +344,10 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_project_deleted(raw_message: KafkaRawMessage) -> None:
-        value: dict = raw_message.value
+        value = raw_message.value
+        if not isinstance(value, dict):
+            logger.error("Missing or invalid project deletion payload")
+            return
         project_id = ID(value["project_id"])
 
         logger.info(f"Project {project_id} is deleted, cancelling and removing project jobs")
@@ -285,7 +362,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_failed(raw_message: KafkaRawMessage) -> None:
-        job_id: str = raw_message.key.decode()
+        key = raw_message.key
+        job_id = key.decode() if isinstance(key, bytes) else str(key)
 
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if not job:
@@ -320,7 +398,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_cancelled(raw_message: KafkaRawMessage) -> None:
-        job_id: str = raw_message.key.decode()
+        key = raw_message.key
+        job_id = key.decode() if isinstance(key, bytes) else str(key)
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if not job:
             raise ValueError(f"Job {job_id} not found")
@@ -339,7 +418,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_finished(raw_message: KafkaRawMessage) -> None:
-        job_id: str = raw_message.key.decode()
+        key = raw_message.key
+        job_id = key.decode() if isinstance(key, bytes) else str(key)
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if not job:
             raise ValueError(f"Job {job_id} not found")

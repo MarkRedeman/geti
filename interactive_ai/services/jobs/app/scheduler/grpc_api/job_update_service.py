@@ -60,10 +60,35 @@ class JobUpdateService(JobUpdateServiceServicer):
         logger.info(f"Job update request received: {request}")
 
         record = LocalExecutor().get_execution_metadata(request.execution_id)
-        if record is None:
-            logger.error(f"[compose mode] Unable to find execution {request.execution_id} in local registry")
+        if record is not None:
+            job_id = record.job_id
+        else:
+            logger.warning(
+                f"[compose mode] Unable to find execution {request.execution_id} in local registry, "
+                "falling back to DB lookup"
+            )
+            job = StateMachine().get_by_execution_id(request.execution_id)
+            if job is None:
+                logger.error(f"Unable to resolve execution {request.execution_id}")
+                return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
+            job_id = str(job.id)
+
+        job = StateMachine().get_by_id(ID(job_id))
+        if job is None:
+            logger.error(f"Unable to find job by it's ID {job_id}")
             return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
-        job_id = record.job_id
+
+        current_main_execution = job.executions.main.execution_id
+        current_revert_execution = job.executions.revert.execution_id if job.executions.revert is not None else None
+        if request.execution_id not in {current_main_execution, current_revert_execution}:
+            logger.warning(
+                "Ignoring stale gRPC job update for execution=%s job_id=%s (current main=%s revert=%s)",
+                request.execution_id,
+                job_id,
+                current_main_execution,
+                current_revert_execution,
+            )
+            return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
 
         try:
             if request.HasField("metadata"):

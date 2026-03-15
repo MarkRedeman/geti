@@ -85,6 +85,26 @@ class StateMachine(metaclass=Singleton):
             document = job_repo.get_document_by_id(job_id)
             return JobMapper.backward(document) if document is not None else None
 
+    def get_by_execution_id(self, execution_id: str) -> Job | None:
+        """
+        Returns a job by main/revert execution ID.
+
+        :param execution_id: execution identifier (e.g. ex-<job_id>)
+        :return: found job or None
+        """
+        logger.debug(f"Getting job by execution_id {execution_id}")
+        job_repo = SessionBasedSchedulerJobRepo()
+        with job_repo._mongo_client.start_session():
+            document = job_repo._collection.find_one(
+                {
+                    "$or": [
+                        {"executions.main.execution_id": execution_id},
+                        {"executions.revert.execution_id": execution_id},
+                    ]
+                }
+            )
+            return JobMapper.backward(document) if document is not None else None
+
     def find_jobs_ids_by_project_id(self, project_id: ID) -> tuple[ID, ...]:
         """
         Returns ID's of jobs belonging to the project
@@ -210,6 +230,82 @@ class StateMachine(metaclass=Singleton):
             ).modified_count
             if count > 0:
                 logger.warning(f"Number of scheduling jobs which were reset={count}")
+            return count
+
+    def reset_scheduling_jobs_for_types(self, threshold: datetime, job_types: Sequence[str]) -> int:
+        """
+        Resets SCHEDULING jobs older than *threshold* for specified job types.
+
+        :param threshold: process_start_time reset threshold
+        :param job_types: job types to include
+        :return int: number of jobs modified
+        """
+        if len(job_types) == 0:
+            return 0
+
+        logger.debug(f"Resetting scheduling jobs for types {tuple(job_types)} older than {threshold}")
+        job_repo = SessionBasedSchedulerJobRepo()
+        with job_repo._mongo_client.start_session():
+            count = job_repo._collection.update_many(
+                filter={
+                    "state": JobState.SCHEDULING.value,
+                    "type": {"$in": list(job_types)},
+                    "executions.main.process_start_time": {"$lt": threshold},
+                },
+                update={
+                    "$set": {
+                        "state": JobState.SUBMITTED.value,
+                        "state_group": JobStateGroup.SCHEDULED.value,
+                    },
+                    "$unset": {
+                        "executions.main.process_start_time": "",
+                    },
+                    "$inc": {
+                        "executions.main.start_retry_counter": 1,
+                    },
+                },
+            ).modified_count
+            if count > 0:
+                logger.warning(f"Number of scheduling jobs reset for types {tuple(job_types)}={count}")
+            return count
+
+    def reset_scheduling_jobs_except_types(self, threshold: datetime, excluded_job_types: Sequence[str]) -> int:
+        """
+        Resets SCHEDULING jobs older than *threshold* for all job types except excluded ones.
+
+        :param threshold: process_start_time reset threshold
+        :param excluded_job_types: job types to exclude from reset
+        :return int: number of jobs modified
+        """
+        logger.debug(f"Resetting scheduling jobs except types {tuple(excluded_job_types)} older than {threshold}")
+        job_repo = SessionBasedSchedulerJobRepo()
+        with job_repo._mongo_client.start_session():
+            filter_query: dict[str, Any] = {
+                "state": JobState.SCHEDULING.value,
+                "executions.main.process_start_time": {"$lt": threshold},
+            }
+            if len(excluded_job_types) > 0:
+                filter_query["type"] = {"$nin": list(excluded_job_types)}
+
+            count = job_repo._collection.update_many(
+                filter=filter_query,
+                update={
+                    "$set": {
+                        "state": JobState.SUBMITTED.value,
+                        "state_group": JobStateGroup.SCHEDULED.value,
+                    },
+                    "$unset": {
+                        "executions.main.process_start_time": "",
+                    },
+                    "$inc": {
+                        "executions.main.start_retry_counter": 1,
+                    },
+                },
+            ).modified_count
+            if count > 0:
+                logger.warning(
+                    f"Number of scheduling jobs reset excluding types {tuple(excluded_job_types)}={count}"
+                )
             return count
 
     def reset_scheduling_job(self, job_id: ID) -> bool:
@@ -461,23 +557,31 @@ class StateMachine(metaclass=Singleton):
             job = self.get_by_id(job_id)
             if job is None:
                 raise RuntimeError(f"Job {job_id} cannot be found")
-            update_set = {
-                "state": JobState.FINISHED.value,
-                "state_group": JobStateGroup.FINISHED.value,
-                "end_time": end_time,
-            }
-            if job.gpu is not None and job.gpu.state == JobGpuRequestState.RESERVED:
-                update_set["gpu.state"] = JobGpuRequestState.RELEASED.value
-            updated = job_repo.update(job_id=job_id, update={"$set": update_set})
+        update_set = {
+            "state": JobState.FINISHED.value,
+            "state_group": JobStateGroup.FINISHED.value,
+            "end_time": end_time,
+        }
+        for i, step in enumerate(job.step_details):
+            if step.state in (JobTaskState.WAITING, JobTaskState.RUNNING):
+                update_set[f"step_details.{i}.state"] = JobTaskState.FINISHED.value
+                update_set[f"step_details.{i}.progress"] = 100
+        if job.gpu is not None and job.gpu.state == JobGpuRequestState.RESERVED:
+            update_set["gpu.state"] = JobGpuRequestState.RELEASED.value
+        updated = False
+        updated = job_repo.update(job_id=job_id, update={"$set": update_set})
         if updated:
             logger.info(f"Job {job_id} has been set to finished state")
             session = CTX_SESSION_VAR.get()
+            start_time = end_time
+            if job.start_time is not None:
+                start_time = job.start_time
             body = {
                 "workspace_id": str(session.workspace_id),
                 "job_type": job.type,
                 "job_payload": job.payload,
                 "job_metadata": job.metadata,
-                "start_time": job.start_time.isoformat(),  # type: ignore
+                "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
             }
             publish_event(

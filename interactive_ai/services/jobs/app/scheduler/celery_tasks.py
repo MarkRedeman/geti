@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import subprocess
-
 from scheduler.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -38,7 +37,17 @@ def _workflow_docker_network() -> str:
 
 
 def _docker_run_cmd() -> list[str]:
-    return ["docker", "run", "--rm", "--network", _workflow_docker_network()]
+    cmd = ["docker", "run", "--rm", "--network", _workflow_docker_network()]
+    trainer_version = os.environ.get("DEFAULT_TRAINER_VERSION")
+    if trainer_version:
+        cmd += ["--env", f"DEFAULT_TRAINER_VERSION={trainer_version}"]
+    return cmd
+
+
+def _should_forward_env(key: str, prefixes: tuple[str, ...]) -> bool:
+    if key == "DEFAULT_TRAINER_VERSION":
+        return True
+    return any(key.startswith(p) for p in prefixes)
 
 
 def _session_org_id(payload: dict) -> str:
@@ -73,6 +82,19 @@ def _trainer_runtime_image() -> str:
     return os.environ.get("TRAINER_RUNTIME_IMAGE", "")
 
 
+def _trainer_shard_files_dir() -> str:
+    """
+    Return a writable shard-files path for trainer runtime containers.
+
+    In compose mode, SHARD_FILES_DIR may be inherited as `/shard_files` (K8s-style path),
+    which is not writable in the trainer runtime image. Remap to `/tmp/shard_files`.
+    """
+    shard_files_dir = os.environ.get("SHARD_FILES_DIR", "/tmp/shard_files")
+    if shard_files_dir == "/shard_files":
+        return "/tmp/shard_files"
+    return shard_files_dir
+
+
 def _optimize_workflow_image() -> str:
     return os.environ.get("OPTIMIZE_WORKFLOW_IMAGE", "")
 
@@ -82,10 +104,10 @@ def _run_optimize_trainer_container(payload: dict) -> None:
     if not image:
         raise RuntimeError("Missing TRAINER_RUNTIME_IMAGE for optimize_pot job")
 
-    org_id = os.environ.get("SESSION_ORGANIZATION_ID", payload.get("organization_id", ""))
-    workspace_id = os.environ.get("SESSION_WORKSPACE_ID", payload.get("workspace_id", ""))
+    org_id = payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", "")
+    workspace_id = payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", "")
     project_id = payload["project_id"]
-    job_id = os.environ.get("JOB_METADATA_ID", payload.get("job_id", ""))
+    job_id = payload.get("job_id") or os.environ.get("JOB_METADATA_ID", "")
     identifier_json = json.dumps(
         {
             "organization_id": str(org_id),
@@ -111,16 +133,17 @@ def _run_optimize_trainer_container(payload: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
     )
     for key in os.environ:
-        if any(key.startswith(p) for p in _forward_prefixes):
+        if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
 
     cmd += ["--env", f"IDENTIFIER_JSON={identifier_json}"]
-    cmd += ["--env", f"SHARD_FILES_DIR={os.environ.get('SHARD_FILES_DIR', '/tmp/shard_files')}"]
+    cmd += ["--env", f"SHARD_FILES_DIR={_trainer_shard_files_dir()}"]
     cmd += ["--env", "TASK_ID=optimize"]
     cmd += ["--env", "JOB_TYPE=optimize_pot"]
 
@@ -150,12 +173,13 @@ def _run_optimize_finalize_stage(payload: dict, prep_result: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
     )
     for key in os.environ:
-        if any(key.startswith(p) for p in _forward_prefixes):
+        if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
 
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
@@ -187,12 +211,13 @@ def _run_optimize_evaluate_stage(payload: dict, prep_result: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
     )
     for key in os.environ:
-        if any(key.startswith(p) for p in _forward_prefixes):
+        if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
 
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
@@ -203,7 +228,7 @@ def _run_optimize_evaluate_stage(payload: dict, prep_result: dict) -> None:
     _ = subprocess.run(cmd, check=True, timeout=3600)  # noqa: S603
 
 
-def _run_train_trainer_container(payload: dict) -> None:
+def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
     """
     Transitional trainer runtime stage for train jobs.
 
@@ -213,10 +238,10 @@ def _run_train_trainer_container(payload: dict) -> None:
     if not image:
         raise RuntimeError("Missing TRAINER_RUNTIME_IMAGE for train job")
 
-    org_id = os.environ.get("SESSION_ORGANIZATION_ID", payload.get("organization_id", ""))
-    workspace_id = os.environ.get("SESSION_WORKSPACE_ID", payload.get("workspace_id", ""))
+    org_id = payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", "")
+    workspace_id = payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", "")
     project_id = payload["project_id"]
-    job_id = os.environ.get("JOB_METADATA_ID", payload.get("job_id", ""))
+    job_id = payload.get("job_id") or os.environ.get("JOB_METADATA_ID", "")
     identifier_json = json.dumps(
         {
             "organization_id": str(org_id),
@@ -243,16 +268,31 @@ def _run_train_trainer_container(payload: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
     )
     for key in os.environ:
-        if any(key.startswith(p) for p in _forward_prefixes):
+        if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
 
+    trainer_shm_size = os.environ.get("TRAINER_RUNTIME_SHM_SIZE", "2g")
+    if trainer_shm_size:
+        cmd += ["--shm-size", trainer_shm_size]
+
+    trainer_gpu_request = os.environ.get("TRAINER_RUNTIME_GPU_REQUEST", "all")
+    if trainer_gpu_request:
+        cmd += ["--gpus", trainer_gpu_request]
+
     cmd += ["--env", f"IDENTIFIER_JSON={identifier_json}"]
-    cmd += ["--env", f"SHARD_FILES_DIR={os.environ.get('SHARD_FILES_DIR', '/tmp/shard_files')}"]
+    cmd += ["--env", f"EXECUTION_ID={execution_name}"]
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={str(org_id)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={str(workspace_id)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={str(job_id)}"]
+    cmd += ["--env", f"SHARD_FILES_DIR={_trainer_shard_files_dir()}"]
+    cmd += ["--env", "WEIGHTS_URL=https://storage.geti.intel.com/weights"]
+    cmd += ["--env", "JOB_METADATA_TYPE=train"]
     cmd += ["--env", "TASK_ID=train"]
 
     trainer_command = os.environ.get("TRAINER_RUNTIME_COMMAND", "bash -c run")
@@ -260,7 +300,7 @@ def _run_train_trainer_container(payload: dict) -> None:
     subprocess.run(cmd, check=True, timeout=7200)  # noqa: S603
 
 
-def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
+def _run_train_finalize_stage(payload: dict, prep_result: dict, execution_name: str) -> None:
     image = _train_workflow_image()
     if not image:
         raise RuntimeError("Missing TRAIN_WORKFLOW_IMAGE for train finalize stage")
@@ -281,14 +321,20 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
     )
     for key in os.environ:
-        if any(key.startswith(p) for p in _forward_prefixes):
+        if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
 
+    cmd += ["--env", f"WORKFLOW_EXECUTION_ID={execution_name}"]
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
+    cmd += ["--env", "JOB_METADATA_TYPE=train"]
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=train"]
     cmd += ["--env", "WORKFLOW_JOB_STAGE=finalize"]
@@ -311,7 +357,7 @@ def _should_run_train_finalize(prep_result: dict) -> bool:
     return base_model.model_status == ModelStatus.NOT_READY
 
 
-def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
+def _run_train_evaluate_stage(payload: dict, prep_result: dict, execution_name: str) -> None:
     image = _train_workflow_image()
     if not image:
         raise RuntimeError("Missing TRAIN_WORKFLOW_IMAGE for train evaluate stage")
@@ -340,6 +386,11 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict) -> None:
         if any(key.startswith(p) for p in _forward_prefixes):
             cmd += ["--env", key]
 
+    cmd += ["--env", f"WORKFLOW_EXECUTION_ID={execution_name}"]
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
+    cmd += ["--env", "JOB_METADATA_TYPE=train"]
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=train"]
     cmd += ["--env", "WORKFLOW_JOB_STAGE=evaluate"]
@@ -396,6 +447,7 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
     cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
     cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
     cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_TYPE={job_type}"]
 
     cmd += [image, *_workflow_runner_command()]
     try:
@@ -432,10 +484,19 @@ def run_job_execution(self, execution_name: str, job_type: str, payload: dict): 
                 break
         if prep_result is None:
             raise RuntimeError("Train prep stage did not emit TRAIN_PREP_RESULT")
-        _run_train_trainer_container(payload=payload)
-        if _should_run_train_finalize(prep_result=prep_result):
-            _run_train_finalize_stage(payload=payload, prep_result=prep_result)
-        _run_train_evaluate_stage(payload=payload, prep_result=prep_result)
+        _run_train_trainer_container(payload=payload, execution_name=execution_name)
+        should_finalize = True
+        try:
+            should_finalize = _should_run_train_finalize(prep_result=prep_result)
+        except ModuleNotFoundError as exc:
+            logger.warning(
+                "Train finalize readiness check failed in compose mode; running finalize stage by default. "
+                f"Reason: {exc}"
+            )
+
+        if should_finalize:
+            _run_train_finalize_stage(payload=payload, prep_result=prep_result, execution_name=execution_name)
+        _run_train_evaluate_stage(payload=payload, prep_result=prep_result, execution_name=execution_name)
     elif job_type in _OPTIMIZE_JOB_TYPES:
         stdout = _run_import_export_in_container(job_type=job_type, payload=payload)
         prep_result = None

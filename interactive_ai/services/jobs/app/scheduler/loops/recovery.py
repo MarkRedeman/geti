@@ -55,6 +55,13 @@ def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     """
     logger.debug(f"[COMPOSE MODE] Processing jobs {[job.id for job in jobs]}")
     executor = LocalExecutor()
+    # In celery mode, the local registry is process-local and is cleared on
+    # scheduler restart. Treating "missing in registry" as lost execution would
+    # incorrectly reset active jobs and trigger duplicate rescheduling.
+    if executor.run_mode == "celery":
+        logger.debug("[COMPOSE MODE] Skipping recovery reset checks in celery mode")
+        return
+
     for job in jobs:
         execution_id = job.executions.main.execution_id
         if execution_id is None:

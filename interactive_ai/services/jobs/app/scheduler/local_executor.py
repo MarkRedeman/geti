@@ -187,6 +187,11 @@ class LocalExecutor(metaclass=Singleton):
     def _run_mode(self) -> str:
         return os.environ.get("LOCAL_EXECUTOR_MODE", "simulate").lower()
 
+    @property
+    def run_mode(self) -> str:
+        """Public accessor for current executor mode."""
+        return self._run_mode
+
     def _start_simulated_execution(self, record: _ExecutionRecord) -> None:
         def _simulate() -> None:
             self._publish_workflow_event(record, phase=PHASE_RUNNING)
@@ -217,7 +222,13 @@ class LocalExecutor(metaclass=Singleton):
 
         def _watch_result() -> None:
             try:
-                async_result.get(timeout=max(60, int(_SIM_DURATION_SEC * 10)))
+                timeout_sec = max(60, int(_SIM_DURATION_SEC * 10))
+                if job_type == "train":
+                    timeout_sec = max(timeout_sec, int(os.environ.get("LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC", "7200")))
+                elif job_type == "optimize_pot":
+                    timeout_sec = max(timeout_sec, int(os.environ.get("LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC", "3600")))
+
+                async_result.get(timeout=timeout_sec)
                 with self._lock:
                     if record.cancelled:
                         return

@@ -4,6 +4,7 @@
 import json
 import os
 from contextlib import nullcontext
+from types import SimpleNamespace
 from unittest.mock import patch
 
 _TRAIN_PREP_RESULT_PREFIX = "TRAIN_PREP_RESULT="
@@ -29,6 +30,46 @@ def _is_train_ready_for_evaluate(train_data, train_output_model_ids) -> bool:  #
 
 def _load_payload() -> dict:
     return json.loads(os.environ["WORKFLOW_PAYLOAD_JSON"])
+
+
+def _compose_execution_id() -> str:
+    if execution_id := os.environ.get("WORKFLOW_EXECUTION_ID"):
+        return execution_id
+    if job_id := os.environ.get("JOB_METADATA_ID"):
+        return f"ex-{job_id}"
+    return "compose-execution"
+
+
+def _compose_task_id(job_type: str, stage: str | None = None) -> str:
+    if job_type == "export_dataset":
+        return "job.tasks.export_tasks.export_dataset_task.export_dataset_task"
+    if job_type == "prepare_import_to_new_project":
+        return "job.tasks.import_tasks.parse_dataset_new_project.parse_dataset_for_import_to_new_project"
+    if job_type == "perform_import_to_new_project":
+        return "job.tasks.import_tasks.create_project_from_dataset.create_project_from_dataset"
+    if job_type == "prepare_import_to_existing_project":
+        return "job.tasks.import_tasks.parse_dataset_existing_project.parse_dataset_for_import_to_existing_project"
+    if job_type == "perform_import_to_existing_project":
+        return "job.tasks.import_tasks.import_dataset_to_project.import_dataset_to_project"
+    if job_type == "export_project":
+        return "job.tasks.export_project.export_project"
+    if job_type == "import_project":
+        return "job.tasks.import_project.import_project"
+    if job_type == "test":
+        return "job.tasks.model_testing.run_model_test"
+    if job_type == "train":
+        if stage == "evaluate":
+            return "job.tasks.evaluate_and_infer.evaluate_and_infer.evaluate_and_infer"
+        if stage == "finalize":
+            return "train"
+        return "job.tasks.prepare_and_train.prepare_data_and_train.prepare_training_data_model_and_start_training"
+    if job_type == "optimize_pot":
+        if stage == "evaluate":
+            return "job.tasks.evaluation_task.evaluate_optimized_model_pot"
+        if stage == "finalize":
+            return "job.tasks.helpers.finalize_optimize"
+        return "job.tasks.optimization_task.shard_dataset_prepare_models_and_start_optimization"
+    return f"compose.{job_type}"
 
 
 def _run_job_type(job_type: str, payload: dict) -> None:
@@ -116,9 +157,11 @@ def _run_job_type(job_type: str, payload: dict) -> None:
 
     if job_type == "train":
         from geti_types import ID
+        from jobs_common.tasks.utils.progress import report_progress
         from jobs_common.jobs.helpers.project_helpers import lock_project
         from job.tasks.prepare_and_train.create_task_train_dataset import create_task_train_dataset
         from job.tasks.prepare_and_train.get_train_data import get_train_data
+        from job.tasks.prepare_and_train.shard_dataset import shard_dataset_for_train
         from job.tasks.prepare_and_train.train_helpers import finalize_train, prepare_train
         from job.tasks.evaluate_and_infer.evaluate_and_infer import evaluate_and_infer
         from job.utils.train_workflow_data import TrainWorkflowData
@@ -216,6 +259,7 @@ def _run_job_type(job_type: str, payload: dict) -> None:
                 )
             return
 
+        report_progress(progress=-1, message="Preparing training data")
         lock_project(job_type="train", project_id=ID(payload["project_id"]))
         train_data = get_train_data(
             project_id=payload["project_id"],
@@ -234,12 +278,24 @@ def _run_job_type(job_type: str, payload: dict) -> None:
             train_data=train_data,
             max_training_dataset_size=payload.get("max_training_dataset_size"),
         )
+
+        if payload.get("enable_training_from_dataset_shard", True):
+            train_data.compiled_dataset_shards_id = shard_dataset_for_train(
+                train_data=train_data,
+                dataset=dataset,
+                max_shard_size=payload.get("max_shard_size", 1000),
+                progress_callback=lambda *_args, **_kwargs: None,
+                num_image_pulling_threads=payload.get("num_image_pulling_threads", 10),
+                num_upload_threads=payload.get("num_upload_threads", 2),
+            )
+
         output_models = prepare_train(train_data=train_data, dataset=dataset)
         prep_result = {
             "train_data_json": train_data.to_json(),
             "dataset_id": str(dataset.id_),
             "train_output_model_ids_json": output_models.to_train_output_model_ids().to_json(),
         }
+        report_progress(progress=100, message="Training data prepared")
         print(f"{_TRAIN_PREP_RESULT_PREFIX}{json.dumps(prep_result)}")
         return
 
@@ -307,19 +363,20 @@ def _run_job_type(job_type: str, payload: dict) -> None:
 
 
 def run() -> None:
+    from jobs_common.tasks.utils.secrets import setup_session_from_env
+
     job_type = os.environ["WORKFLOW_JOB_TYPE"]
     payload = _load_payload()
-
-    metadata_patch = (
-        patch("jobs_common.tasks.utils.progress.publish_metadata_update", lambda *a, **k: None)
-        if _bool_env("WORKFLOW_EVALUATE_STUB_METADATA", True)
-        else nullcontext()
+    stage = os.environ.get("WORKFLOW_JOB_STAGE")
+    setup_session_from_env()
+    compose_context = SimpleNamespace(
+        execution_id=SimpleNamespace(name=_compose_execution_id()),
+        task_id=SimpleNamespace(name=_compose_task_id(job_type=job_type, stage=stage)),
     )
 
     with (
         patch("jobs_common.tasks.utils.secrets.set_env_vars", lambda: None),
-        patch("jobs_common.tasks.utils.progress.report_progress", lambda *a, **k: None),
-        metadata_patch,
+        patch("jobs_common.tasks.utils.progress.current_context", lambda: compose_context),
     ):
         _run_job_type(job_type=job_type, payload=payload)
 
