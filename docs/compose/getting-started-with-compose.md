@@ -162,6 +162,10 @@ Access the UI at: `http://geti.localhost` (add `geti.localhost` → `127.0.0.1` 
 Start everything (infra + platform + interactive AI services):
 
 ```bash
+docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_director interactive_ai_resource interactive_ai_jobs interactive_ai_media interactive_ai_auto_train interactive_ai_dataset_import_export interactive_ai_project_import_export interactive_ai_model_registration interactive_ai_inference_gateway ovms
+```
+
+```bash
 docker compose up -d
 ```
 
