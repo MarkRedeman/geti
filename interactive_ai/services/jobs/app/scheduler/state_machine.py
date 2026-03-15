@@ -781,7 +781,9 @@ class StateMachine(metaclass=Singleton):
             # When a job fails, it must not have "running" tasks
             for i, step in enumerate(job.step_details):
                 if step.state == JobTaskState.RUNNING:
-                    update_set[f"step_details.{i}.state"] = JobTaskState.FINISHED.value
+                    update_set[f"step_details.{i}.state"] = JobTaskState.FAILED.value
+                    if step.progress is None:
+                        update_set[f"step_details.{i}.progress"] = 0
             if job.gpu is not None and job.gpu.state == JobGpuRequestState.RESERVED:
                 update_set["gpu.state"] = JobGpuRequestState.RELEASED.value
             updated = job_repo.update(

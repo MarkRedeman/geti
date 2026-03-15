@@ -400,7 +400,7 @@ services:
         - supported_models=./interactive_ai/supported_models/
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`))"
+      - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+:import-from-dataset.*$`))"
       - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
       - "traefik.http.routers.interactive-ai-dataset-ie.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
@@ -912,12 +912,21 @@ services:
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.filename=/etc/traefik/tls.yml"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       - "--api=true"
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infrastructure/traefik-tls.yml:/etc/traefik/tls.yml:ro
+      - ./infrastructure/data/auth_proxy/certs/tls.crt:/certs/tls.crt:ro
+      - ./infrastructure/data/auth_proxy/certs/tls.key:/certs/tls.key:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"

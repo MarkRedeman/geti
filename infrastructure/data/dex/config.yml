@@ -2,7 +2,7 @@
 #
 # This is the canonical URL that all clients MUST use to refer to dex. If a
 # path is provided, dex's HTTP service will listen at a non-root URL.
-issuer: http://geti.localhost/dex
+issuer: https://geti.localhost/dex
 #issuer: {{ .Env.DEX_DOMAIN }}
 
 storage:

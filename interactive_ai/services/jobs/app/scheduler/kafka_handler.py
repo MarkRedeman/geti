@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from model.job import Job, JobConsumedResource, JobCost
-from model.job_state import JobTaskState
+from model.job_state import JobState, JobTaskState
 from scheduler.context import job_context
 from scheduler.execution_type import ExecutionType
 from scheduler.local_executor import LocalExecutor
@@ -251,7 +251,9 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         if job.cancellation_info.is_cancelled:
             return
 
-        if job.state != "running":
+        # Step-level progress events can arrive after terminal workflow events.
+        # Only promote into RUNNING from pre-running states.
+        if job.state in {JobState.SCHEDULING, JobState.SCHEDULED}:
             StateMachine().set_running_state(job_id=ID(job_id))
 
         progress: float | None = value.get("progress")
@@ -263,6 +265,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         state: JobTaskState | None = JobTaskState.RUNNING
+        if isinstance(message, str) and message.lower().startswith("failed"):
+            state = JobTaskState.FAILED
         if progress is not None and progress >= 100:
             state = JobTaskState.FINISHED
 

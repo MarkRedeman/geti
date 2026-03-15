@@ -183,7 +183,10 @@ def task_progress(
                     )
                 )
                 message += f" (ID: {JobMetadata.from_env_vars().id})"
-                report_progress(message=message)
+                # Ensure failure events overwrite stale in-flight step progress.
+                # Without explicit progress, the UI can keep the last intermediate
+                # percentage while the job has already failed.
+                report_progress(progress=0, message=message)
                 raise ex
             finally:
                 if not failed and finish_message is not None:
