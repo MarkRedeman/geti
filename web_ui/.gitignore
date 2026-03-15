@@ -22,7 +22,6 @@
 .env.test.local
 .env.production.local
 .eslintcache
-/dev-feature-flags.json
 
 npm-debug.log*
 debug.log*
