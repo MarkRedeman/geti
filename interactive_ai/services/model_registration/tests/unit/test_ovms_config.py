@@ -16,6 +16,7 @@ def test_add_remove_model(tmp_path, monkeypatch):
     cfg = json.loads((tmp_path / "models.json").read_text())
     names = [item["config"]["name"] for item in cfg["model_config_list"]]
     assert names == ["p1", "p2"]
+    assert cfg["mediapipe_config_list"] == []
 
     manager.remove_model("p1")
     cfg_after = json.loads((tmp_path / "models.json").read_text())
@@ -35,20 +36,13 @@ def test_add_remove_graph_model(tmp_path, monkeypatch):
     manager.add_model("graph-pipeline")
 
     cfg = json.loads((tmp_path / "models.json").read_text())
-    assert cfg["model_config_list"] == [
-        {
-            "config": {
-                "name": "graph-pipeline",
-                "base_path": "/models/graph-pipeline",
-                "graph_path": "graph.pbtxt",
-                "subconfig": "config.json",
-            }
-        }
-    ]
+    assert cfg["model_config_list"] == []
+    assert cfg["mediapipe_config_list"] == [{"name": "graph-pipeline"}]
 
     manager.remove_model("graph-pipeline")
     cfg_after = json.loads((tmp_path / "models.json").read_text())
     assert cfg_after["model_config_list"] == []
+    assert cfg_after["mediapipe_config_list"] == []
 
 
 def test_sync_and_remove_model_directory(tmp_path, monkeypatch):

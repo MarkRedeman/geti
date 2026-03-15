@@ -29,8 +29,9 @@ class OvmsConfigManager:
         if self.config_path.exists():
             cfg = json.loads(self.config_path.read_text())
             cfg.setdefault("model_config_list", [])
+            cfg.setdefault("mediapipe_config_list", [])
             return cfg
-        return {"model_config_list": []}
+        return {"model_config_list": [], "mediapipe_config_list": []}
 
     def _is_graph_export(self, pipeline_name: str) -> bool:
         target_path = self.model_dir(pipeline_name)
@@ -46,22 +47,15 @@ class OvmsConfigManager:
         with _lock:
             cfg = self._read()
             model_config_list = cfg.get("model_config_list", [])
+            mediapipe_config_list = cfg.get("mediapipe_config_list", [])
 
             model_config_list = [
                 item for item in model_config_list if item.get("config", {}).get("name") != pipeline_name
             ]
+            mediapipe_config_list = [item for item in mediapipe_config_list if item.get("name") != pipeline_name]
 
             if self._is_graph_export(pipeline_name=pipeline_name):
-                model_config_list.append(
-                    {
-                        "config": {
-                            "name": pipeline_name,
-                            "base_path": f"/models/{pipeline_name}",
-                            "graph_path": "graph.pbtxt",
-                            "subconfig": "config.json",
-                        }
-                    }
-                )
+                mediapipe_config_list.append({"name": pipeline_name})
             else:
                 model_config_list.append(
                     {
@@ -73,6 +67,7 @@ class OvmsConfigManager:
                 )
 
             cfg["model_config_list"] = model_config_list
+            cfg["mediapipe_config_list"] = mediapipe_config_list
             self._write(cfg)
             logger.info(f"OVMS config: added model {pipeline_name}")
 
@@ -124,8 +119,10 @@ class OvmsConfigManager:
         with _lock:
             cfg = self._read()
             model_config_list = cfg.get("model_config_list", [])
+            mediapipe_config_list = cfg.get("mediapipe_config_list", [])
             cfg["model_config_list"] = [
                 item for item in model_config_list if item.get("config", {}).get("name") != pipeline_name
             ]
+            cfg["mediapipe_config_list"] = [item for item in mediapipe_config_list if item.get("name") != pipeline_name]
             self._write(cfg)
             logger.info(f"OVMS config: removed model {pipeline_name}")
