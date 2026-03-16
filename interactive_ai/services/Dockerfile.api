@@ -149,7 +149,4 @@ COPY --link --from=schemas . /interactive_ai/services/api
 
 ENV MODEL_TEMPLATES_DIR=/model_templates
 
-COPY --link iai_api_entrypoint.sh /usr/local/bin/iai_api_entrypoint.sh
-
 USER non-root
-ENTRYPOINT ["/usr/local/bin/iai_api_entrypoint.sh"]
