@@ -2,6 +2,12 @@
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
+# app-source: holds source/runtime scripts; no heavy deps, stays small and cacheable
+FROM scratch AS app-source
+COPY --link scripts/ scripts/
+COPY --link run run
+COPY --link download_pretrained_weights.py download_pretrained_weights.py
+
 # step 1: get cuda dependencies
 FROM base AS cuda
 ENV TORCH_EXTENSIONS_DIR=/.torch
@@ -63,11 +69,6 @@ WORKDIR /interactive_ai/workflows/train/trainer
 RUN chown -R 10001:10001 /interactive_ai/workflows/train/trainer
 
 COPY --link --from=ghcr.io/astral-sh/uv:0.6.12@sha256:515b886e8eb99bcf9278776d8ea41eb4553a794195ef5803aa7ca6258653100d /uv /bin/uv
-
-COPY --link scripts/ scripts
-COPY --link run run
-COPY --link download_pretrained_weights.py download_pretrained_weights.py
-
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -131,9 +132,9 @@ COPY --link --from=python_dependencies --chown=10001 /interactive_ai /interactiv
 
 WORKDIR /interactive_ai/workflows/train/trainer
 
-COPY --link scripts/ scripts
-COPY --link run run
-COPY --link download_pretrained_weights.py download_pretrained_weights.py
+COPY --link --from=app-source --chown=10001 scripts/ scripts
+COPY --link --from=app-source --chown=10001 run run
+COPY --link --from=app-source --chown=10001 download_pretrained_weights.py download_pretrained_weights.py
 
 ENV PATH="/interactive_ai/workflows/train/trainer/.venv/bin:/interactive_ai/workflows/train/trainer:$PATH"
 ENV PYTHONPATH="/interactive_ai/workflows/train/trainer"

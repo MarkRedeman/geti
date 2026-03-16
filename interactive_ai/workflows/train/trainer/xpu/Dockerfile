@@ -4,6 +4,12 @@
 # --device /dev/dri          # Intel GPU access
 # -v /dev/dri/by-path:/dev/dri/by-path  # Device path mapping
 
+# app-source: holds source/runtime scripts; no heavy deps, stays small and cacheable
+FROM scratch AS app-source
+COPY --link scripts/ scripts/
+COPY --link run run
+COPY --link download_pretrained_weights.py download_pretrained_weights.py
+
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS python_dependencies
 
 COPY --link --from=libs . libs
@@ -70,9 +76,9 @@ RUN chown -R 10001:10001 /interactive_ai/workflows/train/trainer
 
 COPY --link --from=ghcr.io/astral-sh/uv:0.6.12@sha256:515b886e8eb99bcf9278776d8ea41eb4553a794195ef5803aa7ca6258653100d /uv /bin/uv
 
-COPY --link scripts/ scripts
-COPY --link run run
-COPY --link download_pretrained_weights.py download_pretrained_weights.py
+COPY --link --from=app-source scripts/ scripts
+COPY --link --from=app-source run run
+COPY --link --from=app-source download_pretrained_weights.py download_pretrained_weights.py
 
 COPY --link --from=python_dependencies /interactive_ai/workflows/train/trainer/.venv /interactive_ai/workflows/train/trainer/.venv
 
