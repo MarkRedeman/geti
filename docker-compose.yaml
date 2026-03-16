@@ -370,15 +370,19 @@ services:
   # IAI Services
   # 
   interactive_ai_auto_train:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/auto_train:${TAG-main}
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     build:
-      context: ./interactive_ai/services/auto_train
+      context: ./interactive_ai/services
+      dockerfile: Dockerfile.api
       <<: *proxies
       additional_contexts:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
         - supported_models=./interactive_ai/supported_models/
+        - schemas=./interactive_ai/services/api
         - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
+    working_dir: /interactive_ai/services/auto_train
     environment:
       <<: *iai-runtime-env
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
@@ -391,14 +395,8 @@ services:
         condition: service_completed_successfully
 
   interactive_ai_dataset_import_export:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_import_export:${TAG-main}
-    build:
-      context: ./interactive_ai/services/dataset_ie
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
-        - supported_models=./interactive_ai/supported_models/
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/dataset_ie/communication/endpoints
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+:import-from-dataset.*$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/[^/]+/projects:import-from-dataset.*$`))"
@@ -415,16 +413,8 @@ services:
         condition: service_completed_successfully
 
   interactive_ai_director:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/director:${TAG-main}
-    build:
-      context: ./interactive_ai/services/director
-      <<: *proxies
-      additional_contexts:
-        - schemas=./interactive_ai/services/api
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
-        - supported_models=./interactive_ai/supported_models/
-        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/director/app/communication
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/training_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
@@ -471,13 +461,8 @@ services:
         condition: service_started
 
   interactive_ai_jobs:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
-    build:
-      context: ./interactive_ai/services/jobs
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/jobs
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/jobs(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`))"
@@ -499,7 +484,8 @@ services:
         condition: service_completed_successfully
 
   interactive_ai_jobs_scheduler:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/jobs
     command:
       - python
       - scheduler/main.py
@@ -533,7 +519,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   interactive_ai_jobs_policy:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/jobs
     command:
       - python
       - policies/main.py
@@ -549,7 +536,8 @@ services:
         condition: service_healthy
 
   interactive_ai_jobs_worker:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/jobs
     command:
       - python
       - -m
@@ -650,12 +638,8 @@ services:
         condition: service_completed_successfully
 
   interactive_ai_model_registration:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/model_registration:${TAG-main}
-    build:
-      context: ./interactive_ai/services/model_registration
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/model_registration
     user: "0:0"
     environment:
       <<: *iai-runtime-env
@@ -688,13 +672,8 @@ services:
     restart: unless-stopped
 
   interactive_ai_project_import_export:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_import_export:${TAG-main}
-    build:
-      context: ./interactive_ai/services/project_ie
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/project_ie/communication/endpoints
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
@@ -709,17 +688,8 @@ services:
         condition: service_completed_successfully
 
   interactive_ai_resource:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/resource:${TAG-main}
-    build:
-      context: ./interactive_ai/services/resource
-      <<: *proxies
-      additional_contexts:
-        - schemas=./interactive_ai/services/api
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
-        - media_utils=./interactive_ai/libs/media_utils
-        - supported_models=./interactive_ai/supported_models/
-        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/resource/app/communication
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathRegexp(`^/api/v[0-9]+/user_settings/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/tests/.*/results:query$`))"
@@ -739,14 +709,8 @@ services:
         condition: service_completed_successfully
 
   interactive_ai_visual_prompt:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/visual_prompt:${TAG-main}
-    build:
-      context: ./interactive_ai/services/visual_prompt
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
-        - media_utils=./interactive_ai/libs/media_utils
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/visual_prompt/services
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-visual-prompt.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:prompt$`)"
