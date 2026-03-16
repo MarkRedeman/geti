@@ -7,7 +7,7 @@ ARG OTX_RELEASE_TAG=2.6.0
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git
-RUN cp -r /app/training_extensions/src/otx/tools/templates /model_templates
+RUN cp -r /app/training_extensions/lib/src/otx/tools/templates /model_templates
 
 FROM scratch AS app-source
 COPY --link job/ job
