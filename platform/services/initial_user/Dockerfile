@@ -1,4 +1,8 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
+
+FROM scratch AS app-source
+COPY --link app .
 
 FROM base AS build
 
@@ -24,12 +28,12 @@ WORKDIR /platform/services/initial_user
 
 COPY --link --from=ghcr.io/astral-sh/uv:0.6.12@sha256:515b886e8eb99bcf9278776d8ea41eb4553a794195ef5803aa7ca6258653100d /uv /bin/uv
 
-COPY --link app .
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
+
+COPY --link --from=app-source . .
 
 FROM base AS runtime
 

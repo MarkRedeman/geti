@@ -1,3 +1,7 @@
+# syntax=docker/dockerfile:1.7
+FROM scratch AS app-source
+COPY --link ./app ./app
+
 FROM python:3.10.18-bullseye@sha256:65c6bdcca22db1a3468a0262ae05f38a0a718f51e9818cd09c12094aaae28a33 AS builder
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
@@ -16,7 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
 
-COPY --link ./app ./app
+COPY --link --from=app-source . .
 
 RUN . .venv/bin/activate && \
     pyinstaller \
