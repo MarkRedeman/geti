@@ -17,6 +17,24 @@ COPY --link --from=api_context schemas /home/app/interactive_ai/services/api/sch
 RUN npm run build:rest-openapi-spec
 
 
+##################
+# web_ui_app_source
+##################
+FROM scratch AS web_ui_app_source
+
+# Build-config files that drive the compiler/linter but change independently
+# of node_modules (any edit here invalidates the build layer, not the npm ci layer)
+COPY --link ./eslint.config.js /app-source/
+COPY --link ./.prettierrc /app-source/
+COPY --link ./tsconfig.json /app-source/
+COPY --link ./rsbuild.config.ts /app-source/
+COPY --link ./dev-proxy.ts /app-source/
+
+# Mutable application source and static assets
+COPY --link src/ /app-source/src/
+COPY --link public/ /app-source/public/
+
+
 #############
 # web_ui_deps
 #############
@@ -29,19 +47,20 @@ WORKDIR ${LOCATION}
 ARG REACT_APP_GETI_VERSION=development
 ENV REACT_APP_GETI_VERSION=$REACT_APP_GETI_VERSION
 
+# --- dependency-first: install before any mutable source lands in the layer ---
 COPY --link package.json ./
 COPY --link package-lock.json ./
 COPY --link packages/ packages/
 RUN npm ci --audit=false
 
-COPY --link ./eslint.config.js ./
-COPY --link ./.prettierrc ./
-COPY --link ./tsconfig.json ./
-COPY --link ./rsbuild.config.ts ./
-COPY --link ./dev-proxy.ts ./
-
-COPY --link src/ src/
-COPY --link public/ public/
+# --- app source: build-config + application code (invalidates build, not npm ci) ---
+COPY --link --from=web_ui_app_source /app-source/eslint.config.js ./
+COPY --link --from=web_ui_app_source /app-source/.prettierrc ./
+COPY --link --from=web_ui_app_source /app-source/tsconfig.json ./
+COPY --link --from=web_ui_app_source /app-source/rsbuild.config.ts ./
+COPY --link --from=web_ui_app_source /app-source/dev-proxy.ts ./
+COPY --link --from=web_ui_app_source /app-source/src/ src/
+COPY --link --from=web_ui_app_source /app-source/public/ public/
 
 COPY --from=docs_context rest_api /home/app/docs/rest_api/
 COPY --from=api_context schemas /home/app/interactive_ai/services/api/schemas/
