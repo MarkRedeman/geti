@@ -770,16 +770,16 @@ wheels = [
 
 [[package]]
 name = "flyteidl"
-version = "1.16.5"
+version = "1.14.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "googleapis-common-protos" },
     { name = "protobuf" },
     { name = "protoc-gen-openapiv2" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/50/25/961d531ef23bf74c08cc705fcf13e4db4d290da6a3cfd6632cb41e307fcf/flyteidl-1.16.5.tar.gz", hash = "sha256:6ec9cd324334c88f63b587dc99f992e8fe9adff3343c3076a3bdebbeb752b950", size = 130585, upload-time = "2026-03-10T22:27:29.843Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/67/775981c7dfd30dfa5c8763950b74ec15df92f3c806895ab5faf1eea3f35c/flyteidl-1.14.3.tar.gz", hash = "sha256:dd08305b77097c37f006575bb9e79a03d1037ecb0c30559c9dfaa9d2f4dff5ab", size = 128571, upload-time = "2025-02-03T22:01:13.481Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/de/58d9514f3e6b7d7e092b99ddece17b3350ed3a0c63dad0e3338587846874/flyteidl-1.16.5-py3-none-any.whl", hash = "sha256:ed070d3cacbb9bf0694708e12dfb9bb56ba1cee0aacad42c140dd6be1a3df688", size = 221778, upload-time = "2026-03-10T22:27:27.553Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/e1/409a434d78569cf4b4ff37ed60fbf2d65d26b9d8cb7d6da70463efbcf509/flyteidl-1.14.3-py3-none-any.whl", hash = "sha256:967c6eb8b2e35c2baf1b951eaaeaf558a483b96e4cea8024f3f75fda9ad85aa0", size = 219586, upload-time = "2025-02-03T22:01:09.467Z" },
 ]
 
 [[package]]
@@ -3397,6 +3397,7 @@ version = "1.0.0"
 source = { editable = "../common" }
 dependencies = [
     { name = "dataclasses-json" },
+    { name = "flyteidl" },
     { name = "flytekit" },
     { name = "flytekitplugins-pod" },
     { name = "geti-configuration-tools" },
@@ -3421,6 +3422,7 @@ requires-dist = [
     { name = "dataclasses-json", specifier = "==0.5.7" },
     { name = "datumaro", marker = "extra == 'datumaro-conversion'", specifier = "~=1.11.1" },
     { name = "datumaro", marker = "extra == 'shard-dataset'", specifier = "~=1.11.1" },
+    { name = "flyteidl", specifier = "==1.14.3" },
     { name = "flytekit", specifier = "==1.13.15" },
     { name = "flytekitplugins-pod", specifier = "==1.2.4" },
     { name = "geti-configuration-tools", editable = "../../../libs/configuration_tools" },
