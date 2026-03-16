@@ -144,7 +144,7 @@ COPY --link --from=build-visual_prompt --chown=10001 /interactive_ai/services/vi
 COPY --link --from=build-model_registration --chown=10001 /interactive_ai/services/model_registration /interactive_ai/services/model_registration
 
 # Shared runtime data used by some services
-COPY --link --from=otx /model_templates /model_templates
+COPY --link --from=otx . /model_templates
 COPY --link --from=schemas . /interactive_ai/services/api
 
 ENV MODEL_TEMPLATES_DIR=/model_templates

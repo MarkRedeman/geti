@@ -381,7 +381,7 @@ services:
         media_utils: ./interactive_ai/libs/media_utils
         supported_models: ./interactive_ai/supported_models/
         schemas: ./interactive_ai/services/api
-        otx: service:otx
+        otx: ./infrastructure/data/otx-model-templates
     working_dir: /interactive_ai/services/auto_train
     command: ["python", "main.py"]
     environment:
@@ -805,7 +805,7 @@ services:
         iai_core: ./interactive_ai/libs/iai_core_py/
         media_utils: ./interactive_ai/libs/media_utils
         supported_models: ./interactive_ai/supported_models/
-        otx: service:otx
+        otx: ./infrastructure/data/otx-model-templates
 
   interactive_ai_workflows_model_test:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
@@ -840,7 +840,7 @@ services:
         libs: ./libs
         iai_core: ./interactive_ai/libs/iai_core_py/
         media_utils: ./interactive_ai/libs/media_utils
-        otx: service:otx
+        otx: ./infrastructure/data/otx-model-templates
 
   interactive_ai_workflows_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
@@ -853,7 +853,7 @@ services:
         iai_core: ./interactive_ai/libs/iai_core_py/
         media_utils: ./interactive_ai/libs/media_utils
         supported_models: ./interactive_ai/supported_models/
-        otx: service:otx
+        otx: ./infrastructure/data/otx-model-templates
 
   interactive_ai_workflows_otx_v2_gpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}

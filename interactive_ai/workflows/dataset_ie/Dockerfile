@@ -48,7 +48,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # Copy the application from the builder
 COPY --link --from=build --chown=10001 /interactive_ai/workflows/workflow /interactive_ai/workflows/workflow
-COPY --link --from=otx /model_templates /model_templates
+COPY --link --from=otx . /model_templates
 
 ENV MODEL_TEMPLATES_DIR=/model_templates
 
