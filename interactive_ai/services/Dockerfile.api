@@ -6,7 +6,7 @@
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
 FROM public.ecr.aws/debian/debian:12.8-slim AS otx
-ARG OTX_RELEASE_TAG=2.4.2
+ARG OTX_RELEASE_TAG=2.6.0
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git

@@ -1,3 +1,8 @@
 {
-  "model_config_list": []
+  "model_config_list": [],
+  "mediapipe_config_list": [
+    {"name": "5be8ccf4e9a0cbdcdfb0627b-active"},
+    {"name": "69b6afc6c369ebbc276fd8ae-active"},
+    {"name": "69b6c039e6c44906fbf23ead-active"}
+  ]
 }
