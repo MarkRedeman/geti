@@ -2,6 +2,13 @@
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
+FROM public.ecr.aws/debian/debian:12.8-slim AS otx
+ARG OTX_RELEASE_TAG=2.4.2
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git
+RUN cp -r /app/training_extensions/src/otx/tools/templates /model_templates
+
 FROM scratch AS app-source
 COPY --link job/ job
 
@@ -47,7 +54,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # Copy the application from the builder
 COPY --link --from=build --chown=10001 /interactive_ai/workflows/workflow /interactive_ai/workflows/workflow
-COPY --link --from=otx . /model_templates
+COPY --link --from=otx /model_templates /model_templates
 
 ENV MODEL_TEMPLATES_DIR=/model_templates
 

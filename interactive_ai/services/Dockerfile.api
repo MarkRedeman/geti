@@ -5,6 +5,13 @@
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
+FROM public.ecr.aws/debian/debian:12.8-slim AS otx
+ARG OTX_RELEASE_TAG=2.4.2
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git
+RUN cp -r /app/training_extensions/src/otx/tools/templates /model_templates
+
 FROM base AS deps-base
 
 ENV UV_COMPILE_BYTECODE=1
@@ -144,7 +151,7 @@ COPY --link --from=build-visual_prompt --chown=10001 /interactive_ai/services/vi
 COPY --link --from=build-model_registration --chown=10001 /interactive_ai/services/model_registration /interactive_ai/services/model_registration
 
 # Shared runtime data used by some services
-COPY --link --from=otx . /model_templates
+COPY --link --from=otx /model_templates /model_templates
 COPY --link --from=schemas . /interactive_ai/services/api
 
 ENV MODEL_TEMPLATES_DIR=/model_templates

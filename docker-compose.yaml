@@ -65,36 +65,6 @@ services:
         - debian=docker-image://gcr.io/distroless/static-debian12:nonroot
 
 
-  otx:
-    image: geti-otx2-local:${TAG-main}
-    build:
-      dockerfile_inline: |
-        FROM debian AS otx
-
-        ARG OTX_RELEASE_TAG
-
-        WORKDIR /app
-
-        RUN apt-get update && \
-            apt-get install -y git \
-            && apt clean all \
-            && rm -rf /var/cache/apt/*
-
-        RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git
-
-        RUN cp -r /app/training_extensions/src/otx/tools/templates /model_templates
-      args:
-        - HTTP_PROXY=${HTTP_PROXY}
-        - HTTPS_PROXY=${HTTPS_PROXY}
-        - NO_PROXY=${NO_PROXY}
-        - http_proxy=${http_proxy}
-        - https_proxy=${https_proxy}
-        - no_proxy=${no_proxy}
-        - OTX_RELEASE_TAG=${OTX_RELEASE_TAG}
-      additional_contexts:
-        - debian=docker-image://public.ecr.aws/debian/debian:12.8-slim
-        
-
   # Platform services
   # 
   platform_account:
@@ -376,12 +346,11 @@ services:
       dockerfile: Dockerfile.api
       <<: *proxies
       additional_contexts:
-        libs: ./libs
-        iai_core: ./interactive_ai/libs/iai_core_py/
-        media_utils: ./interactive_ai/libs/media_utils
-        supported_models: ./interactive_ai/supported_models/
-        schemas: ./interactive_ai/services/api
-        otx: ./infrastructure/data/otx-model-templates/model_templates
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
+        - schemas=./interactive_ai/services/api
     working_dir: /interactive_ai/services/auto_train
     command: ["python", "main.py"]
     environment:
@@ -800,12 +769,11 @@ services:
       context: ./interactive_ai/workflows/dataset_ie
       <<: *proxies
       additional_contexts:
-        common: ./interactive_ai/workflows/common
-        libs: ./libs
-        iai_core: ./interactive_ai/libs/iai_core_py/
-        media_utils: ./interactive_ai/libs/media_utils
-        supported_models: ./interactive_ai/supported_models/
-        otx: ./infrastructure/data/otx-model-templates/model_templates
+        - common=./interactive_ai/workflows/common
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
 
   interactive_ai_workflows_model_test:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
@@ -836,11 +804,10 @@ services:
       context: ./interactive_ai/workflows/optimize
       <<: *proxies
       additional_contexts:
-        common: ./interactive_ai/workflows/common
-        libs: ./libs
-        iai_core: ./interactive_ai/libs/iai_core_py/
-        media_utils: ./interactive_ai/libs/media_utils
-        otx: ./infrastructure/data/otx-model-templates/model_templates
+        - common=./interactive_ai/workflows/common
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
 
   interactive_ai_workflows_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
@@ -848,12 +815,11 @@ services:
       context: ./interactive_ai/workflows/train
       <<: *proxies
       additional_contexts:
-        common: ./interactive_ai/workflows/common
-        libs: ./libs
-        iai_core: ./interactive_ai/libs/iai_core_py/
-        media_utils: ./interactive_ai/libs/media_utils
-        supported_models: ./interactive_ai/supported_models/
-        otx: ./infrastructure/data/otx-model-templates/model_templates
+        - common=./interactive_ai/workflows/common
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
 
   interactive_ai_workflows_otx_v2_gpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
