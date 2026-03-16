@@ -2,6 +2,9 @@
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
+FROM scratch AS app-source
+COPY --link app/ app
+
 FROM base AS build
 
 ENV UV_COMPILE_BYTECODE=1
@@ -25,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
 
-COPY --link app/ app
+COPY --link --from=app-source . .
 
 FROM base AS runtime
 
