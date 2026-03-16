@@ -378,6 +378,7 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - supported_models=./interactive_ai/supported_models/
+        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
     environment:
       <<: *iai-runtime-env
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
@@ -423,6 +424,7 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - supported_models=./interactive_ai/supported_models/
+        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/training_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
@@ -498,12 +500,6 @@ services:
 
   interactive_ai_jobs_scheduler:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
-    build:
-      context: ./interactive_ai/services/jobs
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
     command:
       - python
       - scheduler/main.py
@@ -538,12 +534,6 @@ services:
 
   interactive_ai_jobs_policy:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
-    build:
-      context: ./interactive_ai/services/jobs
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
     command:
       - python
       - policies/main.py
@@ -560,12 +550,6 @@ services:
 
   interactive_ai_jobs_worker:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
-    build:
-      context: ./interactive_ai/services/jobs
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
     command:
       - python
       - -m
@@ -735,6 +719,7 @@ services:
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
         - supported_models=./interactive_ai/supported_models/
+        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathRegexp(`^/api/v[0-9]+/user_settings/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/tests/.*/results:query$`))"
@@ -826,6 +811,7 @@ services:
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
         - supported_models=./interactive_ai/supported_models/
+        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
 
   interactive_ai_workflows_model_test:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
@@ -860,6 +846,7 @@ services:
         - libs=./libs
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
+        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
 
   interactive_ai_workflows_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
@@ -872,6 +859,7 @@ services:
         - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
         - supported_models=./interactive_ai/supported_models/
+        - otx=docker-image://${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
 
   interactive_ai_workflows_otx_v2_gpu:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
