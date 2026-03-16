@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 
 # Save Go third party package licenses
 RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,source=go.sum,target=go.sum \
     --mount=type=bind,source=go.mod,target=go.mod \
     --mount=type=bind,source=main.go,target=main.go \

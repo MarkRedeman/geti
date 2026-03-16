@@ -16,14 +16,16 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     go mod download -x
 
 RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,source=go.sum,target=go.sum \
     --mount=type=bind,source=go.mod,target=go.mod \
     --mount=type=bind,source=main.go,target=main.go \
     --mount=type=bind,source=app,target=app \
-	CGO_ENABLED=0 go build -trimpath -mod=readonly -gcflags="all=-spectre=all" -asmflags="all=-spectre=all" -ldflags="all=-s -w" -a -o inference_gateway . 
+    CGO_ENABLED=0 go build -trimpath -mod=readonly -gcflags="all=-spectre=all" -asmflags="all=-spectre=all" -ldflags="all=-s -w" -a -o inference_gateway .
 
-    # Save Go third party package licenses
+# Save Go third party package licenses
 RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,source=go.sum,target=go.sum \
     --mount=type=bind,source=go.mod,target=go.mod \
     --mount=type=bind,source=main.go,target=main.go \
@@ -35,7 +37,9 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 FROM debian:bookworm-slim@sha256:74d56e3931e0d5a1dd51f8c8a2466d21de84a271cd3b5a733b803aa91abf4421 AS runtime
 
 # Install ffmpeg
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg=7:5.1.*-0+deb12u1 && \
     rm -rf /var/lib/apt/lists/*
 
