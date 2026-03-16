@@ -943,3 +943,43 @@ volumes:
   physical-ai-studio-data:
   physical-ai-studio-storage:
 ```
+
+## 7) Applying the Physical AI Studio pattern to Geti OTX GPU/XPU and all Python Dockerfiles
+
+Short answer: **yes**. The two most valuable parts of the pattern are:
+
+1. **dependency-first layering** (run `uv sync` before app source copy), and
+2. **`app-source` stage separation** (copy mutable source from a dedicated stage after dependency install).
+
+These are safe to apply broadly to our Python-based Dockerfiles because they reduce cache invalidation without changing runtime behavior.
+
+### 7.1 OTX GPU/XPU applicability
+
+For trainer images (`interactive_ai/workflows/train/trainer/{gpu,xpu}`), we can and should use the same idea:
+
+- keep heavy dependency resolution isolated from application source,
+- avoid pre-sync copies of `scripts/`, `run`, and `download_pretrained_weights.py`,
+- copy those runtime artifacts from a dedicated `app-source` stage only after dependency layers are resolved.
+
+This gives faster rebuilds when trainer logic changes while preserving existing CUDA/XPU runtime packaging semantics.
+
+### 7.2 Repository-wide rollout scope
+
+The same cache-preserving idea was applied across Python, Go, and UI images with language-appropriate dependency boundaries.
+
+Applied coverage in this repo:
+
+- all Dockerfiles using `uv sync` now follow dependency-first ordering,
+- those Python files now use an `app-source` stage for application/job source,
+- Go service Dockerfiles now run `go mod download` before local source copy and use an `app-source` stage for mutable `main.go`/`app` inputs,
+- UI Dockerfiles now install npm dependencies before mutable source/config copy, with dedicated app-source stages for source assets/templates.
+
+### 7.3 Expected impact
+
+- source-only edits no longer invalidate expensive Python dependency layers,
+- repeat local rebuilds should be materially faster,
+- CI cache hit rate should improve for unchanged dependency manifests.
+
+### 7.4 Remaining optional enhancement
+
+For XPU specifically, further gains are available by defining torch/XPU resolution directly in dependency metadata (extras + index mapping) so a single frozen `uv sync` resolves the right wheels without uninstall/reinstall steps.
