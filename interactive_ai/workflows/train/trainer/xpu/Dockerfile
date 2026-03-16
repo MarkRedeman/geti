@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 # Required runtime flags to enable XPU support:
 # --device /dev/dri          # Intel GPU access
 # -v /dev/dri/by-path:/dev/dri/by-path  # Device path mapping
@@ -10,13 +12,14 @@ WORKDIR /interactive_ai/workflows/train/trainer
 RUN chown -R 10001:10001 /interactive_ai/workflows/train/trainer
 
 COPY --link --from=ghcr.io/astral-sh/uv:0.6.12@sha256:515b886e8eb99bcf9278776d8ea41eb4553a794195ef5803aa7ca6258653100d /uv /bin/uv
-COPY --link uv.lock uv.lock
-COPY --link pyproject.toml pyproject.toml
 
-# For OTX to install torch with ipex support, else defaults to cpu version
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-editable
-RUN uv pip uninstall torch torchvision
-RUN uv pip install torch==2.8.0 torchvision==0.23.0 --default-index https://download.pytorch.org/whl/xpu
+# Install base deps, then replace torch with the XPU-enabled build in a single cached layer
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-dev --no-editable && \
+    uv pip uninstall torch torchvision && \
+    uv pip install torch==2.8.0 torchvision==0.23.0 --default-index https://download.pytorch.org/whl/xpu
 
 RUN rm -rf /interactive_ai/workflows/train/trainer/.venv/lib/python3.10/site-packages/nvidia \
            /interactive_ai/workflows/train/trainer/.venv/lib/python3.10/site-packages/triton/backends/nvidia/
@@ -28,7 +31,9 @@ ENV UV_LINK_MODE=copy
 ENV UV_PYTHON_DOWNLOADS=0
 
 # Step 1: Install runtime dependencies and intel graphics libs
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     libgl1=1.6.* \
     libglib2.0-0=2.74.* \
@@ -44,9 +49,12 @@ RUN apt-get update && \
 RUN wget -qO /tmp/intel-graphics.key https://repositories.intel.com/gpu/intel-graphics.key && \
     gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg /tmp/intel-graphics.key
 RUN echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | tee /etc/apt/sources.list.d/intel-gpu-jammy.list
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
     && apt-get install -y --no-install-recommends \
-    git libze-intel-gpu1 libze1 intel-opencl-icd clinfo libze-dev intel-ocloc
+    git libze-intel-gpu1 libze1 intel-opencl-icd clinfo libze-dev intel-ocloc && \
+    rm -rf /var/lib/apt/lists/*
 # Remove unnecessary packages and files to reduce the final image size
 RUN apt-get purge -y --auto-remove gpg wget && \
     rm -rf /root/.cache \
