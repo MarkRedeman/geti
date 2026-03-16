@@ -11,8 +11,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git
 RUN cp -r /app/training_extensions/src/otx/tools/templates /model_templates
-RUN find /model_templates -name template.yaml -type f -exec \
-    sed -i -E 's/task_type:[[:space:]]*ANOMALY_(CLASSIFICATION|DETECTION|SEGMENTATION)/task_type: ANOMALY/g' {} +
 
 FROM base AS deps-base
 

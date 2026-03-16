@@ -6,6 +6,7 @@ x-proxies: &proxies
     - http_proxy=${http_proxy}
     - https_proxy=${https_proxy}
     - no_proxy=${no_proxy}
+    - OTX_RELEASE_TAG=${OTX_RELEASE_TAG}
 
 x-iai-runtime-env: &iai-runtime-env
   DATABASE_ADDRESS: ${DATABASE_ADDRESS}
