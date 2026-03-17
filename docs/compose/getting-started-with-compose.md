@@ -228,6 +228,32 @@ Notes:
 - In `xpu` mode, trainer containers are launched with `--device` mappings from `TRAINER_RUNTIME_XPU_DEVICES`.
 - This choice is currently environment-based (global for the worker). Per-job accelerator selection can be added later.
 
+### Jobs scheduler timeouts in compose (recommended: long timeouts)
+
+In compose mode, `interactive_ai_jobs_scheduler` waits for Celery task completion
+using a timeout. If this timeout is too short, jobs can be marked failed while
+they are still queued behind long-running tasks (for example, training).
+
+Current compose defaults are intentionally long:
+
+- `LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC=7200` (2 hours)
+- `LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC=7200` (2 hours)
+- `LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC=3600` (1 hour)
+
+You can override these in `.env`:
+
+```bash
+LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC=14400
+LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC=14400
+LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC=7200
+```
+
+Apply timeout changes by recreating scheduler (and usually worker):
+
+```bash
+docker compose up -d --build interactive_ai_jobs_scheduler interactive_ai_jobs_worker
+```
+
 ### Training fails because pretrained weights cannot be downloaded
 
 On fresh systems, training can fail if pretrained weights are not available in the `pretrainedweights` bucket and the trainer cannot reach the weights URL.
