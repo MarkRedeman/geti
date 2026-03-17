@@ -510,7 +510,7 @@ services:
       - policies/main.py
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       MAX_JOBS_RUNNING_PER_ORGANIZATION: 1
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
