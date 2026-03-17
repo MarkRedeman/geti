@@ -632,7 +632,7 @@ services:
     user: "0:0"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_model_registration/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/model_registration
       S3_CREDENTIALS_PROVIDER: local
       S3_HOST: s3:8333
