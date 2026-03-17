@@ -356,7 +356,7 @@ services:
     command: ["python", "main.py"]
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_auto_train/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/auto_train
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
@@ -400,7 +400,7 @@ services:
       - "traefik.http.services.interactive-ai-director.loadbalancer.server.port=4999"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_director/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/director:/interactive_ai/services/director/app
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
