@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # Polling interval (seconds) between docker-inspect calls for a running container
 _POLL_INTERVAL = float(os.environ.get("LOCAL_EXECUTOR_POLL_INTERVAL", "2"))
 _SIM_DURATION_SEC = float(os.environ.get("LOCAL_EXECUTOR_SIM_DURATION_SEC", "2"))
+_DEFAULT_RESULT_TIMEOUT_SEC = int(os.environ.get("LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC", "900"))
 
 # Header name used by the cloud event protocol
 _CE_TYPE_HEADER = "ce_type"
@@ -222,7 +223,7 @@ class LocalExecutor(metaclass=Singleton):
 
         def _watch_result() -> None:
             try:
-                timeout_sec = max(60, int(_SIM_DURATION_SEC * 10))
+                timeout_sec = max(_DEFAULT_RESULT_TIMEOUT_SEC, int(_SIM_DURATION_SEC * 10))
                 if job_type == "train":
                     timeout_sec = max(timeout_sec, int(os.environ.get("LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC", "7200")))
                 elif job_type == "optimize_pot":
