@@ -277,15 +277,15 @@ Primary host: `geti.localhost`
 - account API paths (`/api/v*/organizations*`, `/logout`, `/profile`, `/personal_access_tokens*`) -> `platform_account:5002`
 - user-directory paths (`/api/v*/users/reset_password`, `/users/*/update_password`, `/users/confirm_registration`, `/organizations/*/users/*`) -> `platform_user_directory:9000`
 - `/api/v1/logs*` -> `platform_observability:9000`
-- director API train/optimize/status/configuration paths -> `interactive_ai_director:4999`
-- jobs API (`/api/v*/.../workspaces/.../jobs*`) -> `interactive_ai_jobs:8000`
+- director API train/optimize/status/configuration paths -> `interactive_ai_api:8000`
+- jobs API (`/api/v*/.../workspaces/.../jobs*`) -> `interactive_ai_api:8000`
 - media display paths -> `interactive_ai_media:5002`
 - inference paths (`pipelines/models` predict/explain/status) -> `interactive_ai_inference_gateway:7000`
 - visual prompt path (`...:prompt`) -> `interactive_ai_visual_prompt:8000`
-- dataset import/export paths -> `interactive_ai_dataset_import_export:8000`
-- project import/export paths -> `interactive_ai_project_import_export:8000`
+- dataset import/export paths -> `interactive_ai_api:8000`
+- project import/export paths -> `interactive_ai_api:8000`
 - file service prefix `/api/v1/fileservice/` (with strip-prefix middleware) -> `s3:8333`
-- generic API fallback `/api/*` -> `interactive_ai_resource:5000`
+- generic API fallback `/api/*` -> `interactive_ai_api:8000`
 - web catch-all -> `web:3000`
 
 Auxiliary hosts:

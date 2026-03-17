@@ -146,10 +146,10 @@ Candidate approach:
 
 ## Phase 6 — Cleanup
 
-- [ ] Remove deprecated per-API compose services after parity verification (currently kept for rollback safety).
-- [ ] Remove obsolete env vars / `PYTHONPATH` entries tied to removed services.
-- [ ] Update `docs/compose/getting-started-with-compose.md` startup commands.
-- [ ] Update smoke checks for unified service topology.
+- [x] Remove deprecated per-API compose services after parity verification.
+- [x] Remove obsolete env vars / `PYTHONPATH` entries tied to removed services.
+- [x] Update `docs/compose/getting-started-with-compose.md` startup commands.
+- [x] Update smoke checks for unified service topology (no path changes required; checks already route through unified API).
 
 ## Deferred phase — Visual prompt
 

@@ -30,7 +30,7 @@ If you implement only the top 4 recommendations, you should see a large reductio
 
 ### 1.1 Same image built multiple times (critical)
 
-`interactive_ai_jobs`, `interactive_ai_jobs_scheduler`, `interactive_ai_jobs_policy`, `interactive_ai_jobs_worker` use the same image name and effectively same build context/config.
+`interactive_ai_jobs_scheduler`, `interactive_ai_jobs_policy`, and `interactive_ai_jobs_worker` use the same image name and effectively same build context/config.
 
 Current effect:
 
@@ -39,7 +39,7 @@ Current effect:
 
 Recommendation:
 
-- keep `build:` only on one canonical jobs service (for example `interactive_ai_jobs`),
+- keep `build:` only on one canonical jobs service (for example `interactive_ai_jobs_scheduler`),
 - remove `build:` from the other three and keep `image:` only.
 
 ---

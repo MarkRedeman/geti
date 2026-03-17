@@ -388,7 +388,7 @@ services:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services
-      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs_scheduler:50051
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
       LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC: ${LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC:-7200}
@@ -420,42 +420,12 @@ services:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/auto_train
-      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs_scheduler:50051
     depends_on:
       mongodb:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      init-kafka-topics:
-        condition: service_completed_successfully
-
-  interactive_ai_dataset_import_export:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/dataset_ie/communication/endpoints
-    command: ["python", "main.py"]
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/dataset_ie
-      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-      init-kafka-topics:
-        condition: service_completed_successfully
-
-  interactive_ai_director:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/director/app/communication
-    command: ["python", "main.py"]
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/director:/interactive_ai/services/director/app
-      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
       init-kafka-topics:
         condition: service_completed_successfully
 
@@ -479,8 +449,8 @@ services:
       <<: *iai-runtime-env
       OVMS_SERVICE: ovms
       OVMS_PORT: 9000
-      DIRECTOR_MS_SERVICE: interactive_ai_director
-      DIRECTOR_MS_ADDRESS: http://interactive_ai_director:4999
+      DIRECTOR_MS_SERVICE: interactive_ai_api
+      DIRECTOR_MS_ADDRESS: http://interactive_ai_api:8000
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -488,29 +458,6 @@ services:
         condition: service_started
       interactive_ai_model_registration:
         condition: service_started
-
-  interactive_ai_jobs:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/jobs
-    command: ["python", "microservice/rest/main.py"]
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/jobs
-      LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
-      LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
-      LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC: ${LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC:-7200}
-      LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC: ${LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC:-7200}
-      LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC: ${LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC:-3600}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-      redis:
-        condition: service_started
-      init-kafka-topics:
-        condition: service_completed_successfully
 
   interactive_ai_jobs_scheduler:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
@@ -686,8 +633,8 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       BUCKET_NAME_MODELMESH: models
-      RESOURCE_MS_SERVICE: interactive_ai_resource
-      RESOURCE_MS_PORT: 5000
+      RESOURCE_MS_SERVICE: interactive_ai_api
+      RESOURCE_MS_PORT: 8000
       OVMS_MODELS_DIR: /ovms_models
     depends_on:
       migration_job:
@@ -708,33 +655,6 @@ services:
     volumes:
       - ./infrastructure/data/ovms:/models
     restart: unless-stopped
-
-  interactive_ai_project_import_export:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/project_ie/communication/endpoints
-    command: ["python", "main.py"]
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/project_ie
-      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-
-  interactive_ai_resource:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/resource/app/communication
-    command: ["python", "main.py"]
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/resource:/interactive_ai/services/resource/app
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-      init-kafka-topics:
-        condition: service_completed_successfully
 
   interactive_ai_visual_prompt:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}

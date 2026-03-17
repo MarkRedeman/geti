@@ -8,17 +8,17 @@ This document describes how training, model testing, and inference work across G
 
 At a high level, there are three user entry points:
 
-- **Training HTTP entry point:** `interactive_ai_director` (`POST .../projects/{project_id}:train`)
-- **Model test HTTP entry point:** `interactive_ai_director` (`POST .../projects/{project_id}/tests`)
+- **Training HTTP entry point:** `interactive_ai_api` (`POST .../projects/{project_id}:train`)
+- **Model test HTTP entry point:** `interactive_ai_api` (`POST .../projects/{project_id}/tests`)
 - **Inference HTTP entry point:** `interactive_ai_inference_gateway` (`POST .../projects/{project_id}/pipelines/{pipeline_id}:predict`)
 
 Core backend services involved:
 
-- `interactive_ai_director` – validates train/test requests and submits jobs
-- `interactive_ai_jobs` – scheduler/state machine; triggers execution via local executor
+- `interactive_ai_api` – unified API service hosting director + resource + jobs REST + import/export endpoints
+- `interactive_ai_jobs_scheduler` – scheduler/state machine; triggers execution via local executor
 - `interactive_ai_jobs_celery_worker` – executes `scheduler.run_job_execution` tasks
 - workflow runtime containers (`TRAIN_WORKFLOW_IMAGE`, `TRAINER_RUNTIME_IMAGE`, `MODEL_TEST_WORKFLOW_IMAGE`, etc.)
-- `interactive_ai_resource` – model metadata and model-test results querying endpoints
+- `interactive_ai_api` (resource routes) – model metadata and model-test results querying endpoints
 - `interactive_ai_model_registration` – prepares graph/model artifacts and updates OVMS config
 - `ovms` – serves registered pipelines for inference
 - `interactive_ai_inference_gateway` – handles infer/explain APIs and calls OVMS over gRPC
