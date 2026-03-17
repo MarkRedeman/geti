@@ -59,6 +59,26 @@ _director_main = _import_service_main(
         "metrics",
     ),
 )
+_resource_main = _import_service_main(
+    "/interactive_ai/services/resource/app",
+    "communication.main",
+    purge_prefixes=(
+        "communication",
+        "entities",
+        "service",
+        "storage",
+        "configuration",
+        "environment",
+        "usecases",
+        "features",
+        "active_learning",
+        "coordination",
+        "managers",
+        "metrics",
+        "repos",
+        "resource_management",
+    ),
+)
 
 sys.path.insert(0, "/interactive_ai/services/jobs")
 try:
@@ -75,7 +95,8 @@ async def _lifespan(app_instance: FastAPI):  # noqa: ANN201
     async with _dataset_ie_main.lifespan(app_instance):
         async with _project_ie_main.lifespan(app_instance):
             async with _director_main.lifespan(app_instance):
-                yield
+                async with _resource_main.lifespan(app_instance):
+                    yield
 
 
 app.router.lifespan_context = _lifespan
@@ -97,8 +118,31 @@ def _register_jobs_routes() -> None:
     app.include_router(_jobs_router_module.router)
 
 
-def _mount_director_app() -> None:
-    app.mount("/", _director_main.app)
+def _register_director_routes() -> None:
+    app.include_router(_director_main.active_learning_router)
+    app.include_router(_director_main.configuration_router)
+    app.include_router(_director_main.model_test_router)
+    app.include_router(_director_main.optimization_router)
+    app.include_router(_director_main.prediction_router)
+    app.include_router(_director_main.status_router)
+    app.include_router(_director_main.training_router)
+    app.include_router(_director_main.supported_algorithms_router)
+    app.include_router(_director_main.project_configuration_router)
+    app.include_router(_director_main.training_configuration_router)
+
+
+def _register_resource_routes() -> None:
+    app.include_router(_resource_main.annotation_router)
+    app.include_router(_resource_main.deployment_package_router)
+    app.include_router(_resource_main.dataset_router)
+    app.include_router(_resource_main.media_router)
+    app.include_router(_resource_main.media_score_router)
+    app.include_router(_resource_main.model_router)
+    app.include_router(_resource_main.product_info_router)
+    app.include_router(_resource_main.server_router)
+    app.include_router(_resource_main.project_router)
+    app.include_router(_resource_main.status_router)
+    app.include_router(_resource_main.workspace_router)
 
 
 @app.get("/api/v1/healthz")
@@ -109,7 +153,8 @@ def healthz() -> dict[str, str]:
 _register_dataset_ie_routes()
 _register_project_ie_routes()
 _register_jobs_routes()
-_mount_director_app()
+_register_director_routes()
+_register_resource_routes()
 
 
 if __name__ == "__main__":

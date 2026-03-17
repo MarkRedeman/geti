@@ -140,9 +140,10 @@ Candidate approach:
 
 ## Phase 5 — Migrate resource (higher risk)
 
-- [ ] Move resource routes.
+- [x] Move resource routes.
+- [x] Validate service startup and endpoint registration in unified API.
 - [ ] Validate project lifecycle + resource/media/test-results flows.
-- [ ] Validate inter-service addresses/envs that previously used container DNS names.
+- [x] Validate inter-service addresses/envs that previously used container DNS names.
 
 ## Phase 6 — Cleanup
 
