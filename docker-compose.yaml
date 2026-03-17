@@ -536,7 +536,7 @@ services:
       - --concurrency=1
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
