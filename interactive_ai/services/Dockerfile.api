@@ -4,10 +4,7 @@
 # Additional contexts: libs, iai_core, media_utils, supported_models, schemas, otx
 #
 # Shared runtime env strategy:
-#   env_core <- build-auto_train (resource base + overlays from other service envs)
-#
-# Other build-* stages are still used as dependency sources for selective overlay
-# copies into env_core, but only env_core is copied into the final runtime image.
+#   env_core <- single unified lockfile at interactive_ai/services/{pyproject,uv.lock}
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
@@ -50,130 +47,14 @@ COPY --link visual_prompt/app/ /interactive_ai/services/visual_prompt/
 COPY --link model_registration/app/ /interactive_ai/services/model_registration/
 
 # ---------------------------------------------------------------------------
-# Build: resource  (env_core)
+# Build: unified shared runtime env (env_core)
 # ---------------------------------------------------------------------------
-FROM deps-base AS build-resource
-WORKDIR /interactive_ai/services/resource
+FROM deps-base AS build-core
+WORKDIR /interactive_ai/services
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=resource/uv.lock,target=uv.lock \
-    --mount=type=bind,source=resource/pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
     uv sync --frozen --no-dev --no-editable
-
-# ---------------------------------------------------------------------------
-# Build: director  (env_director)
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-director
-WORKDIR /interactive_ai/services/director
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=director/uv.lock,target=uv.lock \
-    --mount=type=bind,source=director/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
-
-# ---------------------------------------------------------------------------
-# Build: jobs  (env_jobs: shared by auto_train, jobs, jobs_scheduler, jobs_policy, jobs_worker)
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-jobs
-WORKDIR /interactive_ai/services/jobs
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=jobs/uv.lock,target=uv.lock \
-    --mount=type=bind,source=jobs/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
-
-# ---------------------------------------------------------------------------
-# Build: model_registration  (env_model_registration)
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-model_registration
-WORKDIR /interactive_ai/services/model_registration
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=model_registration/uv.lock,target=uv.lock \
-    --mount=type=bind,source=model_registration/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
-
-# ---------------------------------------------------------------------------
-# Build: shared core overlay (final env_core source)
-# Start from build-resource and install/copy service-specific runtime deps
-# from other build stages into one unified venv for all API services.
-# ---------------------------------------------------------------------------
-FROM build-resource AS build-auto_train
-WORKDIR /interactive_ai/services/resource
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /interactive_ai/services/resource/.venv/bin/python --no-deps geti-configuration-tools==1.0.0
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/readerwriterlock /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/readerwriterlock
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/readerwriterlock-1.0.9.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/readerwriterlock-1.0.9.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/celery /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/celery
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/celery-5.4.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/celery-5.4.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/billiard /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/billiard
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/billiard-4.2.4.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/billiard-4.2.4.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/kombu /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/kombu
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/kombu-5.6.2.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/kombu-5.6.2.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/vine /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/vine
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/vine-5.1.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/vine-5.1.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/amqp /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/amqp
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/amqp-5.3.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/amqp-5.3.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/redis /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/redis
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/redis-5.3.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/redis-5.3.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click-8.3.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click-8.3.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_didyoumean /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_didyoumean
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_didyoumean-0.3.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_didyoumean-0.3.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_plugins /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_plugins
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_plugins.py /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_plugins.py
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_plugins-1.1.1.2.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_plugins-1.1.1.2.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_repl /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_repl
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/click_repl-0.3.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/click_repl-0.3.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/prompt_toolkit /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/prompt_toolkit
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/prompt_toolkit-3.0.52.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/prompt_toolkit-3.0.52.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/wcwidth /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/wcwidth
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/wcwidth-0.6.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/wcwidth-0.6.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/geti_k8s_tools /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/geti_k8s_tools
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/geti_k8s_tools-1.0.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/geti_k8s_tools-1.0.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/kubernetes_asyncio /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/kubernetes_asyncio
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/kubernetes_asyncio-29.0.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/kubernetes_asyncio-29.0.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/diskcache /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/diskcache
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/diskcache-5.6.3.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/diskcache-5.6.3.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiohttp /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiohttp
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiohttp-3.13.3.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiohttp-3.13.3.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiosignal /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiosignal
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiosignal-1.4.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiosignal-1.4.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/async_timeout /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/async_timeout
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/async_timeout-5.0.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/async_timeout-5.0.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/frozenlist /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/frozenlist
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/frozenlist-1.8.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/frozenlist-1.8.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/multidict /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/multidict
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/multidict-6.7.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/multidict-6.7.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/propcache /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/propcache
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/propcache-0.4.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/propcache-0.4.1.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/yarl /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/yarl
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/yarl-1.23.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/yarl-1.23.0.dist-info
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiohappyeyeballs /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiohappyeyeballs
-COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiohappyeyeballs-2.6.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiohappyeyeballs-2.6.1.dist-info
-
-# model_registration overlays
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/model_api /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/model_api
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino-2026.0.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino-2026.0.0.dist-info
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino_model_api-0.3.0.2.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino_model_api-0.3.0.2.dist-info
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino_telemetry /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino_telemetry
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino_telemetry-2025.2.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino_telemetry-2025.2.0.dist-info
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/moto /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/moto
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/moto-5.0.2.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/moto-5.0.2.dist-info
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/asynctest /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/asynctest
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/asynctest-0.13.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/asynctest-0.13.0.dist-info
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/aiofiles /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiofiles
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/aiofiles-24.1.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiofiles-24.1.0.dist-info
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/dpath /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/dpath
-COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/dpath-2.0.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/dpath-2.0.1.dist-info
-
-# director overlays
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/sklearn /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/sklearn
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/scikit_learn-1.7.2.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/scikit_learn-1.7.2.dist-info
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/scikit_learn.libs /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/scikit_learn.libs
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/joblib /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/joblib
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/joblib-1.5.3.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/joblib-1.5.3.dist-info
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/threadpoolctl.py /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/threadpoolctl.py
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/threadpoolctl-3.6.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/threadpoolctl-3.6.0.dist-info
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/rx /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/rx
-COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/Rx-3.1.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/Rx-3.1.1.dist-info
 
 # ---------------------------------------------------------------------------
 # Runtime image
@@ -200,7 +81,7 @@ COPY --link --from=deps-base --chown=10001 /interactive_ai/libs /interactive_ai/
 COPY --link --from=deps-base --chown=10001 /interactive_ai/supported_models /interactive_ai/supported_models
 
 # Single shared runtime venv
-COPY --link --from=build-auto_train --chown=10001 /interactive_ai/services/resource/.venv /interactive_ai/services/env_core/.venv
+COPY --link --from=build-core --chown=10001 /interactive_ai/services/.venv /interactive_ai/services/env_core/.venv
 
 # Service app code (from app-source stage, no venvs)
 COPY --link --from=app-source --chown=10001 /interactive_ai/services /interactive_ai/services

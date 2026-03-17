@@ -1,0 +1,55 @@
+[project]
+name = "interactive-ai-services-runtime"
+version = "1.0.0"
+description = "Unified runtime dependency set for interactive_ai API services"
+requires-python = ">=3.10, <3.11"
+dependencies = [
+    "fastapi==0.117.1",
+    "starlette>=0.47.2",
+    "uvicorn~=0.27.1",
+    "jsonschema>=4.18.0a10",
+    "PyYAML==6.0.1",
+    "python-multipart==0.0.22",
+    "httpx~=0.26",
+    "rx==3.1.1",
+    "scipy~=1.14",
+    "scikit-learn~=1.6",
+    "flytekit==1.13.15",
+    "marshmallow-enum==1.5.1",
+    "celery[redis]==5.4.0",
+    "openvino_model_api==0.3.0.2",
+    "defusedxml==0.7.1",
+    "moto==5.0.2",
+    "asynctest==0.13.0",
+    "asyncio==3.4.3",
+    "aiofiles==24.1.0",
+    "dpath==2.0.1",
+    "kubernetes_asyncio==29.0.0",
+    "pillow==12.1.1",
+    "geti-telemetry-tools[telemetry,fastapi,grpc,logger,kafka]",
+    "geti-types",
+    "iai_core",
+    "grpc_interfaces[job_submission,model_registration]",
+    "geti-configuration-tools",
+    "geti-feature-tools",
+    "geti-supported-models",
+    "geti-fastapi-tools",
+    "geti-kafka-tools",
+    "geti-spicedb-tools",
+    "geti-k8s-tools",
+    "media_utils",
+]
+
+[tool.uv.sources]
+geti-types = { path = "../../libs/types", editable = true }
+geti-telemetry-tools = { path = "../../libs/telemetry_tools", editable = true }
+geti-kafka-tools = { path = "../../libs/kafka_tools", editable = true }
+geti-spicedb-tools = { path = "../../libs/spicedb_tools", editable = true }
+geti-k8s-tools = { path = "../../libs/k8s_tools", editable = true }
+geti-fastapi-tools = { path = "../../libs/fastapi_tools", editable = true }
+geti-configuration-tools = { path = "../../libs/configuration_tools", editable = true }
+geti-feature-tools = { path = "../../libs/feature_tools", editable = true }
+grpc_interfaces = { path = "../../libs/grpc_interfaces", editable = true }
+iai_core = { path = "../libs/iai_core_py", editable = true }
+media_utils = { path = "../libs/media_utils", editable = true }
+geti-supported-models = { path = "../supported_models", editable = true }
