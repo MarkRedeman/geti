@@ -2,6 +2,15 @@
 # Shared runtime image for all interactive_ai Python API services.
 # Build context: ./interactive_ai/services
 # Additional contexts: libs, iai_core, media_utils, supported_models, schemas, otx
+#
+# Venv grouping (intermediate shared-venv approach):
+#   env_core              <- build-resource   (resource)
+#   env_director          <- build-director   (director)
+#   env_ie                <- build-dataset_ie (dataset_import_export, project_import_export)
+#   env_jobs              <- build-jobs       (jobs, jobs_scheduler, jobs_policy, jobs_worker)
+#   env_auto_train        <- build-resource + geti-configuration-tools overlay (auto_train)
+#   env_visual_prompt     <- build-visual_prompt (visual_prompt)
+#   env_model_registration <- build-model_registration (model_registration)
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
@@ -29,62 +38,22 @@ COPY --link --from=media_utils . /interactive_ai/libs/media_utils
 COPY --link --from=supported_models . /interactive_ai/supported_models
 
 # ---------------------------------------------------------------------------
-# Build: auto_train (isolated stage for better cache locality)
+# app-source: collects all service app directories for the runtime stage.
+# Separating app code from the build stages keeps venv layers lean and avoids
+# re-installing deps when only application code changes.
 # ---------------------------------------------------------------------------
-FROM deps-base AS build-auto_train
-WORKDIR /interactive_ai/services/auto_train
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=auto_train/uv.lock,target=uv.lock \
-    --mount=type=bind,source=auto_train/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
+FROM scratch AS app-source
 COPY --link auto_train/app/ /interactive_ai/services/auto_train/
-
-# ---------------------------------------------------------------------------
-# Build: dataset_ie
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-dataset_ie
-WORKDIR /interactive_ai/services/dataset_ie
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=dataset_ie/uv.lock,target=uv.lock \
-    --mount=type=bind,source=dataset_ie/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
 COPY --link dataset_ie/app/ /interactive_ai/services/dataset_ie/
-
-# ---------------------------------------------------------------------------
-# Build: director
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-director
-WORKDIR /interactive_ai/services/director
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=director/uv.lock,target=uv.lock \
-    --mount=type=bind,source=director/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
 COPY --link director/app/ /interactive_ai/services/director/app/
-
-# ---------------------------------------------------------------------------
-# Build: jobs
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-jobs
-WORKDIR /interactive_ai/services/jobs
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=jobs/uv.lock,target=uv.lock \
-    --mount=type=bind,source=jobs/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
 COPY --link jobs/app/ /interactive_ai/services/jobs/
-
-# ---------------------------------------------------------------------------
-# Build: project_ie
-# ---------------------------------------------------------------------------
-FROM deps-base AS build-project_ie
-WORKDIR /interactive_ai/services/project_ie
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=project_ie/uv.lock,target=uv.lock \
-    --mount=type=bind,source=project_ie/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-editable
 COPY --link project_ie/app/ /interactive_ai/services/project_ie/
+COPY --link resource/app/ /interactive_ai/services/resource/app/
+COPY --link visual_prompt/app/ /interactive_ai/services/visual_prompt/
+COPY --link model_registration/app/ /interactive_ai/services/model_registration/
 
 # ---------------------------------------------------------------------------
-# Build: resource
+# Build: resource  (env_core)
 # ---------------------------------------------------------------------------
 FROM deps-base AS build-resource
 WORKDIR /interactive_ai/services/resource
@@ -92,10 +61,39 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=resource/uv.lock,target=uv.lock \
     --mount=type=bind,source=resource/pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
-COPY --link resource/app/ /interactive_ai/services/resource/app/
 
 # ---------------------------------------------------------------------------
-# Build: visual_prompt
+# Build: director  (env_director)
+# ---------------------------------------------------------------------------
+FROM deps-base AS build-director
+WORKDIR /interactive_ai/services/director
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=director/uv.lock,target=uv.lock \
+    --mount=type=bind,source=director/pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-dev --no-editable
+
+# ---------------------------------------------------------------------------
+# Build: dataset_ie  (env_ie: shared by dataset_import_export, project_import_export)
+# ---------------------------------------------------------------------------
+FROM deps-base AS build-dataset_ie
+WORKDIR /interactive_ai/services/dataset_ie
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dataset_ie/uv.lock,target=uv.lock \
+    --mount=type=bind,source=dataset_ie/pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-dev --no-editable
+
+# ---------------------------------------------------------------------------
+# Build: jobs  (env_jobs: shared by auto_train, jobs, jobs_scheduler, jobs_policy, jobs_worker)
+# ---------------------------------------------------------------------------
+FROM deps-base AS build-jobs
+WORKDIR /interactive_ai/services/jobs
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=jobs/uv.lock,target=uv.lock \
+    --mount=type=bind,source=jobs/pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-dev --no-editable
+
+# ---------------------------------------------------------------------------
+# Build: visual_prompt  (env_visual_prompt)
 # ---------------------------------------------------------------------------
 FROM deps-base AS build-visual_prompt
 WORKDIR /interactive_ai/services/visual_prompt
@@ -103,10 +101,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=visual_prompt/uv.lock,target=uv.lock \
     --mount=type=bind,source=visual_prompt/pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
-COPY --link visual_prompt/app/ /interactive_ai/services/visual_prompt/
 
 # ---------------------------------------------------------------------------
-# Build: model_registration
+# Build: model_registration  (env_model_registration)
 # ---------------------------------------------------------------------------
 FROM deps-base AS build-model_registration
 WORKDIR /interactive_ai/services/model_registration
@@ -114,7 +111,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=model_registration/uv.lock,target=uv.lock \
     --mount=type=bind,source=model_registration/pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
-COPY --link model_registration/app/ /interactive_ai/services/model_registration/
+
+# ---------------------------------------------------------------------------
+# Build: auto_train overlay  (env_auto_train)
+# Start from env_core (resource) and install auto_train-only missing dependency.
+# ---------------------------------------------------------------------------
+FROM build-resource AS build-auto_train
+WORKDIR /interactive_ai/services/resource
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /interactive_ai/services/resource/.venv/bin/python --no-deps geti-configuration-tools==1.0.0
+COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/readerwriterlock /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/readerwriterlock
+COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/readerwriterlock-1.0.9.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/readerwriterlock-1.0.9.dist-info
 
 # ---------------------------------------------------------------------------
 # Runtime image
@@ -140,15 +147,17 @@ COPY --link --from=deps-base --chown=10001 /libs /libs
 COPY --link --from=deps-base --chown=10001 /interactive_ai/libs /interactive_ai/libs
 COPY --link --from=deps-base --chown=10001 /interactive_ai/supported_models /interactive_ai/supported_models
 
-# Service-specific venvs and app code
-COPY --link --from=build-auto_train --chown=10001 /interactive_ai/services/auto_train /interactive_ai/services/auto_train
-COPY --link --from=build-dataset_ie --chown=10001 /interactive_ai/services/dataset_ie /interactive_ai/services/dataset_ie
-COPY --link --from=build-director --chown=10001 /interactive_ai/services/director /interactive_ai/services/director
-COPY --link --from=build-jobs --chown=10001 /interactive_ai/services/jobs /interactive_ai/services/jobs
-COPY --link --from=build-project_ie --chown=10001 /interactive_ai/services/project_ie /interactive_ai/services/project_ie
-COPY --link --from=build-resource --chown=10001 /interactive_ai/services/resource /interactive_ai/services/resource
-COPY --link --from=build-visual_prompt --chown=10001 /interactive_ai/services/visual_prompt /interactive_ai/services/visual_prompt
-COPY --link --from=build-model_registration --chown=10001 /interactive_ai/services/model_registration /interactive_ai/services/model_registration
+# Grouped shared venvs (6 envs replace 8 per-service venvs)
+COPY --link --from=build-resource --chown=10001 /interactive_ai/services/resource/.venv /interactive_ai/services/env_core/.venv
+COPY --link --from=build-director --chown=10001 /interactive_ai/services/director/.venv /interactive_ai/services/env_director/.venv
+COPY --link --from=build-dataset_ie --chown=10001 /interactive_ai/services/dataset_ie/.venv /interactive_ai/services/env_ie/.venv
+COPY --link --from=build-jobs --chown=10001 /interactive_ai/services/jobs/.venv /interactive_ai/services/env_jobs/.venv
+COPY --link --from=build-auto_train --chown=10001 /interactive_ai/services/resource/.venv /interactive_ai/services/env_auto_train/.venv
+COPY --link --from=build-visual_prompt --chown=10001 /interactive_ai/services/visual_prompt/.venv /interactive_ai/services/env_visual_prompt/.venv
+COPY --link --from=build-model_registration --chown=10001 /interactive_ai/services/model_registration/.venv /interactive_ai/services/env_model_registration/.venv
+
+# Service app code (from app-source stage, no venvs)
+COPY --link --from=app-source --chown=10001 /interactive_ai/services /interactive_ai/services
 
 # Shared runtime data used by some services
 COPY --link --from=otx /model_templates /model_templates

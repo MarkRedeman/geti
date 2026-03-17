@@ -356,7 +356,7 @@ services:
     command: ["python", "main.py"]
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/auto_train/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_auto_train/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/auto_train
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
@@ -379,7 +379,7 @@ services:
       - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/dataset_ie/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_ie/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/dataset_ie
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
@@ -400,7 +400,7 @@ services:
       - "traefik.http.services.interactive-ai-director.loadbalancer.server.port=4999"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/director/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_director/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/director:/interactive_ai/services/director/app
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
@@ -451,7 +451,7 @@ services:
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
@@ -473,7 +473,7 @@ services:
       - scheduler/main.py
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       JOBS_TEMPLATES_DIR: /config
       JOBS_TEMPLATES_FILE: jobs_templates.yaml
@@ -510,7 +510,7 @@ services:
       - policies/main.py
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       MAX_JOBS_RUNNING_PER_ORGANIZATION: 1
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
@@ -536,7 +536,7 @@ services:
       - --concurrency=1
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
@@ -632,7 +632,7 @@ services:
     user: "0:0"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/model_registration/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_model_registration/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/model_registration
       S3_CREDENTIALS_PROVIDER: local
       S3_HOST: s3:8333
@@ -674,7 +674,7 @@ services:
       - "traefik.http.services.interactive-ai-project-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/project_ie/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_ie/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/project_ie
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
@@ -697,7 +697,7 @@ services:
       - "traefik.http.services.interactive-ai-resource.loadbalancer.server.port=5000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/resource/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/resource:/interactive_ai/services/resource/app
     depends_on:
       migration_job:
@@ -717,7 +717,7 @@ services:
       - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/visual_prompt/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_visual_prompt/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/visual_prompt
     depends_on:
       migration_job:
