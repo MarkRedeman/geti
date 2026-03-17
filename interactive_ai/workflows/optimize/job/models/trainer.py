@@ -21,6 +21,27 @@ from jobs_common.tasks.utils.secrets import JobMetadata
 from .config import OptimizationConfig
 
 
+def _create_ephemeral_storage_resources(optimization_cfg: OptimizationConfig) -> EphemeralStorageResources:
+    """Create ephemeral storage resources for optimize context.
+
+    In compose mode optimization may intentionally run without dataset shards.
+    Keep a minimal non-zero fallback so context serialization remains valid.
+    """
+    compiled_dataset_shards = optimization_cfg.compiled_dataset_shards
+    if compiled_dataset_shards.is_null():
+        one_gib = 1024**3
+        return EphemeralStorageResources(
+            limits=one_gib,
+            requests=one_gib,
+            work_dir_size_limit=one_gib,
+        )
+
+    return EphemeralStorageResources.create_from_compiled_dataset_shards(
+        compiled_dataset_shards=compiled_dataset_shards,
+        ephemeral_storage_safety_margin=5 * (1024**3),  # 5Gi
+    )
+
+
 @dataclass_json
 @dataclass
 class OptimizationTrainerContext:
@@ -42,10 +63,7 @@ class OptimizationTrainerContext:
     @classmethod
     def create_from_config(cls, optimization_cfg: OptimizationConfig) -> "OptimizationTrainerContext":
         resources = asyncio.run(calculate_optimization_resources())
-        ephemeral_storage_resources = EphemeralStorageResources.create_from_compiled_dataset_shards(
-            compiled_dataset_shards=optimization_cfg.compiled_dataset_shards,
-            ephemeral_storage_safety_margin=5 * (1024**3),  # 5Gi
-        )
+        ephemeral_storage_resources = _create_ephemeral_storage_resources(optimization_cfg)
         job_metadata = JobMetadata.from_env_vars()
 
         return cls(

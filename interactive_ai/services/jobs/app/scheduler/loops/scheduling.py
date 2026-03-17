@@ -117,6 +117,16 @@ def start_main_execution(job: Job) -> tuple[str, str]:
     """
     execution_name = get_main_execution_name(job_id=job.id)
 
+    payload = {
+        **job.payload,
+        "organization_id": str(job.session.organization_id),
+        "workspace_id": str(job.workspace_id),
+        "job_id": str(job.id),
+        "job_name": job.job_name,
+        "author": str(job.author),
+        "start_time": job.start_time.isoformat() if job.start_time is not None else "null",
+    }
+
     container_id = LocalExecutor().start_execution(
         execution_name=execution_name,
         job_id=str(job.id),
@@ -124,7 +134,7 @@ def start_main_execution(job: Job) -> tuple[str, str]:
         organization_id=str(job.session.organization_id),
         execution_type=ExecutionType.MAIN,
         job_type=job.type,
-        payload=job.payload,
+        payload=payload,
         session_headers=list(job.session.as_list_bytes()),
     )
     logger.info(

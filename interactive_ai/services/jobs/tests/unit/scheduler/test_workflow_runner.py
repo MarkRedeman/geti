@@ -200,7 +200,6 @@ def test_run_optimize_evaluate_stage_destubbed(monkeypatch):
         "job": job,
         "job.tasks": job_tasks,
         "job.models": types.SimpleNamespace(OptimizationTrainerContext=DummyCtx),
-        "job.tasks.constants": types.SimpleNamespace(NULL_COMPILED_DATASET_SHARDS_ID="null-shards"),
         "job.tasks.evaluation_task": types.SimpleNamespace(_evaluate_optimized_model=fake_evaluate),
         "job.tasks.helpers": types.SimpleNamespace(
             finalize_optimize=lambda **_: None,
@@ -236,3 +235,116 @@ def test_run_optimize_evaluate_stage_destubbed(monkeypatch):
     assert called["model_storage_id"] == "storage-id"
     assert called["model_id"] == "model-id"
     assert called["optimized_model_id"] == "optimized-id"
+
+
+def test_optimize_prepare_uses_null_shards_when_disabled(monkeypatch):
+    called = {}
+
+    class DummyCtx:
+        def to_json(self):
+            return "{}"
+
+    def fake_prepare_optimize(**kwargs):
+        called.update(kwargs)
+        return DummyCtx()
+
+    job = types.ModuleType("job")
+    job_tasks = types.ModuleType("job.tasks")
+    job.tasks = job_tasks
+
+    module_map = {
+        "job": job,
+        "job.tasks": job_tasks,
+        "job.models": types.SimpleNamespace(OptimizationTrainerContext=types.SimpleNamespace),
+        "job.tasks.evaluation_task": types.SimpleNamespace(_evaluate_optimized_model=lambda **_: None),
+        "job.tasks.helpers": types.SimpleNamespace(
+            finalize_optimize=lambda **_: None,
+            prepare_optimize=fake_prepare_optimize,
+        ),
+    }
+    for key, value in module_map.items():
+        monkeypatch.setitem(sys.modules, key, value)
+
+    payload = {
+        "project_id": "project-id",
+        "model_storage_id": "storage-id",
+        "model_id": "model-id",
+        "dataset_storage_id": "dataset-storage-id",
+        "enable_optimize_from_dataset_shard": False,
+    }
+
+    workflow_runner._run_job_type("optimize_pot", payload)  # noqa: SLF001
+
+    assert called["compiled_dataset_shards_id"] == ""
+
+
+def test_optimize_prepare_shards_dataset_when_enabled(monkeypatch):
+    called = {}
+
+    class DummyCtx:
+        def to_json(self):
+            return "{}"
+
+    class DummyProject:
+        workspace_id = "workspace-id"
+
+    class DummyModel:
+        def get_train_dataset(self):
+            return "train-dataset"
+
+        def get_label_schema(self):
+            return "label-schema"
+
+    class DummyProjectRepo:
+        def get_by_id(self, _id):
+            return DummyProject()
+
+    class DummyModelRepo:
+        def __init__(self, _identifier):
+            pass
+
+        def get_by_id(self, _id):
+            return DummyModel()
+
+    def fake_prepare_optimize(**kwargs):
+        called.update(kwargs)
+        return DummyCtx()
+
+    def fake_shard_dataset(**_kwargs):
+        return "compiled-shards-id"
+
+    job = types.ModuleType("job")
+    job_tasks = types.ModuleType("job.tasks")
+    job.tasks = job_tasks
+
+    module_map = {
+        "job": job,
+        "job.tasks": job_tasks,
+        "job.models": types.SimpleNamespace(OptimizationTrainerContext=types.SimpleNamespace),
+        "job.tasks.evaluation_task": types.SimpleNamespace(_evaluate_optimized_model=lambda **_: None),
+        "job.tasks.helpers": types.SimpleNamespace(
+            finalize_optimize=lambda **_: None,
+            prepare_optimize=fake_prepare_optimize,
+        ),
+        "geti_types": types.SimpleNamespace(ID=lambda x: x),
+        "iai_core.entities.model_storage": types.SimpleNamespace(ModelStorageIdentifier=lambda **kwargs: kwargs),
+        "iai_core.repos": types.SimpleNamespace(ProjectRepo=lambda: DummyProjectRepo(), ModelRepo=DummyModelRepo),
+        "jobs_common.utils.annotation_filter": types.SimpleNamespace(
+            AnnotationFilter=types.SimpleNamespace(apply_annotation_filters=lambda **kwargs: kwargs["dataset"])
+        ),
+        "jobs_common_extras.shard_dataset.tasks.shard_dataset": types.SimpleNamespace(shard_dataset=fake_shard_dataset),
+    }
+    for key, value in module_map.items():
+        monkeypatch.setitem(sys.modules, key, value)
+
+    payload = {
+        "project_id": "project-id",
+        "model_storage_id": "storage-id",
+        "model_id": "model-id",
+        "dataset_storage_id": "dataset-storage-id",
+        "enable_optimize_from_dataset_shard": True,
+    }
+
+    workflow_runner._run_job_type("optimize_pot", payload)  # noqa: SLF001
+
+    assert called["compiled_dataset_shards_id"] == "compiled-shards-id"

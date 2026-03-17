@@ -31,6 +31,50 @@ def _load_payload() -> dict:
     return json.loads(os.environ["WORKFLOW_PAYLOAD_JSON"])
 
 
+def _resolve_compiled_dataset_shards_id_for_optimize(payload: dict) -> str:
+    """Resolve compiled dataset shards id for optimize compose flow.
+
+    Mirrors optimize workflow semantics:
+    - when enable_optimize_from_dataset_shard=true, create shards from filtered train dataset
+    - otherwise use empty sentinel id
+    """
+    null_compiled_dataset_shards_id = ""
+    if not payload.get("enable_optimize_from_dataset_shard", False):
+        return null_compiled_dataset_shards_id
+
+    from geti_types import ID
+    from iai_core.entities.model_storage import ModelStorageIdentifier
+    from iai_core.repos import ModelRepo, ProjectRepo
+    from jobs_common.utils.annotation_filter import AnnotationFilter
+    from jobs_common_extras.shard_dataset.tasks.shard_dataset import shard_dataset
+
+    project_id = ID(payload["project_id"])
+    project = ProjectRepo().get_by_id(project_id)
+    model_storage_identifier = ModelStorageIdentifier(
+        workspace_id=project.workspace_id,
+        project_id=project_id,
+        model_storage_id=ID(payload["model_storage_id"]),
+    )
+    model = ModelRepo(model_storage_identifier).get_by_id(ID(payload["model_id"]))
+
+    filtered_train_dataset = AnnotationFilter.apply_annotation_filters(
+        dataset=model.get_train_dataset(),
+        min_annotation_size=payload.get("min_annotation_size"),
+        max_annotation_size=payload.get("max_annotation_size"),
+        min_number_of_annotations=payload.get("min_number_of_annotations"),
+        max_number_of_annotations=payload.get("max_number_of_annotations"),
+    )
+
+    return shard_dataset(
+        project=project,
+        label_schema=model.get_label_schema(),
+        train_dataset=filtered_train_dataset,
+        max_shard_size=payload.get("max_shard_size", 1000),
+        num_image_pulling_threads=payload.get("num_image_pulling_threads", 10),
+        num_upload_threads=payload.get("num_upload_threads", 2),
+    )
+
+
 def _run_job_type(job_type: str, payload: dict) -> None:
     if job_type == "export_dataset":
         from job.tasks.export_tasks.export_dataset_task import export_dataset_task
@@ -249,7 +293,6 @@ def _run_job_type(job_type: str, payload: dict) -> None:
 
     if job_type == "optimize_pot":
         from job.models import OptimizationTrainerContext
-        from job.tasks.constants import NULL_COMPILED_DATASET_SHARDS_ID
         from job.tasks.evaluation_task import _evaluate_optimized_model
         from job.tasks.helpers import finalize_optimize, prepare_optimize
 
@@ -289,11 +332,12 @@ def _run_job_type(job_type: str, payload: dict) -> None:
             )
             return
 
+        compiled_dataset_shards_id = _resolve_compiled_dataset_shards_id_for_optimize(payload)
         trainer_ctx = prepare_optimize(
             project_id=payload["project_id"],
             model_storage_id=payload["model_storage_id"],
             model_id=payload["model_id"],
-            compiled_dataset_shards_id=NULL_COMPILED_DATASET_SHARDS_ID,
+            compiled_dataset_shards_id=compiled_dataset_shards_id,
             min_annotation_size=payload.get("min_annotation_size"),
             max_annotation_size=payload.get("max_annotation_size"),
             min_number_of_annotations=payload.get("min_number_of_annotations"),

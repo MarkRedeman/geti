@@ -51,15 +51,45 @@ def _should_forward_env(key: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def _session_org_id(payload: dict) -> str:
-    return str(payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", ""))
+    value = payload.get("organization_id")
+    if not value:
+        raise KeyError("organization_id is missing from job payload; cannot build SESSION_ORGANIZATION_ID")
+    return str(value)
 
 
 def _session_workspace_id(payload: dict) -> str:
-    return str(payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", ""))
+    value = payload.get("workspace_id")
+    if not value:
+        raise KeyError("workspace_id is missing from job payload; cannot build SESSION_WORKSPACE_ID")
+    return str(value)
 
 
 def _job_metadata_id(payload: dict) -> str:
-    return str(payload.get("job_id") or os.environ.get("JOB_METADATA_ID", ""))
+    value = payload.get("job_id")
+    if not value:
+        raise KeyError("job_id is missing from job payload; cannot build JOB_METADATA_ID")
+    return str(value)
+
+
+def _job_metadata_name(payload: dict) -> str:
+    value = payload.get("job_name")
+    if not value:
+        raise KeyError("job_name is missing from job payload; cannot build JOB_METADATA_NAME")
+    return str(value)
+
+
+def _job_metadata_author(payload: dict) -> str:
+    value = payload.get("author")
+    if not value:
+        raise KeyError("author is missing from job payload; cannot build JOB_METADATA_AUTHOR")
+    return str(value)
+
+
+def _job_metadata_start_time(payload: dict) -> str:
+    value = payload.get("start_time")
+    if not value:
+        raise KeyError("start_time is missing from job payload; cannot build JOB_METADATA_START_TIME")
+    return str(value)
 
 
 def _dataset_ie_image() -> str:
@@ -111,10 +141,10 @@ def _run_optimize_trainer_container(payload: dict) -> None:
     if not image:
         raise RuntimeError("Missing trainer runtime image for optimize_pot job")
 
-    org_id = payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", "")
-    workspace_id = payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", "")
+    org_id = _session_org_id(payload)
+    workspace_id = _session_workspace_id(payload)
     project_id = payload["project_id"]
-    job_id = payload.get("job_id") or os.environ.get("JOB_METADATA_ID", "")
+    job_id = _job_metadata_id(payload)
     identifier_json = json.dumps(
         {
             "organization_id": str(org_id),
@@ -131,8 +161,6 @@ def _run_optimize_trainer_container(payload: dict) -> None:
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -149,6 +177,8 @@ def _run_optimize_trainer_container(payload: dict) -> None:
         if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
 
+    _append_trainer_runtime_env(cmd)
+
     accelerator = _trainer_runtime_accelerator()
     if accelerator == "xpu":
         xpu_devices = os.environ.get("TRAINER_RUNTIME_XPU_DEVICES", "/dev/dri")
@@ -161,6 +191,13 @@ def _run_optimize_trainer_container(payload: dict) -> None:
     cmd += ["--env", f"SHARD_FILES_DIR={_trainer_shard_files_dir()}"]
     cmd += ["--env", "TASK_ID=optimize"]
     cmd += ["--env", "JOB_TYPE=optimize_pot"]
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={str(org_id)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={str(workspace_id)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={str(job_id)}"]
+    cmd += ["--env", "JOB_METADATA_TYPE=optimize_pot"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
 
     trainer_command = os.environ.get("TRAINER_RUNTIME_COMMAND", "run")
     cmd += [image, "bash", "-c", trainer_command]
@@ -179,8 +216,6 @@ def _run_optimize_finalize_stage(payload: dict, prep_result: dict) -> None:
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -196,6 +231,16 @@ def _run_optimize_finalize_stage(payload: dict, prep_result: dict) -> None:
     for key in os.environ:
         if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
+
+    _append_trainer_runtime_env(cmd)
+
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
+    cmd += ["--env", "JOB_METADATA_TYPE=optimize_pot"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
 
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=optimize_pot"]
@@ -217,8 +262,6 @@ def _run_optimize_evaluate_stage(payload: dict, prep_result: dict) -> None:
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -234,6 +277,16 @@ def _run_optimize_evaluate_stage(payload: dict, prep_result: dict) -> None:
     for key in os.environ:
         if _should_forward_env(key=key, prefixes=_forward_prefixes):
             cmd += ["--env", key]
+
+    _append_trainer_runtime_env(cmd)
+
+    cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
+    cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
+    cmd += ["--env", "JOB_METADATA_TYPE=optimize_pot"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
 
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=optimize_pot"]
@@ -253,10 +306,10 @@ def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
     if not image:
         raise RuntimeError("Missing trainer runtime image for train job")
 
-    org_id = payload.get("organization_id") or os.environ.get("SESSION_ORGANIZATION_ID", "")
-    workspace_id = payload.get("workspace_id") or os.environ.get("SESSION_WORKSPACE_ID", "")
+    org_id = _session_org_id(payload)
+    workspace_id = _session_workspace_id(payload)
     project_id = payload["project_id"]
-    job_id = payload.get("job_id") or os.environ.get("JOB_METADATA_ID", "")
+    job_id = _job_metadata_id(payload)
     identifier_json = json.dumps(
         {
             "organization_id": str(org_id),
@@ -274,8 +327,6 @@ def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -283,6 +334,8 @@ def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "TRAINER_RUNTIME_",
+        "TRAINER_RENDER_GID",
         "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
@@ -316,6 +369,9 @@ def _run_train_trainer_container(payload: dict, execution_name: str) -> None:
     cmd += ["--env", f"SHARD_FILES_DIR={_trainer_shard_files_dir()}"]
     cmd += ["--env", "WEIGHTS_URL=https://storage.geti.intel.com/weights"]
     cmd += ["--env", "JOB_METADATA_TYPE=train"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
     cmd += ["--env", "TASK_ID=train"]
 
     trainer_command = os.environ.get("TRAINER_RUNTIME_COMMAND", "bash -c run")
@@ -335,8 +391,6 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict, execution_name: 
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -344,6 +398,8 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict, execution_name: 
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "TRAINER_RUNTIME_",
+        "TRAINER_RENDER_GID",
         "DEFAULT_TRAINER_VERSION",
         "MODEL_REGISTRATION_",
         "STORAGE_",
@@ -358,6 +414,9 @@ def _run_train_finalize_stage(payload: dict, prep_result: dict, execution_name: 
     cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
     cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
     cmd += ["--env", "JOB_METADATA_TYPE=train"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=train"]
     cmd += ["--env", "WORKFLOW_JOB_STAGE=finalize"]
@@ -392,8 +451,6 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict, execution_name: 
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -401,6 +458,8 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict, execution_name: 
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "TRAINER_RUNTIME_",
+        "TRAINER_RENDER_GID",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
@@ -414,6 +473,9 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict, execution_name: 
     cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
     cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
     cmd += ["--env", "JOB_METADATA_TYPE=train"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", "WORKFLOW_JOB_TYPE=train"]
     cmd += ["--env", "WORKFLOW_JOB_STAGE=evaluate"]
@@ -424,6 +486,18 @@ def _run_train_evaluate_stage(payload: dict, prep_result: dict, execution_name: 
 
 def _workflow_runner_command() -> list[str]:
     return ["python", "-m", "jobs_common.compose.workflow_runner"]
+
+
+def _append_trainer_runtime_env(cmd: list[str]) -> None:
+    """Append trainer runtime env vars explicitly for workflow containers."""
+    for key in (
+        "TRAINER_RUNTIME_IMAGE",
+        "TRAINER_RUNTIME_XPU_IMAGE",
+        "TRAINER_RUNTIME_ACCELERATOR",
+        "TRAINER_RENDER_GID",
+    ):
+        if value := os.environ.get(key):
+            cmd += ["--env", f"{key}={value}"]
 
 
 def _run_import_export_in_container(job_type: str, payload: dict) -> str:
@@ -448,8 +522,6 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
         "KAFKA_",
         "SPICEDB_",
         "S3_",
-        "SESSION_",
-        "JOB_METADATA_",
         "JOBS_SCHEDULER",
         "SIGNING_IE_PRIVKEY",
         "CELERY_",
@@ -457,6 +529,8 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
         "ENABLE_",
         "FEATURE_FLAG_",
         "WORKFLOW_",
+        "TRAINER_RUNTIME_",
+        "TRAINER_RENDER_GID",
         "MODEL_REGISTRATION_",
         "STORAGE_",
         "BUCKET_NAME_",
@@ -465,12 +539,17 @@ def _run_import_export_in_container(job_type: str, payload: dict) -> str:
         if any(key.startswith(p) for p in _forward_prefixes):
             cmd += ["--env", key]
 
+    _append_trainer_runtime_env(cmd)
+
     cmd += ["--env", f"WORKFLOW_PAYLOAD_JSON={json.dumps(payload)}"]
     cmd += ["--env", f"WORKFLOW_JOB_TYPE={job_type}"]
     cmd += ["--env", f"SESSION_ORGANIZATION_ID={_session_org_id(payload)}"]
     cmd += ["--env", f"SESSION_WORKSPACE_ID={_session_workspace_id(payload)}"]
     cmd += ["--env", f"JOB_METADATA_ID={_job_metadata_id(payload)}"]
     cmd += ["--env", f"JOB_METADATA_TYPE={job_type}"]
+    cmd += ["--env", f"JOB_METADATA_NAME={_job_metadata_name(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_AUTHOR={_job_metadata_author(payload)}"]
+    cmd += ["--env", f"JOB_METADATA_START_TIME={_job_metadata_start_time(payload)}"]
 
     cmd += [image, *_workflow_runner_command()]
     try:
