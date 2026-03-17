@@ -451,7 +451,7 @@ services:
       - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_jobs/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
