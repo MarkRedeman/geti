@@ -4,7 +4,7 @@ set -euo pipefail
 
 RESET=0
 SEED=1
-SEED_WEIGHTS=0
+SEED_WEIGHTS=1
 DEX_DB_PATH="infrastructure/data/dex/dex.db"
 S3_READY_URL="http://127.0.0.1:8333"
 
@@ -187,12 +187,12 @@ LDIF
 
 usage() {
 	cat <<'EOF'
-Usage: infrastructure/compose-bootstrap.sh [--reset] [--no-seed] [--seed-weights]
+Usage: infrastructure/compose-bootstrap.sh [--reset] [--no-seed] [--no-seed-weights]
 
 Options:
   --reset     Stop stack, remove compose volumes, and delete Dex sqlite DB before bootstrap.
   --no-seed   Skip initial user/org/workspace seeding step.
-  --seed-weights  Run pretrained weights uploader via uv after migration.
+  --no-seed-weights  Skip pretrained weights uploader step.
   -h, --help  Show this help message.
 
 Examples:
@@ -202,17 +202,17 @@ Examples:
   # Full clean re-bootstrap and re-seed
   bash infrastructure/compose-bootstrap.sh --reset
 
-  # Bootstrap and pre-populate pretrainedweights bucket
-  bash infrastructure/compose-bootstrap.sh --seed-weights
+  # Bootstrap without seeding pretrainedweights bucket
+  bash infrastructure/compose-bootstrap.sh --no-seed-weights
 EOF
 }
 
 seed_pretrained_weights() {
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "Cannot seed pretrained weights: 'uv' is not installed."
-    echo "Install uv (https://docs.astral.sh/uv/) or run bootstrap without --seed-weights."
-    return 1
-  fi
+	if ! command -v uv >/dev/null 2>&1; then
+		echo "Cannot seed pretrained weights: 'uv' is not installed."
+		echo "Install uv (https://docs.astral.sh/uv/) or run bootstrap without --seed-weights."
+		return 1
+	fi
 
 	local s3_access_key
 	local s3_secret_key
@@ -256,8 +256,8 @@ while [[ $# -gt 0 ]]; do
 		SEED=0
 		shift
 		;;
-	--seed-weights)
-		SEED_WEIGHTS=1
+	--no-seed-weights)
+		SEED_WEIGHTS=0
 		shift
 		;;
 	-h | --help)
