@@ -3,13 +3,11 @@
 # Build context: ./interactive_ai/services
 # Additional contexts: libs, iai_core, media_utils, supported_models, schemas, otx
 #
-# Venv grouping (intermediate shared-venv approach):
-#   env_core              <- build-auto_train (resource + auto_train overlay)
-#   env_director          <- build-director   (director)
-#   env_ie                <- build-dataset_ie (dataset_import_export, project_import_export)
-#   env_jobs              <- build-jobs       (jobs, jobs_scheduler, jobs_policy, jobs_worker)
-#   env_visual_prompt     <- build-visual_prompt (visual_prompt)
-#   env_model_registration <- build-model_registration (model_registration)
+# Shared runtime env strategy:
+#   env_core <- build-auto_train (resource base + overlays from other service envs)
+#
+# Other build-* stages are still used as dependency sources for selective overlay
+# copies into env_core, but only env_core is copied into the final runtime image.
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
 
@@ -217,13 +215,8 @@ COPY --link --from=deps-base --chown=10001 /libs /libs
 COPY --link --from=deps-base --chown=10001 /interactive_ai/libs /interactive_ai/libs
 COPY --link --from=deps-base --chown=10001 /interactive_ai/supported_models /interactive_ai/supported_models
 
-# Grouped shared venvs (6 envs replace 8 per-service venvs)
+# Single shared runtime venv
 COPY --link --from=build-auto_train --chown=10001 /interactive_ai/services/resource/.venv /interactive_ai/services/env_core/.venv
-COPY --link --from=build-director --chown=10001 /interactive_ai/services/director/.venv /interactive_ai/services/env_director/.venv
-COPY --link --from=build-dataset_ie --chown=10001 /interactive_ai/services/dataset_ie/.venv /interactive_ai/services/env_ie/.venv
-COPY --link --from=build-jobs --chown=10001 /interactive_ai/services/jobs/.venv /interactive_ai/services/env_jobs/.venv
-COPY --link --from=build-visual_prompt --chown=10001 /interactive_ai/services/visual_prompt/.venv /interactive_ai/services/env_visual_prompt/.venv
-COPY --link --from=build-model_registration --chown=10001 /interactive_ai/services/model_registration/.venv /interactive_ai/services/env_model_registration/.venv
 
 # Service app code (from app-source stage, no venvs)
 COPY --link --from=app-source --chown=10001 /interactive_ai/services /interactive_ai/services
