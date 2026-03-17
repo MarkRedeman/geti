@@ -379,7 +379,7 @@ services:
       - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_ie/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/dataset_ie
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
     depends_on:
