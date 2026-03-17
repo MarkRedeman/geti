@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -14,7 +15,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def upload_file(client: boto3.client, path: str, filename: str, overwrite: bool = False) -> None:
+def _is_truthy_env(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def upload_file(client: Any, path: str, filename: str, overwrite: bool = False) -> None:
     """
     Uploads file from local_path to s3. If the "ovewrite" parameter is set to True, skips validation
     if the file already exist.
@@ -61,7 +68,7 @@ def main() -> None:
 
     upload_file(client, config_dir, model_list, True)
 
-    if os.environ.get("DISABLE_WEIGHT_UPLOADING", None) is not None:
+    if _is_truthy_env(os.environ.get("DISABLE_WEIGHT_UPLOADING")):
         logger.info("Downloading pretrained weights is disabled. Exiting.")
         return
 
@@ -70,14 +77,12 @@ def main() -> None:
         models_spec = json.load(file)
 
     for model in models_spec:
-        initial_models = set(os.listdir(weights_dir))
         download_pretrained_model(model, weights_dir, weights_url)
-        updated_models = set(os.listdir(weights_dir))
-        for filename in updated_models - initial_models:
-            try:
-                retry_call(upload_file, client=client, path=weights_dir, filename=filename)
-            except MaxTriesExhausted:
-                raise
+        filename = os.path.basename(model["target"])
+        try:
+            retry_call(upload_file, client=client, path=weights_dir, filename=filename)
+        except MaxTriesExhausted:
+            raise
 
 
 if __name__ == "__main__":
