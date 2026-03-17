@@ -371,6 +371,10 @@ services:
       - "traefik.http.routers.interactive-ai-jobs.priority=70"
       - "traefik.http.routers.interactive-ai-jobs.middlewares=geti-auth@docker"
       - "traefik.http.routers.interactive-ai-jobs.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/training_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
+      - "traefik.http.routers.interactive-ai-director.priority=65"
+      - "traefik.http.routers.interactive-ai-director.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-director.service=interactive-ai-api"
       - "traefik.http.services.interactive-ai-api.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
@@ -436,12 +440,6 @@ services:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     working_dir: /interactive_ai/services/director/app/communication
     command: ["python", "main.py"]
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/training_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
-      - "traefik.http.routers.interactive-ai-director.priority=65"
-      - "traefik.http.routers.interactive-ai-director.middlewares=geti-auth@docker"
-      - "traefik.http.services.interactive-ai-director.loadbalancer.server.port=4999"
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH

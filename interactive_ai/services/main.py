@@ -14,13 +14,16 @@ import uvicorn
 app = FastAPI(title="interactive_ai_api", version="0.1.0")
 
 
-def _import_service_main(service_root: str):
-    for module_name in [m for m in list(sys.modules) if m == "communication" or m.startswith("communication.")]:
+def _import_service_main(service_root: str, module_path: str, purge_prefixes: tuple[str, ...] = ("communication",)):
+    def _matches_prefix(module_name: str) -> bool:
+        return any(module_name == prefix or module_name.startswith(f"{prefix}.") for prefix in purge_prefixes)
+
+    for module_name in [m for m in list(sys.modules) if _matches_prefix(m)]:
         sys.modules.pop(module_name, None)
 
     sys.path.insert(0, service_root)
     try:
-        return importlib.import_module("communication.endpoints.main")
+        return importlib.import_module(module_path)
     finally:
         try:
             sys.path.remove(service_root)
@@ -28,8 +31,34 @@ def _import_service_main(service_root: str):
             pass
 
 
-_dataset_ie_main = _import_service_main("/interactive_ai/services/dataset_ie")
-_project_ie_main = _import_service_main("/interactive_ai/services/project_ie")
+_dataset_ie_main = _import_service_main(
+    "/interactive_ai/services/dataset_ie",
+    "communication.endpoints.main",
+    purge_prefixes=("communication", "features"),
+)
+_project_ie_main = _import_service_main(
+    "/interactive_ai/services/project_ie",
+    "communication.endpoints.main",
+    purge_prefixes=("communication", "features"),
+)
+_director_main = _import_service_main(
+    "/interactive_ai/services/director/app",
+    "communication.main",
+    purge_prefixes=(
+        "communication",
+        "entities",
+        "service",
+        "storage",
+        "configuration",
+        "environment",
+        "usecases",
+        "features",
+        "active_learning",
+        "coordination",
+        "managers",
+        "metrics",
+    ),
+)
 
 sys.path.insert(0, "/interactive_ai/services/jobs")
 try:
@@ -45,7 +74,8 @@ finally:
 async def _lifespan(app_instance: FastAPI):  # noqa: ANN201
     async with _dataset_ie_main.lifespan(app_instance):
         async with _project_ie_main.lifespan(app_instance):
-            yield
+            async with _director_main.lifespan(app_instance):
+                yield
 
 
 app.router.lifespan_context = _lifespan
@@ -67,6 +97,10 @@ def _register_jobs_routes() -> None:
     app.include_router(_jobs_router_module.router)
 
 
+def _mount_director_app() -> None:
+    app.mount("/", _director_main.app)
+
+
 @app.get("/api/v1/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok", "service": "interactive_ai_api"}
@@ -75,7 +109,8 @@ def healthz() -> dict[str, str]:
 _register_dataset_ie_routes()
 _register_project_ie_routes()
 _register_jobs_routes()
+_mount_director_app()
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

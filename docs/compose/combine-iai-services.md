@@ -133,9 +133,10 @@ Candidate approach:
 
 ## Phase 4 — Migrate director (higher risk)
 
-- [ ] Move director routes.
+- [x] Move director routes.
+- [x] Validate service startup and endpoint registration in unified API.
 - [ ] Validate training/optimize trigger + prediction flows.
-- [ ] Validate inter-service addresses/envs that previously used container DNS names.
+- [x] Validate inter-service addresses/envs that previously used container DNS names.
 
 ## Phase 5 — Migrate resource (higher risk)
 
