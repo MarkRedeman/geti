@@ -717,8 +717,12 @@ services:
       - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_visual_prompt/.venv/bin:$PATH
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/visual_prompt
+      SAM_ENCODER_XML_PATH: ${SAM_ENCODER_XML_PATH:-sam_vit_b_zsl_encoder.xml}
+      SAM_ENCODER_BIN_PATH: ${SAM_ENCODER_BIN_PATH:-sam_vit_b_zsl_encoder.bin}
+      SAM_DECODER_XML_PATH: ${SAM_DECODER_XML_PATH:-sam_vit_b_zsl_decoder.xml}
+      SAM_DECODER_BIN_PATH: ${SAM_DECODER_BIN_PATH:-sam_vit_b_zsl_decoder.bin}
     depends_on:
       migration_job:
         condition: service_completed_successfully

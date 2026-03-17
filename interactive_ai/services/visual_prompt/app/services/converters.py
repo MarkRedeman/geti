@@ -5,7 +5,7 @@ from collections.abc import Callable, Generator, Iterable
 
 import cv2
 import numpy as np
-from model_api.models.utils import PredictedMask
+from model_api.models.visual_prompting import PredictedMask
 from model_api.models.visual_prompting import Prompt, VisualPromptingFeatures
 
 from entities.reference_feature import ReferenceFeature, ReferenceMediaInfo
