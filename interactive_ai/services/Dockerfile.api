@@ -37,6 +37,7 @@ COPY --link --from=supported_models . /interactive_ai/supported_models
 # re-installing deps when only application code changes.
 # ---------------------------------------------------------------------------
 FROM scratch AS app-source
+COPY --link main.py /interactive_ai/services/main.py
 COPY --link auto_train/app/ /interactive_ai/services/auto_train/
 COPY --link dataset_ie/app/ /interactive_ai/services/dataset_ie/
 COPY --link director/app/ /interactive_ai/services/director/app/

@@ -340,6 +340,45 @@ services:
 
   # IAI Services
   # 
+  interactive_ai_api:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    build:
+      context: ./interactive_ai/services
+      dockerfile: Dockerfile.api
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
+        - schemas=./interactive_ai/services/api
+    working_dir: /interactive_ai/services
+    command: ["python", "main.py"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-api-health.rule=Host(`geti.localhost`) && Path(`/api/v1/healthz`)"
+      - "traefik.http.routers.interactive-ai-api-health.priority=40"
+      - "traefik.http.routers.interactive-ai-api-health.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+:import-from-dataset.*$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/[^/]+/projects:import-from-dataset.*$`))"
+      - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
+      - "traefik.http.routers.interactive-ai-dataset-ie.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-dataset-ie.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
+      - "traefik.http.routers.interactive-ai-project-ie.priority=75"
+      - "traefik.http.routers.interactive-ai-project-ie.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-project-ie.service=interactive-ai-api"
+      - "traefik.http.services.interactive-ai-api.loadbalancer.server.port=8000"
+    environment:
+      <<: *iai-runtime-env
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
+      PYTHONPATH: /interactive_ai/services
+      JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
+    depends_on:
+      migration_job:
+        condition: service_completed_successfully
+      init-kafka-topics:
+        condition: service_completed_successfully
+
   interactive_ai_auto_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     build:
@@ -371,12 +410,6 @@ services:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     working_dir: /interactive_ai/services/dataset_ie/communication/endpoints
     command: ["python", "main.py"]
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+:import-from-dataset.*$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/[^/]+/projects:import-from-dataset.*$`))"
-      - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
-      - "traefik.http.routers.interactive-ai-dataset-ie.middlewares=geti-auth@docker"
-      - "traefik.http.services.interactive-ai-dataset-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
@@ -669,12 +702,6 @@ services:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     working_dir: /interactive_ai/services/project_ie/communication/endpoints
     command: ["python", "main.py"]
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
-      - "traefik.http.routers.interactive-ai-project-ie.priority=75"
-      - "traefik.http.routers.interactive-ai-project-ie.middlewares=geti-auth@docker"
-      - "traefik.http.services.interactive-ai-project-ie.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
@@ -950,6 +977,7 @@ services:
   kafka:
     image: apache/kafka:3.7.1
     environment:
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms256m -Xmx512m}
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9094,PLAINTEXT_HOST://:9095
