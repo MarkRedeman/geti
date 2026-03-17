@@ -367,12 +367,23 @@ services:
       - "traefik.http.routers.interactive-ai-project-ie.priority=75"
       - "traefik.http.routers.interactive-ai-project-ie.middlewares=geti-auth@docker"
       - "traefik.http.routers.interactive-ai-project-ie.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/jobs(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`))"
+      - "traefik.http.routers.interactive-ai-jobs.priority=70"
+      - "traefik.http.routers.interactive-ai-jobs.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-jobs.service=interactive-ai-api"
       - "traefik.http.services.interactive-ai-api.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services
       JOB_SERVICE_ADDRESS: interactive_ai_jobs:50051
+      LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
+      LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
+      LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC: ${LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC:-7200}
+      LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC: ${LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC:-7200}
+      LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC: ${LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC:-3600}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -476,12 +487,6 @@ services:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     working_dir: /interactive_ai/services/jobs
     command: ["python", "microservice/rest/main.py"]
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/jobs(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`))"
-      - "traefik.http.routers.interactive-ai-jobs.priority=70"
-      - "traefik.http.routers.interactive-ai-jobs.middlewares=geti-auth@docker"
-      - "traefik.http.services.interactive-ai-jobs.loadbalancer.server.port=8000"
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH

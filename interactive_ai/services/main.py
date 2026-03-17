@@ -31,6 +31,15 @@ def _import_service_main(service_root: str):
 _dataset_ie_main = _import_service_main("/interactive_ai/services/dataset_ie")
 _project_ie_main = _import_service_main("/interactive_ai/services/project_ie")
 
+sys.path.insert(0, "/interactive_ai/services/jobs")
+try:
+    _jobs_router_module = importlib.import_module("microservice.rest.job_endpoints")
+finally:
+    try:
+        sys.path.remove("/interactive_ai/services/jobs")
+    except ValueError:
+        pass
+
 
 @asynccontextmanager
 async def _lifespan(app_instance: FastAPI):  # noqa: ANN201
@@ -54,6 +63,10 @@ def _register_project_ie_routes() -> None:
     app.include_router(_project_ie_main.export_router)
 
 
+def _register_jobs_routes() -> None:
+    app.include_router(_jobs_router_module.router)
+
+
 @app.get("/api/v1/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok", "service": "interactive_ai_api"}
@@ -61,6 +74,7 @@ def healthz() -> dict[str, str]:
 
 _register_dataset_ie_routes()
 _register_project_ie_routes()
+_register_jobs_routes()
 
 
 if __name__ == "__main__":

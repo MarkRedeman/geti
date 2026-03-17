@@ -125,8 +125,10 @@ Candidate approach:
 
 ## Phase 3 — Migrate jobs REST API
 
-- [ ] Move `interactive_ai_jobs` REST endpoints into unified API process.
+- [x] Move `interactive_ai_jobs` REST endpoints into unified API process.
 - [ ] Keep `jobs_worker`, `jobs_scheduler`, `jobs_policy` as separate services.
+- [x] Keep `jobs_worker`, `jobs_scheduler`, `jobs_policy` as separate services.
+- [x] Verify service startup and endpoint registration in unified API.
 - [ ] Verify job create/list/get/cancel flows.
 
 ## Phase 4 — Migrate director (higher risk)
