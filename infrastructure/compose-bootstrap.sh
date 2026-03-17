@@ -187,11 +187,12 @@ LDIF
 
 usage() {
 	cat <<'EOF'
-Usage: infrastructure/compose-bootstrap.sh [--reset] [--no-seed] [--no-seed-weights]
+Usage: infrastructure/compose-bootstrap.sh [--reset] [--no-seed] [--seed-weights] [--no-seed-weights]
 
 Options:
   --reset     Stop stack, remove compose volumes, and delete Dex sqlite DB before bootstrap.
   --no-seed   Skip initial user/org/workspace seeding step.
+  --seed-weights     Force pretrained weights uploader step (default).
   --no-seed-weights  Skip pretrained weights uploader step.
   -h, --help  Show this help message.
 
@@ -258,6 +259,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--no-seed-weights)
 		SEED_WEIGHTS=0
+		shift
+		;;
+	--seed-weights)
+		SEED_WEIGHTS=1
 		shift
 		;;
 	-h | --help)

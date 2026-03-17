@@ -57,13 +57,14 @@ The script also normalizes permissions to world-readable (`0644`) because the
 distroless `platform_auth_proxy` container runs as non-root and must be able to
 read the mounted key/cert files.
 
-### 2c. Bootstrap infrastructure and run migrations
+### 2c. Bootstrap infrastructure, migrations, and pretrained weights
 
-This single command wires together three steps in order:
+This command wires together four steps in order:
 
 1. Prepares the auth proxy certificates (safe to re-run).
 2. Starts the infrastructure prerequisites — MongoDB, Kafka, and S3 — detached.
 3. Builds and runs the `migration_job` container, which creates the MongoDB service user, runs data migrations, and initialises the S3 bucket.
+4. Runs pretrained weights upload (`platform/services/weights_uploader`) into S3 bucket `pretrainedweights`.
 
 `compose-bootstrap` now waits for SeaweedFS S3 readiness before launching
 `migration_job`, to avoid intermittent `Connection refused` failures on fresh
@@ -80,22 +81,30 @@ Bootstrap also ensures Dex-compatible LDAP groups exist (`ou=Groups` and
 make compose-bootstrap
 ```
 
-To also pre-populate the `pretrainedweights` bucket during bootstrap (uses
-`uv` + `platform/services/weights_uploader/app/weights_uploader.py`):
+Weights uploader notes:
 
-```bash
-make compose-bootstrap-seed-weights
-```
-
-Notes:
-
-- Requires `uv` installed on the host.
+- `make compose-bootstrap` seeds weights by default.
+- Requires `uv` installed on the host (bootstrap fails if `uv` is missing and seeding is enabled).
 - Uses local S3 endpoint `127.0.0.1:8333` and `.env` credentials (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
 - Optional overrides:
   - `WEIGHTS_URL` (defaults to `https://storage.geti.intel.com/weights`)
   - `COMPOSE_BOOTSTRAP_WEIGHTS_DIR` (defaults to `/tmp/geti-pretrained-weights`)
   - `COMPOSE_BOOTSTRAP_WEIGHTS_CONFIG_DIR` (defaults to `app/pretrained_models`)
   - `COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING=1` (upload only metadata, skip downloading weight binaries)
+
+To skip weight seeding (for quick bring-up):
+
+```bash
+bash infrastructure/compose-bootstrap.sh --no-seed-weights
+```
+
+To re-run bootstrap with weight seeding explicitly enabled:
+
+```bash
+make compose-bootstrap-seed-weights
+```
+
+(`make compose-bootstrap-seed-weights` maps to `bash infrastructure/compose-bootstrap.sh --seed-weights`.)
 
 Wait for the migration job to exit with code `0` before proceeding.
 
@@ -129,6 +138,26 @@ docker compose build
 ```
 
 Add `--parallel` to build multiple services concurrently if your machine has spare CPU/memory headroom.
+
+### 2e. Optional: reduce Kafka memory footprint for local/dev
+
+Compose now supports explicit Kafka heap tuning via `.env`:
+
+```bash
+KAFKA_HEAP_OPTS=-Xms256m -Xmx512m
+```
+
+Recommended starting values:
+
+- default local/dev: `-Xms256m -Xmx512m`
+- constrained laptop: `-Xms128m -Xmx384m`
+- heavier local throughput: `-Xms512m -Xmx1g`
+
+Apply changes by recreating Kafka:
+
+```bash
+docker compose up -d --force-recreate kafka init-kafka-topics
+```
 
 ---
 
@@ -266,7 +295,7 @@ Failed to download ... from https://storage.geti.intel.com/weights/...
 
 How it works in compose:
 
-1. A weights upload/bootstrap stage should populate S3 bucket `pretrainedweights`.
+1. The bootstrap weights uploader populates S3 bucket `pretrainedweights`.
 2. During training, the trainer first tries that S3 bucket.
 3. If missing, it falls back to `WEIGHTS_URL`.
 
@@ -275,7 +304,7 @@ How it works in compose:
 Recommended checks/fixes:
 
 ```bash
-# 1) Make sure bootstrap/migration completed successfully
+# 1) Make sure bootstrap/migration+weights completed successfully
 make compose-bootstrap
 
 # 2) Check jobs worker logs for weights/download errors
@@ -293,11 +322,19 @@ If your environment is restricted:
 
 #### Pre-populating `pretrainedweights` bucket (compose)
 
-Preferred path (simplest): run the compose bootstrap weights step.
+Preferred path (simplest): run bootstrap with default weight seeding enabled.
+
+```bash
+make compose-bootstrap
+```
+
+If you skipped seeding during bootstrap or want to re-seed later:
 
 ```bash
 make compose-bootstrap-seed-weights
 ```
+
+If you want to run only the uploader itself (without re-running full bootstrap), use the direct uploader command below.
 
 Equivalent direct command:
 
@@ -316,6 +353,11 @@ If internet access to `WEIGHTS_URL` is blocked, seed metadata only:
 ```bash
 COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING=1 make compose-bootstrap-seed-weights
 ```
+
+### Which startup path should I use?
+
+- **Normal training/optimization path:** run `make compose-bootstrap` and keep weight seeding enabled (default). This ensures trainer fallback artifacts are available in `pretrainedweights`.
+- **Visual prompt path:** also requires weight seeding, because `interactive_ai_visual_prompt` loads SAM files from `pretrainedweights` at startup (`sam_vit_b_zsl_encoder/decoder` xml+bin). If these objects are missing, the service fails to start and prompt API requests return `502`.
 
 Verify metadata exists in S3:
 
