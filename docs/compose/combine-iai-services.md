@@ -100,14 +100,14 @@ Candidate approach:
 
 ## Phase 0 — Preparation
 
-- [ ] Create `interactive_ai/services/main.py` scaffold.
+- [x] Create `interactive_ai/services/main.py` scaffold.
 - [ ] Decide composition mechanism:
-  - [ ] Single ASGI app mounting sub-apps
+  - [x] Single ASGI app mounting sub-apps
   - [ ] Reverse-proxy-internal style forwarding in-process
   - [ ] Hybrid (preferred only if needed for compatibility)
-- [ ] Define unified runtime port for `interactive_ai_api` (e.g. `8000`).
-- [ ] Add new compose service `interactive_ai_api` with shared env baseline (`*iai-runtime-env`).
-- [ ] Add smoke route `/api/v1/healthz` on unified service.
+- [x] Define unified runtime port for `interactive_ai_api` (e.g. `8000`).
+- [x] Add new compose service `interactive_ai_api` with shared env baseline (`*iai-runtime-env`).
+- [x] Add smoke route `/api/v1/healthz` on unified service.
 
 ## Phase 1 — Migrate dataset import/export
 
@@ -126,7 +126,6 @@ Candidate approach:
 ## Phase 3 — Migrate jobs REST API
 
 - [x] Move `interactive_ai_jobs` REST endpoints into unified API process.
-- [ ] Keep `jobs_worker`, `jobs_scheduler`, `jobs_policy` as separate services.
 - [x] Keep `jobs_worker`, `jobs_scheduler`, `jobs_policy` as separate services.
 - [x] Verify service startup and endpoint registration in unified API.
 - [ ] Verify job create/list/get/cancel flows.
@@ -147,7 +146,7 @@ Candidate approach:
 
 ## Phase 6 — Cleanup
 
-- [ ] Remove deprecated per-API compose services after parity verification.
+- [ ] Remove deprecated per-API compose services after parity verification (currently kept for rollback safety).
 - [ ] Remove obsolete env vars / `PYTHONPATH` entries tied to removed services.
 - [ ] Update `docs/compose/getting-started-with-compose.md` startup commands.
 - [ ] Update smoke checks for unified service topology.
