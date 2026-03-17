@@ -90,9 +90,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
 # ---------------------------------------------------------------------------
-# Build: auto_train overlay  (env_auto_train)
-# Start from env_core (resource) and install/copy cross-service missing deps
-# required as services are migrated to a single shared env.
+# Build: shared core overlay (final env_core source)
+# Start from build-resource and install/copy service-specific runtime deps
+# from other build stages into one unified venv for all API services.
 # ---------------------------------------------------------------------------
 FROM build-resource AS build-auto_train
 WORKDIR /interactive_ai/services/resource
@@ -147,6 +147,8 @@ COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10
 COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/yarl-1.23.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/yarl-1.23.0.dist-info
 COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiohappyeyeballs /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiohappyeyeballs
 COPY --link --from=build-jobs /interactive_ai/services/jobs/.venv/lib/python3.10/site-packages/aiohappyeyeballs-2.6.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiohappyeyeballs-2.6.1.dist-info
+
+# model_registration overlays
 COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/model_api /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/model_api
 COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino
 COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/openvino-2026.0.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/openvino-2026.0.0.dist-info
@@ -161,6 +163,8 @@ COPY --link --from=build-model_registration /interactive_ai/services/model_regis
 COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/aiofiles-24.1.0.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/aiofiles-24.1.0.dist-info
 COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/dpath /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/dpath
 COPY --link --from=build-model_registration /interactive_ai/services/model_registration/.venv/lib/python3.10/site-packages/dpath-2.0.1.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/dpath-2.0.1.dist-info
+
+# director overlays
 COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/sklearn /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/sklearn
 COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/scikit_learn-1.7.2.dist-info /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/scikit_learn-1.7.2.dist-info
 COPY --link --from=build-director /interactive_ai/services/director/.venv/lib/python3.10/site-packages/scikit_learn.libs /interactive_ai/services/resource/.venv/lib/python3.10/site-packages/scikit_learn.libs
