@@ -12,21 +12,7 @@ x-default-env-file: &default-env-file
   - .env
 
 x-iai-runtime-env: &iai-runtime-env
-  DATABASE_ADDRESS: ${DATABASE_ADDRESS}
-  DATABASE_USERNAME: ${DATABASE_USERNAME}
-  DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-  MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
-  KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-  KAFKA_USERNAME: ${KAFKA_USERNAME}
-  KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-  KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-  SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
-  SPICEDB_TOKEN: ${SPICEDB_TOKEN}
-  SPICEDB_CREDENTIALS: token
   S3_CREDENTIALS_PROVIDER: local
-  S3_HOST: ${S3_HOST:-s3:8333}
-  S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-  S3_SECRET_KEY: ${S3_SECRET_KEY}
   S3_PRESIGNED_URL_ACCESS_KEY: ${S3_ACCESS_KEY}
   S3_PRESIGNED_URL_SECRET_KEY: ${S3_SECRET_KEY}
   BUCKET_NAME_IMAGES: images
@@ -69,7 +55,6 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB_NAME: ${DB_NAME}
       LOGGING_CONFIG_DIR: /
-      USERS_PER_ORG_LIMIT: ${USERS_PER_ORG_LIMIT:-300}
       FEATURE_FLAG_MANAGE_USERS_ROLES: "true"
       FEATURE_FLAG_MANAGE_USERS: "true"
       FEATURE_FLAG_REQ_ACCESS: "false"
@@ -126,29 +111,20 @@ services:
       <<: *proxies
     env_file: *default-env-file
     environment:
-      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
       DATABASE_USERNAME: ${MONGODB_ROOT_USERNAME}
       DATABASE_PASSWORD: ${MONGODB_ROOT_PASSWORD}
       DATABASE_USERNAME_SERVICE: ${DATABASE_USERNAME}
       DATABASE_PASSWORD_SERVICE: ${DATABASE_PASSWORD}
-      SERVICE_USER_ALL_DB_ROLES: ${SERVICE_USER_ALL_DB_ROLES}
-      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
       MONGODB_CREDENTIALS_PROVIDER: local
       S3_ADDRESS: ${S3_ENDPOINT}
-      S3_HOST: ${S3_HOST:-s3:8333}
-      S3_BUCKET: geti;images;videos;thumbnails;tensors;models;temporaryfiles;resultmedia;codedeployments;mlflowexperiments;pretrainedweights;vpsreferencefeatures
-      SPICEDB_CREDENTIALS: token
+      S3_BUCKET: ${GETI_INIT_S3_BUCKET_LIST}
       POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
       POSTGRES_DB: ${DB_NAME}
       SPICEDB_POSTGRES_USER: ${DB_USER}
       SPICEDB_POSTGRES_PASSWORD: ${DB_PASSWORD}
       ACCOUNT_SERVICE_HOST: platform_account
-      ACCOUNT_SERVICE_PORT: 5001
       FEATURE_FLAG_WORKSPACE_ACTIONS: "false"
       LOGGING_CONFIG_DIR: /
-      INIT_SEED_WEIGHTS: ${INIT_SEED_WEIGHTS:-0}
-      WEIGHTS_URL: ${WEIGHTS_URL:-https://storage.geti.intel.com/weights}
       DISABLE_WEIGHT_UPLOADING: ${COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING:-0}
     depends_on:
       mongodb:
@@ -185,19 +161,15 @@ services:
     env_file: *default-env-file
     environment:
       ACCOUNT_SERVICE_HOST: platform_account
-      ACCOUNT_SERVICE_PORT: 5001
-      SPICEDB_CREDENTIALS: token
       LOGS_DIR: /logs
       LOGGING_CONFIG_DIR: /
       USE_KUBECONFIG: "true"
-      INVITATION_FROM_ADDRESS: ${INVITATION_FROM_ADDRESS:-no-reply@geti.intel.com}
-      INVITATION_FROM_NAME: ${INVITATION_FROM_NAME:-Intel Geti}
       # Compose-mode secrets / config-map fallbacks (see service_connection/k8s_client/{secrets,config_maps}.py)
       # JWT key used to sign invitation and password-reset tokens (secret name: impt-jwt-config, key: key)
       GETI_SECRET_IMPT_JWT_CONFIG_KEY: ${GETI_JWT_SECRET_KEY}
       # impt-configuration CM fields consumed by invite_user and password_reset endpoints
-      GETI_CM_IMPT_CONFIGURATION_INVITE_USER_EXPIRATION: "43200"
-      GETI_CM_IMPT_CONFIGURATION_PASSWORD_RESET_EXPIRATION: "15"
+      GETI_CM_IMPT_CONFIGURATION_INVITE_USER_EXPIRATION: ${INVITE_USER_EXPIRATION_SEC}
+      GETI_CM_IMPT_CONFIGURATION_PASSWORD_RESET_EXPIRATION: ${PASSWORD_RESET_EXPIRATION_MIN}
     depends_on:
       openldap:
         condition: service_started
@@ -265,16 +237,6 @@ services:
       RESOURCE_MS_SERVICE: localhost
       RESOURCE_MS_PORT: 8000
       OVMS_MODELS_DIR: /ovms_models
-      LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
-      LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
-      LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC: ${LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC:-7200}
-      LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC: ${LOCAL_EXECUTOR_TRAIN_TIMEOUT_SEC:-7200}
-      LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC: ${LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC:-3600}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
-      AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL: ${AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL:-5}
-      AUTO_TRAIN_DEBOUNCING_PERIOD: ${AUTO_TRAIN_DEBOUNCING_PERIOD:-5}
-      AUTO_TRAIN_JOB_SUBMISSION_COOLDOWN: ${AUTO_TRAIN_JOB_SUBMISSION_COOLDOWN:-60}
     depends_on:
       geti_init:
         condition: service_completed_successfully
@@ -329,17 +291,6 @@ services:
       PYTHONPATH: /interactive_ai/services/jobs
       JOBS_TEMPLATES_DIR: /config
       JOBS_TEMPLATES_FILE: jobs_templates.yaml
-      LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
-      LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
-      SCHEDULER_SCHEDULING_LOOP_WORKERS: 1
-      SCHEDULER_REVERT_SCHEDULING_LOOP_WORKERS: 1
-      SCHEDULER_CANCELLATION_LOOP_WORKERS: 1
-      SCHEDULER_RESETTING_LOOP_WORKERS: 1
-      SCHEDULER_DELETION_LOOP_WORKERS: 1
-      SCHEDULER_RECOVERY_LOOP_WORKERS: 1
-      MAX_JOBS_RUNNING_PER_ORGANIZATION: ${MAX_JOBS_RUNNING_PER_ORGANIZATION:-1}
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
       RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
@@ -373,8 +324,6 @@ services:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/jobs
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
       DATASET_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_dataset_import_export:${TAG-main}
       PROJECT_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_project_import_export:${TAG-main}
       MODEL_TEST_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
@@ -382,14 +331,10 @@ services:
       OPTIMIZE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_optimize:${TAG-main}
       TRAINER_RUNTIME_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
       TRAINER_RUNTIME_XPU_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
-      TRAINER_RUNTIME_ACCELERATOR: ${TRAINER_RUNTIME_ACCELERATOR:-gpu}
-      TRAINER_RUNTIME_XPU_DEVICES: ${TRAINER_RUNTIME_XPU_DEVICES:-/dev/dri}
       TRAINER_RUNTIME_COMMAND: run
-      DEFAULT_TRAINER_VERSION: ${DEFAULT_TRAINER_VERSION:-1.6.2}
       SHARD_FILES_DIR: /shard_files
       BUCKET_NAME_MLFLOWEXPERIMENTS: mlflowexperiments
       BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
-      WEIGHTS_URL: ${WEIGHTS_URL:-https://storage.geti.intel.com/weights}
       MODEL_CACHE_DIR: /home/non-root/.cache/torch/hub/checkpoints
       WORKFLOW_EVALUATE_STUB: "true"
       WORKFLOW_EVALUATE_STUB_METADATA: "true"
@@ -401,7 +346,6 @@ services:
       WORKFLOW_OPTIMIZE_STUB_EVALUATE: "false"
       STORAGE_DIR_PATH: /tmp/ie_storage
       MONGODB_CREDENTIALS_PROVIDER: local
-      S3_HOST: ${S3_HOST:-s3:8333}
       JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
       MODEL_REGISTRATION_SERVICE: interactive_ai_api:5555
       SESSION_ORGANIZATION_ID: ${MOCK_SESSION_ORGANIZATION_ID}
@@ -413,8 +357,7 @@ services:
       JOB_METADATA_START_TIME: ${MOCK_JOB_METADATA_START_TIME}
       FEATURE_FLAGS_HEADER_VALUE: ""
       FEATURE_FLAGS_URL: ""
-      WORKFLOW_DOCKER_NETWORK: ${COMPOSE_DOCKER_NETWORK:-geti}
-      SIGNING_IE_PRIVKEY: ${SIGNING_IE_PRIVKEY}
+      WORKFLOW_DOCKER_NETWORK: ${COMPOSE_DOCKER_NETWORK}
     depends_on:
       redis:
         condition: service_started
@@ -484,10 +427,6 @@ services:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services/visual_prompt
-      SAM_ENCODER_XML_PATH: ${SAM_ENCODER_XML_PATH:-sam_vit_b_zsl_encoder.xml}
-      SAM_ENCODER_BIN_PATH: ${SAM_ENCODER_BIN_PATH:-sam_vit_b_zsl_encoder.bin}
-      SAM_DECODER_XML_PATH: ${SAM_DECODER_XML_PATH:-sam_vit_b_zsl_decoder.xml}
-      SAM_DECODER_BIN_PATH: ${SAM_DECODER_BIN_PATH:-sam_vit_b_zsl_decoder.bin}
     depends_on:
       geti_init:
         condition: service_completed_successfully
@@ -647,8 +586,8 @@ services:
 
   kafka:
     image: apache/kafka:3.7.1
+    env_file: *default-env-file
     environment:
-      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms256m -Xmx512m}
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9094,PLAINTEXT_HOST://:9095
@@ -691,10 +630,6 @@ services:
   openldap:
     image: osixia/openldap:1.5.0
     env_file: *default-env-file
-    environment:
-      LDAP_ORGANISATION: ${LDAP_ORGANISATION:-Geti Local}
-      LDAP_DOMAIN: ${LDAP_DOMAIN:-example.org}
-      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
     ports:
       - "389:389"
     restart: always
