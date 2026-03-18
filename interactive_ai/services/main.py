@@ -8,9 +8,12 @@ from contextlib import asynccontextmanager
 import importlib
 import importlib.util
 import logging
+import os
 from pathlib import Path
+import subprocess
 import sys
 import threading
+import time
 from fastapi import FastAPI
 import uvicorn
 
@@ -163,14 +166,55 @@ async def _auto_train_lifespan():  # noqa: ANN201
         thread.join(timeout=int(_auto_train_main.AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL) + 5)
 
 
+def _start_model_registration_process() -> subprocess.Popen:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "/interactive_ai/services/model_registration"
+
+    process = subprocess.Popen(  # noqa: S603
+        [sys.executable, "main.py"],  # noqa: S607
+        cwd="/interactive_ai/services/model_registration",
+        env=env,
+    )
+
+    time.sleep(1)
+    if process.poll() is not None:
+        msg = "Integrated model_registration process exited during startup"
+        raise RuntimeError(msg)
+
+    logger.info("Integrated model_registration process started")
+    return process
+
+
+def _stop_model_registration_process(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+@asynccontextmanager
+async def _model_registration_lifespan():  # noqa: ANN201
+    process = _start_model_registration_process()
+    try:
+        yield
+    finally:
+        _stop_model_registration_process(process)
+
+
 @asynccontextmanager
 async def _lifespan(app_instance: FastAPI):  # noqa: ANN201
-    async with _auto_train_lifespan():
-        async with _dataset_ie_main.lifespan(app_instance):
-            async with _project_ie_main.lifespan(app_instance):
-                async with _director_main.lifespan(app_instance):
-                    async with _resource_main.lifespan(app_instance):
-                        yield
+    async with _model_registration_lifespan():
+        async with _auto_train_lifespan():
+            async with _dataset_ie_main.lifespan(app_instance):
+                async with _project_ie_main.lifespan(app_instance):
+                    async with _director_main.lifespan(app_instance):
+                        async with _resource_main.lifespan(app_instance):
+                            yield
 
 
 app.router.lifespan_context = _lifespan

@@ -389,6 +389,11 @@ services:
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
       PYTHONPATH: /interactive_ai/services
       JOB_SERVICE_ADDRESS: interactive_ai_jobs_scheduler:50051
+      GRPC_SERVICE_PORT: 5555
+      BUCKET_NAME_MODELMESH: models
+      RESOURCE_MS_SERVICE: localhost
+      RESOURCE_MS_PORT: 8000
+      OVMS_MODELS_DIR: /ovms_models
       LOCAL_EXECUTOR_MODE: ${LOCAL_EXECUTOR_MODE}
       LOCAL_EXECUTOR_SIM_DURATION_SEC: ${LOCAL_EXECUTOR_SIM_DURATION_SEC}
       LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC: ${LOCAL_EXECUTOR_DEFAULT_TIMEOUT_SEC:-7200}
@@ -404,6 +409,9 @@ services:
         condition: service_completed_successfully
       init-kafka-topics:
         condition: service_completed_successfully
+    user: "0:0"
+    volumes:
+      - ./infrastructure/data/ovms:/ovms_models
 
   interactive_ai_inference_gateway:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/inference_gateway:${TAG-main}
@@ -427,12 +435,15 @@ services:
       OVMS_PORT: 9000
       DIRECTOR_MS_SERVICE: interactive_ai_api
       DIRECTOR_MS_ADDRESS: http://interactive_ai_api:8000
+      MODELREGISTRATION_SERVICE: interactive_ai_api
+      MODELREGISTRATION_PORT: 5555
+      MODELREGISTRATION_ADDRESS: passthrough:///interactive_ai_api:5555
     depends_on:
       migration_job:
         condition: service_completed_successfully
       ovms:
         condition: service_started
-      interactive_ai_model_registration:
+      interactive_ai_api:
         condition: service_started
 
   interactive_ai_jobs_scheduler:
@@ -522,7 +533,7 @@ services:
       MONGODB_CREDENTIALS_PROVIDER: local
       S3_HOST: s3:8333
       JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
-      MODEL_REGISTRATION_SERVICE: interactive_ai_model_registration:5555
+      MODEL_REGISTRATION_SERVICE: interactive_ai_api:5555
       SESSION_ORGANIZATION_ID: ${MOCK_SESSION_ORGANIZATION_ID}
       SESSION_WORKSPACE_ID: ${MOCK_SESSION_WORKSPACE_ID}
       JOB_METADATA_ID: ${MOCK_JOB_METADATA_ID}
@@ -578,29 +589,6 @@ services:
     depends_on:
       migration_job:
         condition: service_completed_successfully
-
-  interactive_ai_model_registration:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/model_registration
-    command: ["python", "main.py"]
-    user: "0:0"
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/model_registration
-      S3_CREDENTIALS_PROVIDER: local
-      S3_HOST: s3:8333
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-      BUCKET_NAME_MODELMESH: models
-      RESOURCE_MS_SERVICE: interactive_ai_api
-      RESOURCE_MS_PORT: 8000
-      OVMS_MODELS_DIR: /ovms_models
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-    volumes:
-      - ./infrastructure/data/ovms:/ovms_models
 
   ovms:
     image: openvino/model_server:2025.0

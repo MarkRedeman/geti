@@ -30,6 +30,7 @@ from service.s3client import S3Client
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
+GRAPHS_DIR = Path(__file__).resolve().parent / "graphs"
 
 DEFAULT_ORGANIZATION_ID = "000000000000000000000001"
 LARGE_MODEL_THRESHOLD_BYTES = 50 * 1024 * 1024
@@ -245,7 +246,7 @@ class ModelConverter:
         }
         graph_type = self._get_graph_type(project=project, models=models)
         try:
-            graph_in = os.path.join("service", "graphs", graph_type, graph_files[graph_variant])
+            graph_in = str(GRAPHS_DIR / graph_type / graph_files[graph_variant])
             graph_out = os.path.join(path, "graph.pbtxt")
             with open(graph_in) as fin, open(graph_out, "w") as fout:
                 graph = fin.read()

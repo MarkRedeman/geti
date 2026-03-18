@@ -169,11 +169,10 @@ Recommended progression for first bring-up (service-by-service):
 2. Add user and onboarding APIs:
    - `platform_user_directory`, `platform_onboarding`, `platform_initial_user`
 3. Add interactive AI control plane:
-   - `interactive_ai_jobs_scheduler`, `interactive_ai_jobs_worker`,
-     `interactive_ai_jobs_policy`, `interactive_ai_model_registration`, `ovms`
+   - `interactive_ai_jobs_scheduler`, `interactive_ai_jobs_worker`, `ovms`
 4. Add remaining interactive AI APIs/workers:
    - `interactive_ai_api`, `interactive_ai_inference_gateway`,
-     `interactive_ai_visual_prompt`, `interactive_ai_media`, `interactive_ai_auto_train`
+     `interactive_ai_visual_prompt`, `interactive_ai_media`
 5. Add workflow and trainer images/services only when needed:
    - `interactive_ai_workflows_*`, `interactive_ai_workflows_otx_v2_*`, `otx`
 
@@ -209,7 +208,7 @@ Start everything (infra + platform + interactive AI services):
 Recommended unified API variant:
 
 ```bash
-docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_api interactive_ai_media interactive_ai_auto_train interactive_ai_model_registration interactive_ai_inference_gateway ovms interactive_ai_jobs_policy interactive_ai_jobs_worker interactive_ai_jobs_scheduler interactive_ai_visual_prompt
+docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_api interactive_ai_media interactive_ai_inference_gateway ovms interactive_ai_jobs_worker interactive_ai_jobs_scheduler interactive_ai_visual_prompt
 ```
 
 

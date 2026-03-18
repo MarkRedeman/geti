@@ -19,7 +19,7 @@ Core backend services involved:
 - `interactive_ai_jobs_celery_worker` – executes `scheduler.run_job_execution` tasks
 - workflow runtime containers (`TRAIN_WORKFLOW_IMAGE`, `TRAINER_RUNTIME_IMAGE`, `MODEL_TEST_WORKFLOW_IMAGE`, etc.)
 - `interactive_ai_api` (resource routes) – model metadata and model-test results querying endpoints
-- `interactive_ai_model_registration` – prepares graph/model artifacts and updates OVMS config
+- `interactive_ai_api` (integrated model registration gRPC) – prepares graph/model artifacts and updates OVMS config
 - `ovms` – serves registered pipelines for inference
 - `interactive_ai_inference_gateway` – handles infer/explain APIs and calls OVMS over gRPC
 

@@ -61,8 +61,8 @@ Proposed direction:
 10. `interactive_ai_jobs_policy`
     - Policy loop (`python policies/main.py`), no Traefik route
 
-11. `interactive_ai_model_registration`
-    - Internal service (`python main.py`), no Traefik route
+11. `interactive_ai_model_registration` (**migrated into `interactive_ai_api`**)
+    - Internal gRPC service now started by unified API lifespan
 
 > Recommendation: first consolidate **HTTP APIs only**, but defer `visual_prompt` initially due to its heavyweight model-loading/inference lifecycle. Keep worker/scheduler/policy/background services split unless we intentionally redesign process supervision.
 

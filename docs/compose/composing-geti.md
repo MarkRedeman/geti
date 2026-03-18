@@ -614,7 +614,7 @@ Current de-stub progression:
 
 Required compose wiring for real registration path:
 
-- `MODEL_REGISTRATION_SERVICE=interactive_ai_model_registration:5555` added to jobs worker env.
+- `MODEL_REGISTRATION_SERVICE=interactive_ai_api:5555` added to jobs worker env.
 - `MODEL_REGISTRATION_*` forwarding added in Celery stage container launches.
 
 Important note on current scope:

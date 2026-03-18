@@ -35,13 +35,10 @@ The non-trivial swap usage suggests recent memory pressure or previous heavy job
 | s3                                   | 0.25% | 295.8 MiB | 0.46% |   30 | Heavy network/block I/O service      |
 | interactive_ai_director              | 1.99% | 172.6 MiB | 0.27% |  110 | Moderate steady CPU                  |
 | interactive_ai_dataset_import_export | 0.58% | 156.6 MiB | 0.24% |   56 | Active data transfer/import path     |
-| interactive_ai_model_registration    | 0.08% | 142.3 MiB | 0.22% |   44 | Moderate memory, low CPU at idle     |
 | interactive_ai_jobs                  | 1.07% | 131.8 MiB | 0.21% |   49 | Control-plane API                    |
 | mongodb                              | 1.03% | 126.5 MiB | 0.20% |   72 | Stable baseline DB usage             |
 | interactive_ai_jobs_scheduler        | 1.05% | 125.5 MiB | 0.20% |   43 | Queue/scheduler loop activity        |
-| interactive_ai_jobs_policy           | 0.17% | 114.1 MiB | 0.18% |   51 | Low CPU, moderate memory             |
 | interactive_ai_project_import_export | 0.22% | 110.9 MiB | 0.17% |   47 | Mostly idle in sample                |
-| interactive_ai_auto_train            | 0.04% | 107.7 MiB | 0.17% |   50 | Low idle overhead                    |
 | interactive_ai_jobs_worker           | 0.36% | 105.9 MiB | 0.17% |   47 | Will spike during jobs               |
 | ovms                                 | 0.22% | 94.15 MiB | 0.15% |  130 | Inference server baseline            |
 | db (postgres)                        | 0.01% | 48.01 MiB | 0.07% |    9 | Low usage in current workload        |
