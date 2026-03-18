@@ -6,12 +6,17 @@ incrementally in a single API process.
 
 from contextlib import asynccontextmanager
 import importlib
+import importlib.util
+import logging
+from pathlib import Path
 import sys
+import threading
 from fastapi import FastAPI
 import uvicorn
 
 
 app = FastAPI(title="interactive_ai_api", version="0.1.0")
+logger = logging.getLogger(__name__)
 
 
 def _import_service_main(service_root: str, module_path: str, purge_prefixes: tuple[str, ...] = ("communication",)):
@@ -31,15 +36,44 @@ def _import_service_main(service_root: str, module_path: str, purge_prefixes: tu
             pass
 
 
+def _import_service_file(
+    service_root: str,
+    file_path: str,
+    module_name: str,
+    purge_prefixes: tuple[str, ...],
+):
+    def _matches_prefix(module_id: str) -> bool:
+        return any(module_id == prefix or module_id.startswith(f"{prefix}.") for prefix in purge_prefixes)
+
+    for module_id in [m for m in list(sys.modules) if _matches_prefix(m)]:
+        sys.modules.pop(module_id, None)
+
+    sys.path.insert(0, service_root)
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec is None or spec.loader is None:
+            msg = f"Cannot import module '{module_name}' from '{file_path}'"
+            raise ImportError(msg)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        try:
+            sys.path.remove(service_root)
+        except ValueError:
+            pass
+
+
 _dataset_ie_main = _import_service_main(
     "/interactive_ai/services/dataset_ie",
     "communication.endpoints.main",
-    purge_prefixes=("communication", "features"),
+    purge_prefixes=("communication", "features", "repos", "usecases"),
 )
 _project_ie_main = _import_service_main(
     "/interactive_ai/services/project_ie",
     "communication.endpoints.main",
-    purge_prefixes=("communication", "features"),
+    purge_prefixes=("communication", "features", "repos", "usecases"),
 )
 _director_main = _import_service_main(
     "/interactive_ai/services/director/app",
@@ -79,6 +113,20 @@ _resource_main = _import_service_main(
         "resource_management",
     ),
 )
+_auto_train_main = _import_service_file(
+    "/interactive_ai/services/auto_train",
+    str(Path("/interactive_ai/services/auto_train/main.py")),
+    "_auto_train_main",
+    purge_prefixes=(
+        "main",
+        "controller",
+        "entities",
+        "exceptions",
+        "job_creation_helpers",
+        "telemetry_config",
+        "repos",
+    ),
+)
 
 sys.path.insert(0, "/interactive_ai/services/jobs")
 try:
@@ -90,13 +138,39 @@ finally:
         pass
 
 
+_auto_train_stop_event = threading.Event()
+
+
+def _run_auto_train_loop() -> None:
+    interval = int(_auto_train_main.AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL)
+    while not _auto_train_stop_event.is_set():
+        try:
+            _auto_train_main.run_controller_loop()
+        except Exception:
+            logger.exception("Unhandled exception in integrated auto-train loop")
+        _auto_train_stop_event.wait(timeout=interval)
+
+
+@asynccontextmanager
+async def _auto_train_lifespan():  # noqa: ANN201
+    _auto_train_stop_event.clear()
+    thread = threading.Thread(target=_run_auto_train_loop, daemon=True, name="auto-train-controller")
+    thread.start()
+    try:
+        yield
+    finally:
+        _auto_train_stop_event.set()
+        thread.join(timeout=int(_auto_train_main.AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL) + 5)
+
+
 @asynccontextmanager
 async def _lifespan(app_instance: FastAPI):  # noqa: ANN201
-    async with _dataset_ie_main.lifespan(app_instance):
-        async with _project_ie_main.lifespan(app_instance):
-            async with _director_main.lifespan(app_instance):
-                async with _resource_main.lifespan(app_instance):
-                    yield
+    async with _auto_train_lifespan():
+        async with _dataset_ie_main.lifespan(app_instance):
+            async with _project_ie_main.lifespan(app_instance):
+                async with _director_main.lifespan(app_instance):
+                    async with _resource_main.lifespan(app_instance):
+                        yield
 
 
 app.router.lifespan_context = _lifespan

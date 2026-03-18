@@ -396,36 +396,12 @@ services:
       LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC: ${LOCAL_EXECUTOR_OPTIMIZE_TIMEOUT_SEC:-3600}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL: ${AUTO_TRAIN_CONTROLLER_LOOP_INTERVAL:-5}
+      AUTO_TRAIN_DEBOUNCING_PERIOD: ${AUTO_TRAIN_DEBOUNCING_PERIOD:-5}
+      AUTO_TRAIN_JOB_SUBMISSION_COOLDOWN: ${AUTO_TRAIN_JOB_SUBMISSION_COOLDOWN:-60}
     depends_on:
       migration_job:
         condition: service_completed_successfully
-      init-kafka-topics:
-        condition: service_completed_successfully
-
-  interactive_ai_auto_train:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    build:
-      context: ./interactive_ai/services
-      dockerfile: Dockerfile.api
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - iai_core=./interactive_ai/libs/iai_core_py/
-        - media_utils=./interactive_ai/libs/media_utils
-        - supported_models=./interactive_ai/supported_models/
-        - schemas=./interactive_ai/services/api
-    working_dir: /interactive_ai/services/auto_train
-    command: ["python", "main.py"]
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/auto_train
-      JOB_SERVICE_ADDRESS: interactive_ai_jobs_scheduler:50051
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
       init-kafka-topics:
         condition: service_completed_successfully
 
