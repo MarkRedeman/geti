@@ -8,6 +8,9 @@ x-proxies: &proxies
     - no_proxy=${no_proxy}
     - OTX_RELEASE_TAG=${OTX_RELEASE_TAG}
 
+x-default-env-file: &default-env-file
+  - .env
+
 x-iai-runtime-env: &iai-runtime-env
   DATABASE_ADDRESS: ${DATABASE_ADDRESS}
   DATABASE_USERNAME: ${DATABASE_USERNAME}
@@ -21,7 +24,7 @@ x-iai-runtime-env: &iai-runtime-env
   SPICEDB_TOKEN: ${SPICEDB_TOKEN}
   SPICEDB_CREDENTIALS: token
   S3_CREDENTIALS_PROVIDER: local
-  S3_HOST: s3:8333
+  S3_HOST: ${S3_HOST:-s3:8333}
   S3_ACCESS_KEY: ${S3_ACCESS_KEY}
   S3_SECRET_KEY: ${S3_SECRET_KEY}
   S3_PRESIGNED_URL_ACCESS_KEY: ${S3_ACCESS_KEY}
@@ -58,24 +61,15 @@ services:
       - "traefik.http.routers.platform-account.priority=90"
       - "traefik.http.services.platform-account.loadbalancer.server.port=5002"
       - "traefik.http.routers.platform-account.middlewares=geti-auth@docker"
+    env_file: *default-env-file
     environment:
       POSTGRES_HOST: db
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_PORT: 5432
       POSTGRES_DB_NAME: ${DB_NAME}
-      S3_ENDPOINT: ${S3_ENDPOINT}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
-      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-      GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
       LOGGING_CONFIG_DIR: /
-      USERS_PER_ORG_LIMIT: 300
+      USERS_PER_ORG_LIMIT: ${USERS_PER_ORG_LIMIT:-300}
       FEATURE_FLAG_MANAGE_USERS_ROLES: "true"
       FEATURE_FLAG_MANAGE_USERS: "true"
       FEATURE_FLAG_REQ_ACCESS: "false"
@@ -96,6 +90,7 @@ services:
       <<: *proxies
       additional_contexts:
         - account_service_client=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
+    env_file: *default-env-file
     environment:
       ACCOUNT_SERVICE_HOST: "platform_account"
       ACCOUNT_SERVICE_PORT: "5001"
@@ -129,6 +124,7 @@ services:
       context: .
       dockerfile: infrastructure/geti_init/Dockerfile
       <<: *proxies
+    env_file: *default-env-file
     environment:
       DATABASE_ADDRESS: ${DATABASE_ADDRESS}
       DATABASE_USERNAME: ${MONGODB_ROOT_USERNAME}
@@ -139,23 +135,8 @@ services:
       MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
       MONGODB_CREDENTIALS_PROVIDER: local
       S3_ADDRESS: ${S3_ENDPOINT}
-      S3_HOST: s3:8333
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_HOST: ${S3_HOST:-s3:8333}
       S3_BUCKET: geti;images;videos;thumbnails;tensors;models;temporaryfiles;resultmedia;codedeployments;mlflowexperiments;pretrainedweights;vpsreferencefeatures
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL}
-      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD}
-      DEX_STATIC_USER_ID: ${DEX_STATIC_USER_ID}
-      LDAP_HOST: ${LDAP_HOST}
-      LDAP_PORT: ${LDAP_PORT}
-      LDAP_ADMIN_USER: ${LDAP_ADMIN_USER}
-      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
-      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
-      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
       SPICEDB_CREDENTIALS: token
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
@@ -201,30 +182,16 @@ services:
       - "traefik.http.routers.platform-user-directory.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/users/reset_password/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/create/?$`) || PathRegexp(`^/api/v[0-9]+/users/.*/update_password/?$`) || PathRegexp(`^/api/v[0-9]+/users/confirm_registration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/invitations/?$`) || PathPrefix(`/confirm-action/registration/reset-password`))"
       - "traefik.http.routers.platform-user-directory.priority=95"
       - "traefik.http.services.platform-user-directory.loadbalancer.server.port=9000"
+    env_file: *default-env-file
     environment:
       ACCOUNT_SERVICE_HOST: platform_account
       ACCOUNT_SERVICE_PORT: 5001
-      LDAP_HOST: ${LDAP_HOST}
-      LDAP_PORT: ${LDAP_PORT}
-      LDAP_ADMIN_USER: ${LDAP_ADMIN_USER}
-      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
-      SPICEDB_ADDRESS: ${SPICEDB_ADDRESS}
-      SPICEDB_TOKEN: ${SPICEDB_TOKEN}
       SPICEDB_CREDENTIALS: token
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-      GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
       LOGS_DIR: /logs
       LOGGING_CONFIG_DIR: /
       USE_KUBECONFIG: "true"
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_LOGIN: ${SMTP_LOGIN}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      INVITATION_FROM_ADDRESS: no-reply@geti.intel.com
-      INVITATION_FROM_NAME: Intel Geti
+      INVITATION_FROM_ADDRESS: ${INVITATION_FROM_ADDRESS:-no-reply@geti.intel.com}
+      INVITATION_FROM_NAME: ${INVITATION_FROM_NAME:-Intel Geti}
       # Compose-mode secrets / config-map fallbacks (see service_connection/k8s_client/{secrets,config_maps}.py)
       # JWT key used to sign invitation and password-reset tokens (secret name: impt-jwt-config, key: key)
       GETI_SECRET_IMPT_JWT_CONFIG_KEY: ${GETI_JWT_SECRET_KEY}
@@ -287,6 +254,7 @@ services:
       - "traefik.http.routers.interactive-ai-resource-test-results.middlewares=geti-auth@docker"
       - "traefik.http.routers.interactive-ai-resource-test-results.service=interactive-ai-api"
       - "traefik.http.services.interactive-ai-api.loadbalancer.server.port=8000"
+    env_file: *default-env-file
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
@@ -330,6 +298,7 @@ services:
       - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
       - "traefik.http.routers.interactive-ai-inference-gateway.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
+    env_file: *default-env-file
     environment:
       <<: *iai-runtime-env
       OVMS_SERVICE: ovms
@@ -353,6 +322,7 @@ services:
     command:
       - python
       - scheduler/main.py
+    env_file: *default-env-file
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
@@ -369,7 +339,7 @@ services:
       SCHEDULER_RESETTING_LOOP_WORKERS: 1
       SCHEDULER_DELETION_LOOP_WORKERS: 1
       SCHEDULER_RECOVERY_LOOP_WORKERS: 1
-      MAX_JOBS_RUNNING_PER_ORGANIZATION: 1
+      MAX_JOBS_RUNNING_PER_ORGANIZATION: ${MAX_JOBS_RUNNING_PER_ORGANIZATION:-1}
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
       RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
@@ -398,6 +368,7 @@ services:
       - --loglevel=INFO
       - --pool=solo
       - --concurrency=1
+    env_file: *default-env-file
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
@@ -418,7 +389,7 @@ services:
       SHARD_FILES_DIR: /shard_files
       BUCKET_NAME_MLFLOWEXPERIMENTS: mlflowexperiments
       BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
-      WEIGHTS_URL: https://storage.geti.intel.com/weights
+      WEIGHTS_URL: ${WEIGHTS_URL:-https://storage.geti.intel.com/weights}
       MODEL_CACHE_DIR: /home/non-root/.cache/torch/hub/checkpoints
       WORKFLOW_EVALUATE_STUB: "true"
       WORKFLOW_EVALUATE_STUB_METADATA: "true"
@@ -430,7 +401,7 @@ services:
       WORKFLOW_OPTIMIZE_STUB_EVALUATE: "false"
       STORAGE_DIR_PATH: /tmp/ie_storage
       MONGODB_CREDENTIALS_PROVIDER: local
-      S3_HOST: s3:8333
+      S3_HOST: ${S3_HOST:-s3:8333}
       JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
       MODEL_REGISTRATION_SERVICE: interactive_ai_api:5555
       SESSION_ORGANIZATION_ID: ${MOCK_SESSION_ORGANIZATION_ID}
@@ -442,14 +413,8 @@ services:
       JOB_METADATA_START_TIME: ${MOCK_JOB_METADATA_START_TIME}
       FEATURE_FLAGS_HEADER_VALUE: ""
       FEATURE_FLAGS_URL: ""
-      WORKFLOW_DOCKER_NETWORK: geti
-      SIGNING_IE_PRIVKEY: |
-        -----BEGIN EC PRIVATE KEY-----
-        MIGkAgEBBDBvhcbXuDdIHzU9EDwCRP+ML3+RwHOeiJH7muQ+5BHPnvCKpblCz9WA
-        SUe7b4o44DCgBwYFK4EEACKhZANiAAR9qU6ywYIcqXUOWSauI74EE6jx76+6yY7R
-        1oY9tGxFIe644p1PITx0yaQKp5MKm/iXRIhV0UrWfxWpzzp2w0Pq8nlWkMC8CVBH
-        SLqppAcpL0bWNjq68cd1PegegXkQtjU=
-        -----END EC PRIVATE KEY-----
+      WORKFLOW_DOCKER_NETWORK: ${COMPOSE_DOCKER_NETWORK:-geti}
+      SIGNING_IE_PRIVKEY: ${SIGNING_IE_PRIVKEY}
     depends_on:
       redis:
         condition: service_started
@@ -483,6 +448,7 @@ services:
       - "traefik.http.routers.interactive-ai-media.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/media/images/.*/display/(full|thumb)$`)"
       - "traefik.http.routers.interactive-ai-media.priority=70"
       - "traefik.http.services.interactive-ai-media.loadbalancer.server.port=5002"
+    env_file: *default-env-file
     environment:
       <<: *iai-runtime-env
     depends_on:
@@ -513,6 +479,7 @@ services:
       - "traefik.http.routers.interactive-ai-visual-prompt.priority=80"
       - "traefik.http.routers.interactive-ai-visual-prompt.middlewares=geti-auth@docker"
       - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
+    env_file: *default-env-file
     environment:
       <<: *iai-runtime-env
       PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
@@ -723,9 +690,10 @@ services:
 
   openldap:
     image: osixia/openldap:1.5.0
+    env_file: *default-env-file
     environment:
-      LDAP_ORGANISATION: "Geti Local"
-      LDAP_DOMAIN: "example.org"
+      LDAP_ORGANISATION: ${LDAP_ORGANISATION:-Geti Local}
+      LDAP_DOMAIN: ${LDAP_DOMAIN:-example.org}
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
     ports:
       - "389:389"
