@@ -481,6 +481,9 @@ services:
       SCHEDULER_RESETTING_LOOP_WORKERS: 1
       SCHEDULER_DELETION_LOOP_WORKERS: 1
       SCHEDULER_RECOVERY_LOOP_WORKERS: 1
+      MAX_JOBS_RUNNING_PER_ORGANIZATION: 1
+      SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
+      RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
       migration_job:
         condition: service_completed_successfully
@@ -495,25 +498,6 @@ services:
     volumes:
       - ./infrastructure/data/jobs/jobs_templates.yaml:/config/jobs_templates.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
-
-  interactive_ai_jobs_policy:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
-    working_dir: /interactive_ai/services/jobs
-    command:
-      - python
-      - policies/main.py
-    environment:
-      <<: *iai-runtime-env
-      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
-      PYTHONPATH: /interactive_ai/services/jobs
-      MAX_JOBS_RUNNING_PER_ORGANIZATION: 1
-      SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
-      RESOURCE_MANAGER_LOOP_INTERVAL: 60
-    depends_on:
-      migration_job:
-        condition: service_completed_successfully
-      mongodb:
-        condition: service_healthy
 
   interactive_ai_jobs_worker:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
