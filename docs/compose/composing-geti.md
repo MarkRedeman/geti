@@ -46,7 +46,7 @@ Constraints/decisions for this migration branch:
 
 1. Runtime `.env` values are incomplete.
 2. Root compose currently defines many app services as build-only (missing runtime env and dependency wiring).
-3. Missing mounted config files/dirs (Dex/Authelia).
+3. Missing mounted config files/dirs (Dex).
 4. MongoDB missing from root compose while many services depend on it.
 5. Misconfigured labels/credentials/persistence in current compose setup.
 
@@ -276,7 +276,6 @@ Primary host: `geti.localhost`
 - `/api/v*/set_cookie` -> `platform_auth_proxy:7002`
 - account API paths (`/api/v*/organizations*`, `/logout`, `/profile`, `/personal_access_tokens*`) -> `platform_account:5002`
 - user-directory paths (`/api/v*/users/reset_password`, `/users/*/update_password`, `/users/confirm_registration`, `/organizations/*/users/*`) -> `platform_user_directory:9000`
-- `/api/v1/logs*` -> `platform_observability:9000`
 - director API train/optimize/status/configuration paths -> `interactive_ai_api:8000`
 - jobs API (`/api/v*/.../workspaces/.../jobs*`) -> `interactive_ai_api:8000`
 - media display paths -> `interactive_ai_media:5002`
@@ -290,7 +289,6 @@ Primary host: `geti.localhost`
 
 Auxiliary hosts:
 
-- `auth.geti.localhost` -> `authelia:9091`
 - `traefik.localhost` -> Traefik dashboard/API
 
 Traefik smoke validation command:
@@ -348,30 +346,21 @@ Traefik smoke validation command:
   - `platform_account`
   - `platform_auth_proxy`
   - `platform_user_directory`
-  - `platform_onboarding`
-  - `platform_credit`
-  - `platform_notifier`
   - `platform_initial_user`
 - Added local supporting services for platform flows:
   - `openldap`
-  - `mailhog`
-- Added onboarding Traefik routes:
-  - `/api/v*/onboarding/user`
-  - `/api/v*/admin/onboarding/tokens`
-- Added local env defaults needed by platform runtime (`.env`, `.env.example`) for Kafka plaintext mode, LDAP, SMTP, and initial-user bootstrap.
+- Added local env defaults needed by platform runtime (`.env`, `.env.example`) for Kafka plaintext mode, LDAP, and initial-user bootstrap.
 
 Remaining for full Phase 4 acceptance:
 
 - [x] Provide/generate local JWT cert files for `platform_auth_proxy` mount at `./infrastructure/data/auth_proxy/certs/{tls.crt,tls.key}`.
-- [x] Add a platform-focused smoke run proving account/onboarding/user-directory calls succeed end-to-end through Traefik.
+- [x] Add a platform-focused smoke run proving account/user-directory calls succeed end-to-end through Traefik.
 
 Commands added:
 
 - `make compose-prepare-certs`
 - `make compose-bootstrap` (now prepares certs before running migration bootstrap)
 - `make compose-smoke` now includes platform-routed endpoints:
-  - `/api/v1/onboarding/user`
-  - `/api/v1/admin/onboarding/tokens`
   - `/api/v1/users/reset_password`
 
 ## Phase 5 — Mark K8s/Flyte dependent features explicitly unavailable
@@ -687,7 +676,7 @@ This section summarizes what was discovered and implemented during the migration
 ### What is now in place
 
 1. **Compose-first local stack exists and is wired**
-   - Root compose has infra dependencies (Postgres, MongoDB, Kafka, S3, SpiceDB, Traefik, Dex/Authelia) and persistence.
+   - Root compose has infra dependencies (Postgres, MongoDB, Kafka, S3, SpiceDB, Traefik, Dex) and persistence.
    - Compose bootstrap + smoke scripts exist and are integrated into Make targets.
 
 2. **Ingress parity via Traefik is in place for core routes**
@@ -703,8 +692,8 @@ This section summarizes what was discovered and implemented during the migration
    - Interactive AI services depend on successful bootstrap.
 
 5. **Platform services are wired for compose runtime**
-   - Account/auth_proxy/user_directory/onboarding/notifier/credit/initial_user have compose env/dependency wiring.
-   - Local helper services (LDAP + Mailhog) added.
+   - Account/auth_proxy/user_directory/initial_user have compose env/dependency wiring.
+   - Local helper service (LDAP) added.
 
 6. **K8s/Flyte failure modes are explicit**
    - Many previously implicit failures now fail fast with clear compose-mode logs/status.

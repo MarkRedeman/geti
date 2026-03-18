@@ -166,8 +166,8 @@ docker compose up -d --force-recreate kafka init-kafka-topics
 Recommended progression for first bring-up (service-by-service):
 
 1. `reverse-proxy + web + dex + platform_account + platform_auth_proxy`
-2. Add user and onboarding APIs:
-   - `platform_user_directory`, `platform_onboarding`, `platform_initial_user`
+2. Add user APIs:
+   - `platform_user_directory`, `platform_initial_user`
 3. Add interactive AI control plane:
    - `interactive_ai_jobs_scheduler`, `interactive_ai_jobs_worker`, `ovms`
 4. Add remaining interactive AI APIs/workers:

@@ -42,30 +42,6 @@ x-iai-runtime-env: &iai-runtime-env
   FEATURE_FLAGS_URL: ""
 
 services:
-  # Build services
-  #
-  debian:
-    image: ${REGISTRY-ghcr.io/geti}/debian:${TAG-main}
-    build:
-      dockerfile_inline: |
-        FROM debian AS debian
-        LABEL release=1
-
-        RUN apt update \
-            && apt -y install \
-                ca-certificates \
-                curl=7.88.* \
-                wget=1.21.* \
-                netcat-traditional=1.10-* \
-                gpg \
-            && apt clean all \
-            && rm -rf /var/cache/apt/*
-      <<: *proxies
-      additional_contexts:
-        #- debian=docker-image://public.ecr.aws/debian/debian:12.8-slim
-        - debian=docker-image://gcr.io/distroless/static-debian12:nonroot
-
-
   # Platform services
   # 
   platform_account:
@@ -145,102 +121,6 @@ services:
       - "traefik.http.services.platform-auth-proxy.loadbalancer.server.port=7002"
     depends_on:
       platform_account:
-        condition: service_started
-
-  platform_credit:
-    image: ${REGISTRY-ghcr.io/geti}/platform_credit:${TAG-main}
-    build:
-      context: ./platform/services/credit
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs 
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_RO_HOST: db
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_PORT: 5432
-      POSTGRES_DB_NAME: creditsystem
-      POSTGRES_SSLMODE: disable
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-      KAFKA_SASL_MECHANISM: PLAIN
-      ACCOUNT_SERVICE_HOST: platform_account
-      ACCOUNT_SERVICE_PORT: 5001
-      GRPC_SERVICE_PORT: 5556
-    depends_on:
-      db:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      platform_account:
-        condition: service_started
-
-  platform_notifier:
-    image: ${REGISTRY-ghcr.io/geti}/platform_notifier:${TAG-main}
-    build:
-      context: ./platform/services/notifier
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-    environment:
-      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
-      KAFKA_USERNAME: ${KAFKA_USERNAME}
-      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
-      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
-      GETI_NOTIFICATION_TOPIC: ${GETI_NOTIFICATION_TOPIC}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_LOGIN: ${SMTP_LOGIN}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      USE_START_TLS: "false"
-    depends_on:
-      kafka:
-        condition: service_healthy
-      mailhog:
-        condition: service_started
-
-  platform_observability:
-    image: ${REGISTRY-ghcr.io/geti}/platform_observability:${TAG-main}
-    build:
-      context: ./platform/services/observability
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.platform-observability.rule=Host(`geti.localhost`) && PathPrefix(`/api/v1/logs`)"
-      - "traefik.http.routers.platform-observability.priority=55"
-      - "traefik.http.services.platform-observability.loadbalancer.server.port=9000"
-  platform_onboarding:
-    image: ${REGISTRY-ghcr.io/geti}/platform_onboarding:${TAG-main}
-    build:
-      context: ./platform/services/onboarding
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.platform-onboarding.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/onboarding/user/?$`) || PathRegexp(`^/api/v[0-9]+/admin/onboarding/tokens/?$`))"
-      - "traefik.http.routers.platform-onboarding.priority=88"
-      - "traefik.http.services.platform-onboarding.loadbalancer.server.port=9000"
-    environment:
-      ACCOUNT_SERVICE_HOST: platform_account
-      ACCOUNT_SERVICE_PORT: 5001
-      CREDITS_SERVICE: platform_credit:5556
-      FEATURE_FLAG_CREDIT_SYSTEM: "false"
-      FEATURE_FLAG_FREE_TIER: "false"
-      FEATURE_FLAG_SAAS_REQUIRE_INVITATION_LINK: "false"
-      FEATURE_FLAG_REQ_ACCESS: "false"
-      MARKETING_PLATFORM_URL: ""
-      MARKETING_PLATFORM_FORM_NAME: ""
-      MARKETING_PLATFORM_SITE_ID: ""
-    depends_on:
-      platform_account:
-        condition: service_started
-      platform_credit:
         condition: service_started
 
   platform_initial_user:
@@ -798,31 +678,6 @@ services:
       - "traefik.http.middlewares.geti-auth.forwardauth.authResponseHeaders=x-auth-request-access-token"
     restart: unless-stopped
 
-  # https://geek-cookbook.funkypenguin.co.nz/docker-swarm/authelia/
-  # https://www.authelia.com/integration/proxies/traefik/
-  authelia:
-    image: 'authelia/authelia'
-    restart: 'unless-stopped'
-    volumes:
-      - '${PWD}/infrastructure/data/authelia/config:/config'
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.authelia.rule=Host(`auth.geti.localhost`)"
-      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-
-
-
-      # "traefik.enable": 'true'
-      # "traefik.http.routers.authelia.rule": 'Host(`auth.geti.localhost`)'
-      # "traefik.http.routers.authelia.entryPoints": 'https'
-      # "traefik.http.routers.authelia.tls": 'true'
-      # "traefik.http.middlewares.authelia.forwardAuth.address": 'http://authelia:9091/api/authz/forward-auth'
-      ## The following commented line is for configuring the Authelia URL in the proxy. We strongly suggest this is
-      ## configured in the Session Cookies section of the Authelia configuration.
-      # traefik.http.middlewares.authelia.forwardAuth.address: 'http://authelia:9091/api/authz/forward-auth?authelia_url=https%3A%2F%2Fauth.example.com%2F'
-      # traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader: 'true'
-      # traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders: 'Remote-User,Remote-Groups,Remote-Email,Remote-Name'
-
     # dex:
     # https://geek-cookbook.funkypenguin.co.nz/docker-swarm/traefik-forward-auth/dex-static/
   dex:
@@ -905,12 +760,6 @@ services:
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
     ports:
       - "389:389"
-    restart: always
-
-  mailhog:
-    image: mailhog/mailhog:v1.0.1
-    ports:
-      - "8025:8025"
     restart: always
 
   spicedb:
