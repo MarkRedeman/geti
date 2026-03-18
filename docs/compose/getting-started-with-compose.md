@@ -209,7 +209,7 @@ Start everything (infra + platform + interactive AI services):
 Recommended unified API variant:
 
 ```bash
-docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_api interactive_ai_media interactive_ai_auto_train interactive_ai_model_registration interactive_ai_inference_gateway ovms interactive_ai_jobs_policy interactive_ai_jobs_worker interactive_ai_jobs_scheduler
+docker compose up reverse-proxy web dex platform_account platform_auth_proxy interactive_ai_api interactive_ai_media interactive_ai_auto_train interactive_ai_model_registration interactive_ai_inference_gateway ovms interactive_ai_jobs_policy interactive_ai_jobs_worker interactive_ai_jobs_scheduler interactive_ai_visual_prompt
 ```
 
 
