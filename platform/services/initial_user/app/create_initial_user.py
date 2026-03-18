@@ -27,7 +27,9 @@ def main() -> None:
         - update user's external_id in Account Service by 'sub' key.
     """
     acc_svc = AccountServiceConnection()
-    for _ in range(15):
+    max_retries = int(os.getenv("INITIAL_USER_MAX_RETRIES", "20"))
+    max_backoff_seconds = int(os.getenv("INITIAL_USER_MAX_BACKOFF_SECONDS", "20"))
+    for attempt in range(max_retries):
         try:
             organization_id = acc_svc.client.create_default_organization()
             workspace_id = acc_svc.client.create_default_workspace(organization_id=organization_id)
@@ -36,7 +38,7 @@ def main() -> None:
             rpc_err_message = str(rpc_err)
             logger.warning(rpc_err)
             if "no healthy upstream" in rpc_err_message.lower() or "StatusCode.UNAVAILABLE" in rpc_err_message:
-                time.sleep(60)
+                time.sleep(min(2**attempt, max_backoff_seconds))
             else:
                 raise rpc_err
     else:

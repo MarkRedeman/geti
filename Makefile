@@ -110,4 +110,4 @@ compose-bootstrap-seed-weights:
 	bash infrastructure/compose-bootstrap.sh --seed-weights
 
 compose-prepare-certs:
-	bash infrastructure/compose-prepare-certs.sh
+	@echo "Cert preparation is handled by unified init service (geti_init)."

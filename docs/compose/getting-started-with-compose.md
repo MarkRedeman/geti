@@ -48,51 +48,38 @@ This runs `docker compose config --quiet`. Any unset required variables or YAML 
 The auth proxy service requires a self-signed TLS certificate pair mounted at `infrastructure/data/auth_proxy/certs/`.
 
 ```bash
-make compose-prepare-certs
+make compose-bootstrap
 ```
 
-This generates `tls.key` and `tls.crt` under `infrastructure/data/auth_proxy/certs/` using OpenSSL (skipped silently if the files already exist).
+The unified `geti_init` compose service now performs all initialization tasks in-container:
 
-The script also normalizes permissions to world-readable (`0644`) because the
-distroless `platform_auth_proxy` container runs as non-root and must be able to
-read the mounted key/cert files.
+- auth proxy cert generation (`tls.key` / `tls.crt`) if missing,
+- Dex sqlite file normalization,
+- Kafka topic creation,
+- Mongo service-user creation + schema/data migration,
+- S3 bucket initialization,
+- initial user/org/workspace seeding,
+- LDAP password/group reconciliation for Dex login.
 
-### 2c. Bootstrap infrastructure, migrations, and pretrained weights
+### 2c. Bootstrap infrastructure, migrations, and optional pretrained weights
 
-This command wires together four steps in order:
-
-1. Prepares the auth proxy certificates (safe to re-run).
-2. Starts the infrastructure prerequisites — MongoDB, Kafka, and S3 — detached.
-3. Builds and runs the `migration_job` container, which creates the MongoDB service user, runs data migrations, and initialises the S3 bucket.
-4. Runs pretrained weights upload (`platform/services/weights_uploader`) into S3 bucket `pretrainedweights`.
-
-`compose-bootstrap` now waits for SeaweedFS S3 readiness before launching
-`migration_job`, to avoid intermittent `Connection refused` failures on fresh
-resets.
-
-After `platform_initial_user` runs, bootstrap also synchronizes the LDAP user
-password to `INITIAL_USER_PASSWORD` from `.env` to ensure Dex LDAP login works
-immediately after a clean reset.
-
-Bootstrap also ensures Dex-compatible LDAP groups exist (`ou=Groups` and
-`cn=regular_users`) and adds the initial user UID as `memberUid`.
+`compose-bootstrap` now runs only the unified `geti_init` job in compose.
+All required initialization is executed inside the container, with no host-side
+tools required.
 
 ```bash
 make compose-bootstrap
 ```
 
-Weights uploader notes:
+Weights seeding notes:
 
-- `make compose-bootstrap` seeds weights by default.
-- Requires `uv` installed on the host (bootstrap fails if `uv` is missing and seeding is enabled).
-- Uses local S3 endpoint `127.0.0.1:8333` and `.env` credentials (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
+- `make compose-bootstrap` skips weight seeding by default (faster init).
+- `make compose-bootstrap-seed-weights` enables weight seeding in `geti_init`.
 - Optional overrides:
   - `WEIGHTS_URL` (defaults to `https://storage.geti.intel.com/weights`)
-  - `COMPOSE_BOOTSTRAP_WEIGHTS_DIR` (defaults to `/tmp/geti-pretrained-weights`)
-  - `COMPOSE_BOOTSTRAP_WEIGHTS_CONFIG_DIR` (defaults to `app/pretrained_models`)
   - `COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING=1` (upload only metadata, skip downloading weight binaries)
 
-To skip weight seeding (for quick bring-up):
+To skip weight seeding (default quick bring-up):
 
 ```bash
 bash infrastructure/compose-bootstrap.sh --no-seed-weights
@@ -106,24 +93,16 @@ make compose-bootstrap-seed-weights
 
 (`make compose-bootstrap-seed-weights` maps to `bash infrastructure/compose-bootstrap.sh --seed-weights`.)
 
-Wait for the migration job to exit with code `0` before proceeding.
+Wait for `geti_init` to exit with code `0` before proceeding.
 
-`make compose-bootstrap` now also runs the initial user/org/workspace seed step
-(`platform_initial_user`) by default.
-
-> `Aborting on container exit...` after `migration_job` finishes is expected in
+> `Aborting on container exit...` after `geti_init` finishes is expected in
 > this flow, because bootstrap runs compose with `--abort-on-container-exit`.
 > Treat the bootstrap as successful when you see:
 >
-> - `migration_job-1 exited with code 0`
+> - `geti_init-1 exited with code 0`
 > - `Compose bootstrap completed.`
 
-> If bootstrap fails with `S3_CREDENTIALS_PROVIDER` or a host lookup for
-> `impt-seaweed-fs`, update to the latest `docker-compose.yaml` from this
-> branch and re-run `make compose-bootstrap`.
-
-For a full clean re-bootstrap (drop compose volumes + reset Dex DB + re-migrate
-+ re-seed), run:
+For a full clean re-bootstrap (drop compose volumes + rerun full init), run:
 
 ```bash
 make compose-bootstrap-reset
@@ -153,10 +132,10 @@ Recommended starting values:
 - constrained laptop: `-Xms128m -Xmx384m`
 - heavier local throughput: `-Xms512m -Xmx1g`
 
-Apply changes by recreating Kafka:
+Apply changes by recreating Kafka + init:
 
 ```bash
-docker compose up -d --force-recreate kafka init-kafka-topics
+docker compose up -d --force-recreate kafka geti_init
 ```
 
 ---
@@ -167,7 +146,7 @@ Recommended progression for first bring-up (service-by-service):
 
 1. `reverse-proxy + web + dex + platform_account + platform_auth_proxy`
 2. Add user APIs:
-   - `platform_user_directory`, `platform_initial_user`
+   - `platform_user_directory`
 3. Add interactive AI control plane:
    - `interactive_ai_jobs_scheduler`, `interactive_ai_jobs_worker`, `ovms`
 4. Add remaining interactive AI APIs/workers:
@@ -382,13 +361,13 @@ PY
 error: cannot read /etc/geti-jwt-secret/tls.crt: no such file or directory
 ```
 
-**Cause:** The cert directory `infrastructure/data/auth_proxy/` was created by a previous Docker or root process and is owned by `root`, so the cert generation script cannot write into it.
+**Cause:** The cert directory `infrastructure/data/auth_proxy/` was created by a previous Docker or root process and is owned by `root`, so the unified init job cannot write into it.
 
 **Fix:**
 
 ```bash
 sudo chown -R "$USER:$USER" infrastructure/data/auth_proxy
-make compose-prepare-certs
+make compose-bootstrap
 ```
 
 Then restart the auth proxy:
@@ -419,16 +398,16 @@ Avoid `docker system prune -a` unless you are happy to re-pull/rebuild all base 
 
 ---
 
-### Migration job fails with S3 credential/provider or host resolution errors
+### Unified init job fails with S3 credential/provider or host resolution errors
 
 **Symptoms during `make compose-bootstrap`:**
 
 - `Environment variable S3_CREDENTIALS_PROVIDER should be set to either 'local' or 'aws'`
 - `HTTPConnectionPool(host='impt-seaweed-fs', port=8333) ... Failed to resolve`
 
-**Cause:** `migration_job` did not receive compose-local S3 settings.
+**Cause:** `geti_init` did not receive compose-local S3 settings.
 
-**Expected compose env for `migration_job`:**
+**Expected compose env for `geti_init`:**
 
 ```yaml
 S3_CREDENTIALS_PROVIDER: local
@@ -436,7 +415,7 @@ S3_HOST: s3:8333
 ```
 
 **Fix:** ensure your `docker-compose.yaml` includes those variables under
-`migration_job.environment`, then rerun:
+`geti_init.environment`, then rerun:
 
 ```bash
 make compose-bootstrap
@@ -496,11 +475,11 @@ If authentication succeeds but `/api/v1/profile` still returns a 404-like
   - `email: "admin@geti.local"`
   - `userID: "admin@geti.local"`
 
-Then recreate Dex and rerun initial-user bootstrap:
+Then recreate Dex and rerun unified init bootstrap:
 
 ```bash
-docker compose up -d --force-recreate dex platform_initial_user
-docker compose logs --tail=200 platform_initial_user
+docker compose up -d --force-recreate dex
+docker compose up --build --abort-on-container-exit --exit-code-from geti_init geti_init
 ```
 
 Ensure SpiceDB credentials use token mode in compose:
@@ -509,7 +488,7 @@ Ensure SpiceDB credentials use token mode in compose:
 SPICEDB_CREDENTIALS=token
 ```
 
-If `platform_initial_user` exits with `StatusCode.UNAVAILABLE` mentioning
+If `geti_init` exits with `StatusCode.UNAVAILABLE` mentioning
 `Endpoint is neither UDS or TCP loopback address`, verify
 `SPICEDB_CREDENTIALS=token` for compose services.
 

@@ -307,26 +307,32 @@ Traefik smoke validation command:
   - wildcard status class, e.g. `...|2xx`
   - route-only check, e.g. `...|not_404`
 
-## Phase 3 — MongoDB bootstrap automation
+## Phase 3 — Unified compose initialization automation
 
-- [x] Add compose `migration_job` service.
+- [x] Add compose `geti_init` service.
 - [x] Run Mongo service-user creation step.
 - [x] Run Mongo version migrations.
 - [x] Run S3 bucket bootstrap.
-- [x] Make app services depend on successful migration job completion.
+- [x] Run Kafka topic bootstrap.
+- [x] Run initial user/org/workspace seed + LDAP reconciliation.
+- [x] Make app services depend on successful unified init completion.
 
 **Acceptance:** Fresh environment can be bootstrapped end-to-end without manual DB operations.
 
 ### Phase 3 implementation notes (done)
 
-- Added `migration_job` service in root compose that executes:
-  - `mongodb_create_service_user`
-  - `run_migration`
-  - `create_s3_bucket`
+- Added `geti_init` service in root compose that executes in one container:
+  - cert + Dex sqlite preparation,
+  - `mongodb_create_service_user`,
+  - `run_migration`,
+  - `create_s3_bucket`,
+  - Kafka topic creation,
+  - initial user/org/workspace seeding,
+  - LDAP password/group reconciliation.
 - Added env wiring for migration bootstrap in `.env` / `.env.example`:
   - `SERVICE_USER_ALL_DB_ROLES`
   - `S3_BUCKET`
-- Added `depends_on: migration_job: condition: service_completed_successfully` to interactive_ai services.
+- Added `depends_on: geti_init: condition: service_completed_successfully` to interactive_ai services.
 - Added helper bootstrap command:
   - `make compose-bootstrap`
   - Script: `infrastructure/compose-bootstrap.sh`
@@ -346,20 +352,18 @@ Traefik smoke validation command:
   - `platform_account`
   - `platform_auth_proxy`
   - `platform_user_directory`
-  - `platform_initial_user`
 - Added local supporting services for platform flows:
   - `openldap`
-- Added local env defaults needed by platform runtime (`.env`, `.env.example`) for Kafka plaintext mode, LDAP, and initial-user bootstrap.
+- Added local env defaults needed by platform runtime (`.env`, `.env.example`) for Kafka plaintext mode, LDAP, and unified init bootstrap.
 
 Remaining for full Phase 4 acceptance:
 
-- [x] Provide/generate local JWT cert files for `platform_auth_proxy` mount at `./infrastructure/data/auth_proxy/certs/{tls.crt,tls.key}`.
+- [x] Provide/generate local JWT cert files for `platform_auth_proxy` mount at `./infrastructure/data/auth_proxy/certs/{tls.crt,tls.key}` via `geti_init`.
 - [x] Add a platform-focused smoke run proving account/user-directory calls succeed end-to-end through Traefik.
 
 Commands added:
 
-- `make compose-prepare-certs`
-- `make compose-bootstrap` (now prepares certs before running migration bootstrap)
+- `make compose-bootstrap` (runs unified `geti_init` bootstrap)
 - `make compose-smoke` now includes platform-routed endpoints:
   - `/api/v1/users/reset_password`
 
@@ -652,7 +656,7 @@ New files:
 3. `mongodb`
 4. `kafka`
 5. `s3` (SeaweedFS)
-6. `migration_job` (Mongo user + data migrations + S3 bootstrap)
+6. `geti_init` (single bootstrap gate for certs + Kafka + Mongo/S3 migrations + initial user/LDAP sync)
 7. platform core services
 8. interactive_ai services
 9. reverse proxy/web
@@ -687,12 +691,13 @@ This section summarizes what was discovered and implemented during the migration
    - `AUTH_MODE=mock` path implemented across shared identity + SpiceDB + key service paths.
    - This unblocks local dev without OIDC/SpiceDB setup friction.
 
-4. **Mongo bootstrap is automated**
-   - One-shot `migration_job` service runs Mongo user setup, migrations, and S3 bootstrap.
+4. **Compose initialization is unified**
+   - One-shot `geti_init` service runs cert/Dex prep, Kafka topics, Mongo user setup, migrations, S3 bootstrap, and initial user/LDAP sync.
    - Interactive AI services depend on successful bootstrap.
 
 5. **Platform services are wired for compose runtime**
-   - Account/auth_proxy/user_directory/initial_user have compose env/dependency wiring.
+   - Account/auth_proxy/user_directory have compose env/dependency wiring.
+   - Initial identity bootstrap is handled by `geti_init`.
    - Local helper service (LDAP) added.
 
 6. **K8s/Flyte failure modes are explicit**

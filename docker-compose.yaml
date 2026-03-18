@@ -103,7 +103,7 @@ services:
       JWT_CERTIFICATE_PRIVATE_KEY_PATH: "/etc/geti-jwt-secret/tls.key"
       JWT_CERTIFICATE_PUBLIC_KEY_PATH: "/etc/geti-jwt-secret/tls.crt"
       HTTP_SERVER_PORT: "7002"
-      UNAUTHORIZED_URLS: "/api/v1/profile,/api/v1/logout,/api/v1/onboarding/user,/api/v1/feature_flags"
+      UNAUTHORIZED_URLS: "/api/v1/profile,/api/v1/logout,/api/v1/feature_flags"
       #JWKS_UPDATE_TIME: {{ .Values.certificate.jwksUpdateTime }} # 1s
       #JWKS_ENTRY_EXPIRATION: {{ .Values.certificate.jwksEntryExpiration }} # 15m
       LOGGING_CONFIG_DIR: /
@@ -123,18 +123,30 @@ services:
       platform_account:
         condition: service_started
 
-  platform_initial_user:
-    image: ${REGISTRY-ghcr.io/geti}/platform_initial_user:${TAG-main}
+  geti_init:
+    image: ${REGISTRY-ghcr.io/geti}/geti_init:${TAG-main}
     build:
-      context: ./platform/services/initial_user
+      context: .
+      dockerfile: infrastructure/geti_init/Dockerfile
       <<: *proxies
-      additional_contexts:
-        - common_libs=./libs
-        - platform_libs=./platform/libs
-    command:
-      - python
-      - create_initial_user.py
     environment:
+      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
+      DATABASE_USERNAME: ${MONGODB_ROOT_USERNAME}
+      DATABASE_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      DATABASE_USERNAME_SERVICE: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD_SERVICE: ${DATABASE_PASSWORD}
+      SERVICE_USER_ALL_DB_ROLES: ${SERVICE_USER_ALL_DB_ROLES}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      MONGODB_CREDENTIALS_PROVIDER: local
+      S3_ADDRESS: ${S3_ENDPOINT}
+      S3_HOST: s3:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: geti;images;videos;thumbnails;tensors;models;temporaryfiles;resultmedia;codedeployments;mlflowexperiments;pretrainedweights;vpsreferencefeatures
+      KAFKA_ADDRESS: ${KAFKA_ADDRESS}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL}
       INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL}
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD}
       DEX_STATIC_USER_ID: ${DEX_STATIC_USER_ID}
@@ -154,15 +166,26 @@ services:
       ACCOUNT_SERVICE_PORT: 5001
       FEATURE_FLAG_WORKSPACE_ACTIONS: "false"
       LOGGING_CONFIG_DIR: /
+      INIT_SEED_WEIGHTS: ${INIT_SEED_WEIGHTS:-0}
+      WEIGHTS_URL: ${WEIGHTS_URL:-https://storage.geti.intel.com/weights}
+      DISABLE_WEIGHT_UPLOADING: ${COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING:-0}
     depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      s3:
+        condition: service_started
       db:
         condition: service_healthy
       spicedb:
         condition: service_healthy
-      platform_account:
-        condition: service_started
       openldap:
         condition: service_started
+      platform_account:
+        condition: service_started
+    volumes:
+      - ./infrastructure/data:/host_data
     restart: "no"
 
   platform_user_directory:
@@ -285,9 +308,7 @@ services:
       AUTO_TRAIN_DEBOUNCING_PERIOD: ${AUTO_TRAIN_DEBOUNCING_PERIOD:-5}
       AUTO_TRAIN_JOB_SUBMISSION_COOLDOWN: ${AUTO_TRAIN_JOB_SUBMISSION_COOLDOWN:-60}
     depends_on:
-      migration_job:
-        condition: service_completed_successfully
-      init-kafka-topics:
+      geti_init:
         condition: service_completed_successfully
     user: "0:0"
     volumes:
@@ -319,7 +340,7 @@ services:
       MODELREGISTRATION_PORT: 5555
       MODELREGISTRATION_ADDRESS: passthrough:///interactive_ai_api:5555
     depends_on:
-      migration_job:
+      geti_init:
         condition: service_completed_successfully
       ovms:
         condition: service_started
@@ -352,12 +373,10 @@ services:
       SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
       RESOURCE_MANAGER_LOOP_INTERVAL: 60
     depends_on:
-      migration_job:
+      geti_init:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
-      init-kafka-topics:
-        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
       redis:
@@ -440,7 +459,7 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      init-kafka-topics:
+      geti_init:
         condition: service_completed_successfully
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -467,7 +486,7 @@ services:
     environment:
       <<: *iai-runtime-env
     depends_on:
-      migration_job:
+      geti_init:
         condition: service_completed_successfully
 
   ovms:
@@ -503,47 +522,8 @@ services:
       SAM_DECODER_XML_PATH: ${SAM_DECODER_XML_PATH:-sam_vit_b_zsl_decoder.xml}
       SAM_DECODER_BIN_PATH: ${SAM_DECODER_BIN_PATH:-sam_vit_b_zsl_decoder.bin}
     depends_on:
-      migration_job:
+      geti_init:
         condition: service_completed_successfully
-
-  migration_job:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/migration_job:${TAG-main}
-    build:
-      context: ./interactive_ai/migration_job
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - data_migration=./interactive_ai/data_migration
-    command:
-      - /bin/sh
-      - -c
-      - >-
-        mongodb_create_service_user &&
-        run_migration &&
-        create_s3_bucket
-    environment:
-      DATABASE_ADDRESS: ${DATABASE_ADDRESS}
-      DATABASE_USERNAME: ${MONGODB_ROOT_USERNAME}
-      DATABASE_PASSWORD: ${MONGODB_ROOT_PASSWORD}
-      DATABASE_USERNAME_SERVICE: ${DATABASE_USERNAME}
-      DATABASE_PASSWORD_SERVICE: ${DATABASE_PASSWORD}
-      SERVICE_USER_ALL_DB_ROLES: ${SERVICE_USER_ALL_DB_ROLES}
-      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
-      MONGODB_CREDENTIALS_PROVIDER: local
-      S3_ADDRESS: ${S3_ENDPOINT}
-      S3_CREDENTIALS_PROVIDER: local
-      S3_HOST: s3:8333
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-      S3_BUCKET: geti;images;videos;thumbnails;tensors;models;temporaryfiles;resultmedia;codedeployments;mlflowexperiments;pretrainedweights;vpsreferencefeatures
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      s3:
-        condition: service_started
-    restart: "no"
 
   # IAI Workflows
   # 
@@ -724,17 +704,6 @@ services:
       retries: 5
       timeout: 10s
     restart: always
-
-  init-kafka-topics:
-    image: apache/kafka:3.7.1
-    depends_on:
-      kafka:
-        condition: service_healthy
-    entrypoint:
-      - /bin/bash
-      - -ec
-      - for topic in annotation_scenes_to_revisit configuration_changes dataset_counters_updated dataset_updated training_successful media_deletions media_preprocessing media_uploads new_annotation_scene predictions_and_metadata_created project_creations project_deletions project_updates thumbnail_video_missing model_activated model_reverted flyte_event job_step_details job_update on_job_cancelled on_job_failed on_job_finished project_notifications credits_lease; do /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic "$$topic" --partitions 1 --replication-factor 1; done
-    restart: "no"
 
   s3:
     image: chrislusf/seaweedfs:3.69

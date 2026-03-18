@@ -1,0 +1,14 @@
+boto3==1.40.37
+pymongo[aws]~=4.10
+psycopg2-binary==2.9.3
+minio~=7.1.0
+pyjwt==2.4.0
+python-ldap==3.4.5
+kafka-python==2.0.2
+Pillow>=10.2.0
+urllib3>=2.5.0
+-e ./libs/telemetry_tools[telemetry,grpc,logger]
+-e ./libs/grpc_interfaces[account-service]
+-e ./libs/spicedb_tools
+-e ./platform/libs/users_handler
+-e ./interactive_ai/data_migration
