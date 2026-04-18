@@ -4,10 +4,8 @@
 import logging
 import os
 
-from flyteidl.core.execution_pb2 import WorkflowExecution
-
 from model.job_state import JobState
-from scheduler.flyte import Flyte
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_telemetry_tools import unified_tracing
@@ -26,11 +24,11 @@ def run_cancellation_loop() -> None:
     Performs required canceling.
 
     Following steps are performed:
-    1. Pick one by one all cancelled SCHEDULED or RUNNING job for canceling, move it to CANCELING state.
-    Perform canceling in Flyte if such job was found
+    1. Pick one by one all cancelled SCHEDULED or RUNNING jobs for canceling, move to CANCELING state.
+    Perform canceling if such a job was found.
 
-    2. Pick one by one all jobs in SUBMITTED state which has been marked as cancelled are move directly to CANCELLED
-    state. SUBMITTED state means that no scheduling logic has been applied so no Flyte interaction is needed.
+    2. Pick one by one all jobs in SUBMITTED state which have been marked as cancelled and move directly to CANCELLED
+    state. SUBMITTED state means that no scheduling logic has been applied so no execution interaction is needed.
     """
 
     try:
@@ -61,10 +59,10 @@ def cancel_main_job(job_id: ID) -> None:
     If this is not the first attempt to cancel this job and number of retries exceeded allowed maximum, drops cancelled
     flag and transfers the job back to RUNNING state.
     If this is not the first attempt to cancel this job and the maximum number of retries has not been reached,
-    attempt to obtain Flyte execution.
-    If execution is found, checks its state. If it's not ABORTED, cancels execution in Flyte.
+    attempt to obtain the execution.
+    If execution is found, checks its state. If it's not ABORTED, cancels the execution.
     Updates the job and sets CANCELLED state.
-    If Flyte execution stop fails, sets either RUNNING or CANCELLED state.
+    If stopping the execution fails, sets either RUNNING or CANCELLED state.
     :param job_id: Job ID
     """
     logger.info(f"Job to be cancelled: {job_id}")
@@ -91,30 +89,18 @@ def cancel_main_job(job_id: ID) -> None:
         # Update job in database
         StateMachine().set_ready_for_revert_state(job_id=job_id)
     except Exception:
-        logger.exception(f"Failed to cancel Flyte execution for job {job_id}")
+        logger.exception(f"Failed to cancel execution for job {job_id}")
         StateMachine().reset_canceling_job(job_id=job_id)
 
 
 @unified_tracing
 def cancel_execution(execution_name: str) -> None:
     """
-    Cancels job execution
+    Cancels job execution.
+
+    Stops the Docker/Celery execution via LocalExecutor.
 
     :param execution_name: Execution name
     """
-    execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
-    if execution is None:
-        logger.warning(f"Execution {execution_name} cannot be found in Flyte, marking job as cancelled")
-        return
-
-    if execution.closure.phase in (WorkflowExecution.ABORTED, WorkflowExecution.ABORTING):
-        logger.info(f"Flyte job execution with name {execution_name} is being or already aborted")
-        return
-
-    if execution.is_done or execution.closure.phase == WorkflowExecution.FAILING:
-        logger.info(f"Flyte job execution with name {execution_name} is being or already terminated.")
-        return
-
-    logger.info(f"Canceling a job execution with name {execution_name} in Flyte")
-    Flyte().cancel_workflow_execution(execution=execution)
-    logger.info(f"Job execution cancelled in Flyte: {execution.id.name}")
+    logger.info(f"Cancelling local execution {execution_name} (compose mode)")
+    LocalExecutor().cancel_execution(execution_name=execution_name)

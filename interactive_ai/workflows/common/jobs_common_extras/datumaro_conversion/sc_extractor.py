@@ -65,7 +65,7 @@ from jobs_common_extras.datumaro_conversion.mappers.dataset_item_mapper import D
 from jobs_common_extras.datumaro_conversion.mappers.id_mapper import IDMapper, MediaNameIDMapper, VideoNameIDMapper
 from jobs_common_extras.datumaro_conversion.mappers.label_mapper import LabelSchemaMapper
 
-__all__ = ["ScExtractor", "ScExtractorForFlyteJob", "ScExtractorFromDatasetStorage"]
+__all__ = ["ScExtractor", "ScExtractorForJob", "ScExtractorFromDatasetStorage"]
 
 from geti_types import CTX_SESSION_VAR, Session, session_context
 from iai_core.repos.storage.binary_repos import VideoBinaryRepo
@@ -432,11 +432,8 @@ class DatasetItemWithFuture:
     img_extension: str | None = None
 
 
-class ScExtractorForFlyteJob(ScExtractor):
-    """
-    Represents the Geti dataset as a lazy dataset for Datumaro.
-    It is used for Flyte job.
-    """
+class ScExtractorForJob(ScExtractor):
+    """Represents the Geti dataset as a lazy dataset for workflow jobs."""
 
     def __init__(
         self,

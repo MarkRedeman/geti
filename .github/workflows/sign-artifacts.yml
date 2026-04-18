@@ -1,9 +1,9 @@
 # Artifact Signing Workflow
 #
-# This workflow handles container images and helm charts signing using Cosign.
+# This workflow handles OCI artifact signing using Cosign.
 #
 # Key Features:
-# - Signs container images and helm charts using GitHub OIDC Token (keyless signing).
+# - Signs container images using GitHub OIDC Token (keyless signing).
 # - Verifies the signatures against a specified certificate identity.
 #
 # Process Stages:
@@ -11,7 +11,7 @@
 # 2. Install Crane.
 # 3. Login to ghcr.io using GitHub secrets.
 # 4. Get the image digest.
-# 5. Sign the images or helm charts with GitHub OIDC Token.
+# 5. Sign the image with GitHub OIDC Token.
 # 6. Verify the signature using the specified certificate identity.
 #
 # Inputs for workflow_dispatch:

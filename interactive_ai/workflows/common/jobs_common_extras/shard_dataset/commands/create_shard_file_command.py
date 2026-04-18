@@ -9,7 +9,6 @@ import shutil
 from uuid import uuid4
 
 import datumaro as dm
-from flytekit.core import utils
 from geti_telemetry_tools import unified_tracing
 from geti_telemetry_tools.tracing.common import tracer
 from geti_types import DatasetStorageIdentifier
@@ -19,7 +18,7 @@ from iai_core.utils.crypto import get_sha256_checksum
 
 from jobs_common.commands.interfaces.command import ICommand
 from jobs_common.exceptions import DataShardCreationFailedException
-from jobs_common_extras.datumaro_conversion.sc_extractor import ScExtractorForFlyteJob
+from jobs_common_extras.datumaro_conversion.sc_extractor import ScExtractorForJob
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ class CreateShardFileCommand(ICommand):
         dataset_id: str,
         dataset_items: list[DatasetItem],
         label_schema: LabelSchema,
-        work_dir: utils.AutoDeletingTempDir,
+        work_dir: str,
         shard_idx: int,
         total_num_shards: int,
         num_threads: int = 10,
@@ -76,14 +75,14 @@ class CreateShardFileCommand(ICommand):
             os.makedirs(self.work_dir)
 
             dm_dataset = dm.Dataset(
-                source=ScExtractorForFlyteJob(
+                source=ScExtractorForJob(
                     dataset_storage_identifier=self.dataset_storage_identifier,
                     sc_dataset_or_list_of_sc_items=self.dataset_items,
                     label_schema=self.label_schema,
                     num_thread_pools=self.num_threads,
                 )
             )
-            logger.info("Created dm.Dataset class with ScExtractorForFlyteJob")
+            logger.info("Created dm.Dataset class with ScExtractorForJob")
 
             with tracer.start_as_current_span("dm.Dataset.export"):
                 dm_dataset.export(

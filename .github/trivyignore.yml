@@ -4,4 +4,3 @@ misconfigurations:
     paths:
       - web_ui/dex_templates/Dockerfile
       - platform/services/account/Dockerfile.protoc
-      - platform/services/installer/Dockerfile

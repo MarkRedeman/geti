@@ -1,23 +1,22 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-"""This module defines Flyte task to create task train dataset"""
+"""This module defines workflow task to create task train dataset"""
 
 import logging
 from collections.abc import Callable
 from multiprocessing.pool import AsyncResult, ThreadPool
 from queue import Queue
+from tempfile import mkdtemp
 
-import flytekit
 from geti_telemetry_tools import unified_tracing
 from geti_types import DatasetStorageIdentifier
 from iai_core.entities.compiled_dataset_shards import CompiledDatasetShard
 from iai_core.entities.datasets import Dataset
 from iai_core.entities.label_schema import LabelSchema
 from iai_core.entities.project import Project
-from kubernetes.client.models import V1ResourceRequirements
 
-from jobs_common.tasks.primary_container_task import get_flyte_pod_spec
+from jobs_common.tasks.primary_container_task import get_pod_spec
 from jobs_common.utils.annotation_filter import AnnotationFilter
 from jobs_common.utils.progress_helper import noop_progress_callback
 from jobs_common_extras.shard_dataset.commands.create_and_save_compiled_dataset_shards_command import (
@@ -31,11 +30,11 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["SHARD_DATASET_TASK_POD_SPEC", "shard_dataset"]
 
-SHARD_DATASET_TASK_POD_SPEC = get_flyte_pod_spec(
-    resources=V1ResourceRequirements(
-        limits={"cpu": "100", "memory": "8000Mi", "ephemeral-storage": "100Gi"},
-        requests={"cpu": "1", "memory": "2000Mi", "ephemeral-storage": "2000Mi"},
-    )
+SHARD_DATASET_TASK_POD_SPEC = get_pod_spec(
+    resources={
+        "limits": {"cpu": "100", "memory": "8000Mi", "ephemeral-storage": "100Gi"},
+        "requests": {"cpu": "1", "memory": "2000Mi", "ephemeral-storage": "2000Mi"},
+    }
 )
 
 TIMEOUT = 600  # 10 minutes
@@ -89,7 +88,7 @@ def shard_dataset(  # noqa: PLR0913
     )
     map_items_to_shards_command.execute()
 
-    work_dir = flytekit.current_context().working_directory
+    work_dir = mkdtemp(prefix="geti-shard-")
 
     futures: list[AsyncResult[CompiledDatasetShard]] = []
 

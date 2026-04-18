@@ -3,12 +3,11 @@
 """This module tests the train workflow"""
 
 import pytest
-from flytekit.core.testing import task_mock
+from unittest.mock import patch
+
 from jobs_common_extras.experiments.utils.train_output_models import TrainOutputModelIds
 
-from job.tasks.evaluate_and_infer.evaluate_and_infer import evaluate_and_infer
-from job.tasks.prepare_and_train.prepare_data_and_train import prepare_training_data_model_and_start_training
-from job.utils.train_workflow_data import TrainWorkflowDataForFlyteTaskTrainer
+from job.utils.train_workflow_data import TrainWorkflowDataForTaskTrainer
 from job.workflows.train_workflow import train_workflow
 
 WORKSPACE_ID = "workspace_id"
@@ -42,8 +41,10 @@ class TestTrainWorkflow:
         fxt_train_data,
     ):
         with (
-            task_mock(prepare_training_data_model_and_start_training) as mocked_prepare_and_train,
-            task_mock(evaluate_and_infer) as mocked_evaluate_and_infer,
+            patch(
+                "job.workflows.train_workflow.prepare_training_data_model_and_start_training"
+            ) as mocked_prepare_and_train,
+            patch("job.workflows.train_workflow.evaluate_and_infer") as mocked_evaluate_and_infer,
         ):
             # Arrange
             infer_on_pipeline = True
@@ -63,7 +64,7 @@ class TestTrainWorkflow:
                 compiled_dataset_shards_id=None,
                 reshuffle_subsets=reshuffle_subsets,
             )
-            data_task_trainer = TrainWorkflowDataForFlyteTaskTrainer(
+            data_task_trainer = TrainWorkflowDataForTaskTrainer(
                 train_data=train_workflow_data,
                 dataset_id=DATASET_ID,
                 organization_id="organization_id",

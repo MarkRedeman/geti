@@ -198,12 +198,12 @@ class ImportManager:
         job_type = JobType.PERFORM_IMPORT_TO_NEW_PROJECT.value
         job_payload = {
             "import_id": str(import_id),
-            "project_type": project_type.name,
-            "project_name": project_name,
+            "project_type_str": project_type.name,
+            "name": project_name,
             "label_names": label_names,
             "color_by_label": color_by_label,
             "keypoint_structure": keypoint_structure,
-            "user_id": author,
+            "user_id": str(author),
         }
         job_key = serialize_job_key(
             {

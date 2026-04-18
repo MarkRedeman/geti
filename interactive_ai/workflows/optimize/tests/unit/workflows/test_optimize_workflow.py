@@ -1,19 +1,19 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-from flytekit.core.testing import task_mock
 from iai_core.entities.model import ModelOptimizationType
+from unittest.mock import patch
 
-from job.tasks.evaluation_task import evaluate_optimized_model_pot
-from job.tasks.optimization_task import shard_dataset_prepare_models_and_start_optimization
 from job.workflows.optimize_workflow import optimize_workflow_pot
 
 
 class TestOptimize:
     def test_optimize_workflow_pot(self, fxt_optimization_trainer_ctx) -> None:
         with (
-            task_mock(shard_dataset_prepare_models_and_start_optimization) as mock_shard_dataset_and_start_optimization,
-            task_mock(evaluate_optimized_model_pot) as mock_evaluate,
+            patch(
+                "job.workflows.optimize_workflow.shard_dataset_prepare_models_and_start_optimization"
+            ) as mock_shard_dataset_and_start_optimization,
+            patch("job.workflows.optimize_workflow.evaluate_optimized_model_pot") as mock_evaluate,
         ):
             mock_shard_dataset_and_start_optimization.return_value = fxt_optimization_trainer_ctx
             optimize_workflow_pot(

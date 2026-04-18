@@ -1,0 +1,25 @@
+[project]
+name = "geti-init"
+version = "1.0.0"
+description = "Geti compose initialization service"
+requires-python = ">=3.10, <3.11"
+dependencies = [
+    "boto3==1.40.37",
+    "pymongo[aws]~=4.10",
+    "minio~=7.1.0",
+    "pyjwt==2.4.0",
+    "kafka-python==2.0.2",
+    "Pillow>=10.2.0",
+    "urllib3>=2.5.0",
+    "geti-telemetry-tools[telemetry,grpc,logger]",
+    "grpc_interfaces[account_service]",
+    "migration",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+geti-telemetry-tools = { path = "../../libs/telemetry_tools", editable = true }
+grpc_interfaces = { path = "../../libs/grpc_interfaces", editable = true }
+migration = { path = "../../interactive_ai/data_migration", editable = true }

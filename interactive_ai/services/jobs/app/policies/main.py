@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from opentelemetry import trace
 
-from policies import Prioritizer, ResourceManager
+from policies import Prioritizer
 
 from geti_telemetry_tools import ENABLE_TRACING
 from geti_types import RequestSource, make_session, session_context
@@ -21,11 +21,7 @@ tracer = trace.get_tracer(__name__)  # type: ignore[attr-defined]
 POLICY_LOOP_INTERVAL = int(os.environ.get("SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL", 1))
 logger.info(f"Running scheduling policy checks every {POLICY_LOOP_INTERVAL} second(s)")
 
-RESOURCE_MANAGER_LOOP_INTERVAL = int(os.environ.get("RESOURCE_MANAGER_LOOP_INTERVAL", 60))
-logger.info(f"Running resource manager every {RESOURCE_MANAGER_LOOP_INTERVAL} second(s)")
-
 policy_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="scheduling_policy_service")
-resource_manager_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="resource_manager")
 
 
 def stop() -> None:
@@ -35,7 +31,6 @@ def stop() -> None:
     logger.info("Shutting down")
 
     policy_executor.shutdown(wait=False)
-    resource_manager_executor.shutdown(wait=False)
 
 
 def start() -> None:
@@ -45,7 +40,29 @@ def start() -> None:
     atexit.register(stop)
 
     policy_executor.submit(start_policy_loop)
-    resource_manager_executor.submit(start_resource_manager_loop)
+    logger.warning(
+        "Compose mode: resource_manager_loop is disabled (no Kubernetes). "
+        "Initialising GPU capacity to [1] so CPU/GPU jobs can be scheduled."
+    )
+    _initialize_compose_gpu_capacity()
+
+
+def _initialize_compose_gpu_capacity() -> None:
+    """
+    In compose mode there is no Kubernetes node-capacity API, so we set a
+    sensible default of [1] GPU directly on the ResourceManager singleton.
+    This allows the scheduling policy to treat every job as schedulable rather
+    than leaving GPU jobs stuck in SUBMITTED forever.
+    """
+    try:
+        from policies import ResourceManager
+
+        manager = ResourceManager()
+        if manager.gpu_capacity is None:
+            manager.gpu_capacity = [1]
+            logger.info("Compose mode: ResourceManager.gpu_capacity initialised to [1].")
+    except Exception:
+        logger.exception("Compose mode: failed to initialise ResourceManager GPU capacity.")
 
 
 def start_loop(loop_id: str, loop: Callable, loop_interval: int) -> None:
@@ -73,13 +90,6 @@ def start_policy_loop() -> None:
     start_loop("job-scheduling-policy-loop", run_policy_loop, POLICY_LOOP_INTERVAL)
 
 
-def start_resource_manager_loop() -> None:
-    """
-    Resource manager loop implementation
-    """
-    start_loop("resource-manager-loop", run_resource_manager_loop, RESOURCE_MANAGER_LOOP_INTERVAL)
-
-
 def run_policy_loop() -> None:
     """
     Starts the control loop for the job scheduler
@@ -99,19 +109,6 @@ def run_policy_loop() -> None:
         logger.exception("Error occurred in job scheduling policy loop")
     finally:
         time.sleep(POLICY_LOOP_INTERVAL)
-
-
-def run_resource_manager_loop() -> None:
-    """
-    Starts the resource manager loop
-    """
-    try:
-        logger.debug("Running resource manager loop...")
-        ResourceManager().refresh_available_resources()
-    except Exception:
-        logger.exception("Error occurred in resource manager loop")
-    finally:
-        time.sleep(RESOURCE_MANAGER_LOOP_INTERVAL)
 
 
 if __name__ == "__main__":

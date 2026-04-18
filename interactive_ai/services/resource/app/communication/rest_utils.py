@@ -75,7 +75,8 @@ def send_file_from_path_or_url(
         # Create the URL to redirect the user to
         s3_internal_address = os.environ.get("S3_HOST", "impt-seaweed-fs:8333")
         file_location = file_location.replace(s3_internal_address, s3_external_address)
-        file_location = file_location.replace("http://", "https://")
+        if request_host.startswith("https://"):
+            file_location = file_location.replace("http://", "https://")
 
         headers = {
             "Content-Type": mimetype,

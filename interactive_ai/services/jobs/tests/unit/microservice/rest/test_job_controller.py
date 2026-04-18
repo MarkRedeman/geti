@@ -1,7 +1,7 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 import json
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 from starlette import status
@@ -27,7 +27,6 @@ from microservice.rest.job_controller import DEFAULT_N_JOBS_RETURNED, MAX_N_JOBS
 from microservice.rest.job_rest_views import FindJobsQuery, JobRestViews
 from model.job_state import JobStateGroup
 
-from geti_spicedb_tools import Permissions, SpiceDB, SpiceDBResourceTypes
 from geti_types import ID
 from iai_core.utils.constants import DEFAULT_USER_NAME
 from iai_core.utils.time_utils import now
@@ -48,15 +47,15 @@ class TestJobController:
         with (
             patch.object(JobManager, "get_by_id", return_value=fxt_job) as mock_get_job_by_id,
             patch.object(JobRestViews, "job_to_rest", return_value=fxt_job_rest) as mock_job_to_rest,
-            patch.object(
-                SpiceDB, "check_permission", return_value=True
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.rest.job_controller.can_view_all_workspace_jobs", return_value=True
+            ) as mock_can_view_workspace,
         ):
             result = JobController().get_job(user_uid=user_id, job_id=job_id)
 
         # Assert
         mock_get_job_by_id.assert_called_once_with(job_id=job_id)
-        mock_spice_db_check_user_workspace_permission.assert_not_called()
+        mock_can_view_workspace.assert_not_called()
         mock_job_to_rest.assert_called_once_with(job=fxt_job)
         compare(result, fxt_job_rest, ignore_eq=True)
 
@@ -69,20 +68,18 @@ class TestJobController:
         with (
             patch.object(JobManager, "get_by_id", return_value=fxt_workspace_job) as mock_get_job_by_id,
             patch.object(JobRestViews, "job_to_rest", return_value=fxt_job_rest) as mock_job_to_rest,
-            patch.object(
-                SpiceDB, "check_permission", return_value=True
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.rest.job_controller.can_view_all_workspace_jobs", return_value=True
+            ) as mock_can_view_workspace,
         ):
             result = JobController().get_job(user_uid=user_id, job_id=job_id)
 
         # Assert
         mock_get_job_by_id.assert_called_once_with(job_id=job_id)
-        mock_spice_db_check_user_workspace_permission.assert_called_once_with(
-            resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-            resource_id=fxt_workspace_job.workspace_id,
-            subject_type=SpiceDBResourceTypes.USER.value,
-            subject_id=user_id,
-            permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
+        mock_can_view_workspace.assert_called_once_with(
+            user_id=user_id,
+            organization_id=ANY,
+            workspace_id=ANY,
         )
         mock_job_to_rest.assert_called_once_with(job=fxt_workspace_job)
         compare(result, fxt_job_rest, ignore_eq=True)
@@ -96,15 +93,16 @@ class TestJobController:
         with (
             patch.object(JobManager, "get_by_id", return_value=fxt_workspace_job) as mock_get_job_by_id,
             patch.object(JobRestViews, "job_to_rest", return_value=fxt_job_rest) as mock_job_to_rest,
-            patch.object(
-                SpiceDB, "check_permission", return_value=False
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.rest.job_controller.can_view_all_workspace_jobs",
+                return_value=False,
+            ) as mock_can_view_workspace,
         ):
             result = JobController().get_job(user_uid=user_id, job_id=job_id)
 
         # Assert
         mock_get_job_by_id.assert_called_once_with(job_id=job_id)
-        mock_spice_db_check_user_workspace_permission.assert_not_called()
+        mock_can_view_workspace.assert_not_called()
         mock_job_to_rest.assert_called_once_with(job=fxt_workspace_job)
         compare(result, fxt_job_rest, ignore_eq=True)
 
@@ -117,21 +115,20 @@ class TestJobController:
         with (
             patch.object(JobManager, "get_by_id", return_value=fxt_workspace_job) as mock_get_job_by_id,
             patch.object(JobRestViews, "job_to_rest", return_value=fxt_job_rest) as mock_job_to_rest,
-            patch.object(
-                SpiceDB, "check_permission", return_value=False
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.rest.job_controller.can_view_all_workspace_jobs",
+                return_value=False,
+            ) as mock_can_view_workspace,
             pytest.raises(JobNotPermittedHTTPException) as error,
         ):
             JobController().get_job(user_uid=user_id, job_id=job_id)
 
         # Assert
         mock_get_job_by_id.assert_called_once_with(job_id=job_id)
-        mock_spice_db_check_user_workspace_permission.assert_called_once_with(
-            resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-            resource_id=fxt_workspace_job.workspace_id,
-            subject_type=SpiceDBResourceTypes.USER.value,
-            subject_id=user_id,
-            permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
+        mock_can_view_workspace.assert_called_once_with(
+            user_id=user_id,
+            organization_id=ANY,
+            workspace_id=ANY,
         )
         mock_job_to_rest.assert_not_called()
         assert error.value.status_code == status.HTTP_403_FORBIDDEN
@@ -226,10 +223,13 @@ class TestJobController:
             patch.object(JobManager, "get_jobs_count", return_value=2) as mock_get_count,
             patch.object(JobManager, "get_jobs_count_per_state", return_value=jobs_count) as mock_get_count_per_state,
             patch.object(JobRestViews, "jobs_to_rest", return_value=rest_view) as mock_jobs_to_rest,
-            patch.object(SpiceDB, "get_user_projects", return_value=[]) as mock_spice_db_get_user_projects,
-            patch.object(
-                SpiceDB, "check_permission", return_value=view_all_workspace_jobs
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.rest.job_controller.get_permitted_project_ids", return_value=[]
+            ) as mock_get_permitted_projects,
+            patch(
+                "microservice.rest.job_controller.can_view_all_workspace_jobs",
+                return_value=view_all_workspace_jobs,
+            ) as mock_can_view_workspace,
         ):
             result = JobController().get_jobs(
                 user_id=DUMMY_AUTHOR,
@@ -289,15 +289,14 @@ class TestJobController:
                 workspace_jobs_author=None if view_all_workspace_jobs else DUMMY_AUTHOR,
             ),
         )
-        mock_spice_db_get_user_projects.assert_called_once_with(
-            user_id=DUMMY_AUTHOR, permission=Permissions.VIEW_PROJECT
+        mock_get_permitted_projects.assert_called_once_with(
+            user_id=DUMMY_AUTHOR,
+            organization_id=ANY,
         )
-        mock_spice_db_check_user_workspace_permission.assert_called_once_with(
-            resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-            resource_id=workspace_id,
-            subject_type=SpiceDBResourceTypes.USER.value,
-            subject_id=DUMMY_AUTHOR,
-            permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
+        mock_can_view_workspace.assert_called_once_with(
+            user_id=DUMMY_AUTHOR,
+            organization_id=ANY,
+            workspace_id=ANY,
         )
         mock_jobs_to_rest.assert_called_once_with(
             jobs=[fxt_job, fxt_job],

@@ -4,7 +4,6 @@
 from unittest.mock import patch
 
 import pytest
-from geti_spicedb_tools import SpiceDB
 from testfixtures import compare
 
 from communication.rest_controllers.project_controller import ProjectRESTController
@@ -165,11 +164,7 @@ class TestProjectRESTController:
         # Thread 2 wants to get all the projects, this causes an exception
         with (
             pytest.raises(Exception),
-            patch.object(
-                SpiceDB(),
-                "get_user_projects",
-                return_value=[project.id_],
-            ),
+            patch("managers.project_manager.get_permitted_project_ids", return_value=[project.id_]),
         ):
             ProjectRESTController.get_projects(
                 user_id=ID("dummy_id"),
@@ -188,20 +183,12 @@ class TestProjectRESTController:
                 "delete_project_by_id",
                 return_value=None,
             ),
-            patch.object(
-                SpiceDB(),
-                "delete_project",
-                return_value=None,
-            ),
+            patch("managers.project_manager.remove_project_roles", return_value=None),
         ):
             project_manager.delete_project(project_id=project.id_)
 
         # Thread 2 gets the list of projects which should be 0 as the project is hidden.
-        with patch.object(
-            SpiceDB(),
-            "get_user_projects",
-            return_value=[project.id_],
-        ):
+        with patch("managers.project_manager.get_permitted_project_ids", return_value=[project.id_]):
             project_list = ProjectRESTController.get_projects(
                 user_id=ID("dummy_id"),
                 organization_id=fxt_organization_id,

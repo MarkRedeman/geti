@@ -1,4 +1,12 @@
+# syntax=docker/dockerfile:1.7
+
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS base
+
+# app-source: holds source/runtime scripts; no heavy deps, stays small and cacheable
+FROM scratch AS app-source
+COPY --link scripts/ scripts/
+COPY --link run run
+COPY --link download_pretrained_weights.py download_pretrained_weights.py
 
 # step 1: get cuda dependencies
 FROM base AS cuda
@@ -15,19 +23,25 @@ ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bi
 ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;6.2;7.0;7.2;7.5;8.0;8.6"
 ENV TORCH_DONT_CHECK_COMPILER_ABI=1
 
-RUN apt update \
-    && apt install -y wget --no-install-recommends
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt update \
+    && apt install -y wget --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
     && dpkg -i cuda-keyring_1.1-1_all.deb \
     && rm -rf cuda-keyring_1.1-1_all.deb
 
-RUN apt update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt update \
     && apt install -y --no-install-recommends \
     cuda-libraries-12-9 \
     cuda-compiler-12-9 \
     && apt clean all \
     && rm -rf /var/cache/apt/* \
+    && rm -rf /var/lib/apt/lists/* \
     && echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf \
     && echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
 
@@ -41,8 +55,6 @@ RUN rm -rf /usr/local/cuda-12.9/targets/x86_64-linux/lib/libnvrtc.alt.so.12 \
 
 # step 2: get python dependencies
 FROM base AS python_dependencies
-
-RUN ulimit -n 65536
 
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
@@ -58,16 +70,14 @@ RUN chown -R 10001:10001 /interactive_ai/workflows/train/trainer
 
 COPY --link --from=ghcr.io/astral-sh/uv:0.6.12@sha256:515b886e8eb99bcf9278776d8ea41eb4553a794195ef5803aa7ca6258653100d /uv /bin/uv
 
-COPY --link scripts/ scripts
-COPY --link run run
-COPY --link download_pretrained_weights.py download_pretrained_weights.py
-
-
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
-    git
+    git && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-editable
@@ -102,10 +112,10 @@ RUN rm -rf /interactive_ai/workflows/train/trainer/.venv/lib/python3.10/site-pac
 
 FROM python:3.10-slim-bookworm@sha256:23f63358922e79a794f71be8f3723c84e5ccca9638af3f74456dc73d6184499e AS runtime
 
-RUN ulimit -n 65536
-
 # Install runtime dependencies
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     libgl1=1.6.* \
     libglib2.0-0=2.74.* \
@@ -122,9 +132,9 @@ COPY --link --from=python_dependencies --chown=10001 /interactive_ai /interactiv
 
 WORKDIR /interactive_ai/workflows/train/trainer
 
-COPY --link scripts/ scripts
-COPY --link run run
-COPY --link download_pretrained_weights.py download_pretrained_weights.py
+COPY --link --from=app-source --chown=10001 scripts/ scripts
+COPY --link --from=app-source --chown=10001 run run
+COPY --link --from=app-source --chown=10001 download_pretrained_weights.py download_pretrained_weights.py
 
 ENV PATH="/interactive_ai/workflows/train/trainer/.venv/bin:/interactive_ai/workflows/train/trainer:$PATH"
 ENV PYTHONPATH="/interactive_ai/workflows/train/trainer"

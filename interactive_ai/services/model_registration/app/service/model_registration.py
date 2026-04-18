@@ -1,12 +1,13 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-import asyncio
+from datetime import datetime, timezone
 import logging
 import os
 import pathlib
 import shutil
 import sys
+import tempfile
 from collections.abc import AsyncGenerator
 from zipfile import BadZipFile
 
@@ -30,16 +31,19 @@ from grpc_interfaces.model_registration.pb.service_pb2 import (
     StatusResponse,
 )
 from grpc_interfaces.model_registration.pb.service_pb2_grpc import ModelRegistrationServicer
-from kubernetes_asyncio.client.rest import ApiException
 
-from service.config import MODELMESH_NAMESPACE, S3_BUCKETNAME, S3_STORAGE
-from service.inference_manager import InferenceManager
+from service.config import S3_BUCKETNAME
 from service.model_converter import GraphVariant, ModelConverter, UnsupportedModelType
+from service.ovms_config import OvmsConfigManager
 from service.responses import Responses
 from service.s3client import S3Client
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _registry_key(pipeline_name: str) -> str:
+    return f"{pipeline_name}/.registry.json"
 
 
 class ModelRegistration(ModelRegistrationServicer):
@@ -50,6 +54,7 @@ class ModelRegistration(ModelRegistrationServicer):
     def __init__(self) -> None:
         self.s3 = S3Client()
         self.converter = ModelConverter(self.s3)
+        self.ovms = OvmsConfigManager()
         super().__init__()
 
     def make_error(self, code: ErrorCode.ValueType) -> Error:
@@ -67,6 +72,15 @@ class ModelRegistration(ModelRegistrationServicer):
         logger.exception(message)
         return StatusResponse(status=Responses.Failed, error=self.make_error(code=error_code))
 
+    def _write_registry_record(self, pipeline_name: str, project_id: str | None = None) -> None:
+        payload = {
+            "pipeline_name": pipeline_name,
+            "project_id": project_id,
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
+            "deployment_mode": "compose",
+        }
+        self.s3.put_json_object(bucket_name=S3_BUCKETNAME, object_key=_registry_key(pipeline_name), payload=payload)
+
     async def register_new_pipelines(
         self,
         req: RegisterRequest,
@@ -75,49 +89,30 @@ class ModelRegistration(ModelRegistrationServicer):
         """
         Registers new pipeline
         """
+        pipeline_name = req.name if len(req.name) > 0 else f"{req.project.id}_active"
         try:
-            inference = InferenceManager()
-            pipeline_name = (
-                req.name
-                if len(req.name) > 0
-                else "{}_{}".format(req.project.id, "active" if len(req.model) > 1 else req.model[0].model_id)
-            )
-            pipeline = await inference.get_inference(name=pipeline_name, namespace=MODELMESH_NAMESPACE)
-            if pipeline:
-                if req.override:
-                    logger.info(f"Override requested. Deregistering pipeline {pipeline_name}")
-                    await asyncio.gather(
-                        inference.remove_inference(name=pipeline_name, namespace=MODELMESH_NAMESPACE),
-                        asyncio.get_event_loop().run_in_executor(
-                            None, self.s3.delete_folder, S3_BUCKETNAME, pipeline_name
-                        ),
-                    )
-                else:
-                    logger.info(f"Model {pipeline_name} already registered")
-                    return StatusResponse(
-                        status=Responses.AlreadyRegistered,
-                        error=self.make_error(code=ErrorCode.MODEL_ALREADY_REGISTERED),
-                    )
+            existing = self.s3.get_json_object(bucket_name=S3_BUCKETNAME, object_key=_registry_key(pipeline_name))
+            if existing and not req.override:
+                logger.info(f"Model {pipeline_name} already registered (compose registry)")
+                return StatusResponse(
+                    status=Responses.AlreadyRegistered,
+                    error=self.make_error(code=ErrorCode.MODEL_ALREADY_REGISTERED),
+                )
 
-            self.converter.process_model(name=pipeline_name, models=req.model, project=req.project)
-            await inference.create_inference(
-                name=pipeline_name,
-                namespace=MODELMESH_NAMESPACE,
-                storage_name=S3_STORAGE,
-                path=pipeline_name,
-            )
-            response = StatusResponse(status=Responses.Created)
-        except ApiException as api_err:
-            if api_err.reason == "Conflict":
-                logger.info(f"Model {pipeline_name} already registered")
-                response = StatusResponse(
-                    status=Responses.AlreadyRegistered, error=self.make_error(code=ErrorCode.MODEL_ALREADY_REGISTERED)
-                )
-            else:
-                response = self.handle_exception(
-                    ErrorCode.INTERNAL_ERROR,
-                    f"The error {api_err.status} has been returned while creating pipeline {pipeline_name}",
-                )
+            if existing and req.override:
+                self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=pipeline_name)
+                self.ovms.remove_model(pipeline_name=pipeline_name)
+                self.ovms.remove_model_directory(pipeline_name=pipeline_name)
+
+            export_dir = self.converter.prepare_graph(project=req.project, models=req.model)
+            try:
+                self.s3.upload_folder(bucket_name=S3_BUCKETNAME, object_key=pipeline_name, local_folder_path=export_dir)
+                self.ovms.sync_model_directory(pipeline_name=pipeline_name, source_dir=export_dir)
+            finally:
+                self.converter._delete_dir(dir_path=export_dir)
+            self.ovms.add_model(pipeline_name=pipeline_name)
+            self._write_registry_record(pipeline_name=pipeline_name, project_id=req.project.id)
+            return StatusResponse(status=Responses.Created)
         except ClientError as s3_err:
             response = self.handle_exception(
                 ErrorCode.INTERNAL_ERROR, f"Failed to create inference {pipeline_name}. S3 error: {s3_err}"
@@ -201,15 +196,10 @@ class ModelRegistration(ModelRegistrationServicer):
         Deregisters existing pipeline
         """
         try:
-            inference = InferenceManager()
-            await inference.remove_inference(name=request.name, namespace=MODELMESH_NAMESPACE)
             self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=request.name)
+            self.ovms.remove_model(pipeline_name=request.name)
+            self.ovms.remove_model_directory(pipeline_name=request.name)
             return StatusResponse(status=Responses.Removed)
-        except ApiException as api_err:
-            response = self.handle_exception(
-                ErrorCode.INTERNAL_ERROR,
-                f"Failed to remove inference {request.name}. Encountered API error: {api_err}",
-            )
         except ClientError as s3_err:
             response = self.handle_exception(
                 ErrorCode.INTERNAL_ERROR,
@@ -241,14 +231,8 @@ class ModelRegistration(ModelRegistrationServicer):
         """
         List existing pipelines
         """
-        try:
-            inference = InferenceManager()
-            pipelines = await inference.list_inference(namespace=MODELMESH_NAMESPACE)
-            lines = [p.name for p in pipelines]
-            return ListResponse(pipelines=lines)
-        except ApiException as api_err:
-            logger.error(f"The error {api_err.status} has been returned while listing pipelines")
-            return ListResponse()
+        pipelines = self.s3.list_registry_folders(bucket_name=S3_BUCKETNAME)
+        return ListResponse(pipelines=pipelines)
 
     async def recover_pipeline(
         self,
@@ -261,23 +245,21 @@ class ModelRegistration(ModelRegistrationServicer):
         Checks if the folder with model artifacts exists on S3. If so, the model will
         be registered with ModelMesh and a success response is returned
         """
-        inference = InferenceManager()
-        pipelines = await inference.list_inference(namespace=MODELMESH_NAMESPACE)
         pipeline_name = request.name
-        if pipeline_name in [p.name for p in pipelines]:
-            logger.info(f"Model `{pipeline_name}` is already registered")
-            return RecoverResponse(success=True)
-
         if self.s3.check_folder_exists(bucket_name=S3_BUCKETNAME, object_key=pipeline_name):
-            await inference.create_inference(
-                name=pipeline_name,
-                namespace=MODELMESH_NAMESPACE,
-                storage_name=S3_STORAGE,
-                path=pipeline_name,
-            )
-            logger.info(f"Model `{pipeline_name}` recovered successfully")
+            export_dir = tempfile.mkdtemp(prefix="recover-", dir="/tmp")
+            try:
+                self.s3.download_folder(
+                    bucket_name=S3_BUCKETNAME, object_key=pipeline_name, local_folder_path=export_dir
+                )
+                self.ovms.sync_model_directory(pipeline_name=pipeline_name, source_dir=export_dir)
+            finally:
+                self.converter._delete_dir(dir_path=export_dir)
+            self.ovms.add_model(pipeline_name=pipeline_name)
+            self._write_registry_record(pipeline_name=pipeline_name)
+            logger.info(f"Model `{pipeline_name}` recovered successfully in compose mode")
             return RecoverResponse(success=True)
-        logger.info(f"Unable to recover model `{pipeline_name}`")
+        logger.info(f"Unable to recover model `{pipeline_name}` in compose mode")
         return RecoverResponse(success=False)
 
     async def delete_project_pipelines(
@@ -298,39 +280,14 @@ class ModelRegistration(ModelRegistrationServicer):
         project_prefix = request.project_id + "-"
         success = True
 
-        # First, remove inference services for the project and delete the
-        # corresponding folders on S3
-        inference = InferenceManager()
-        pipelines = await inference.list_inference(namespace=MODELMESH_NAMESPACE)
-        project_pipelines = [p for p in pipelines if p.name.startswith(project_prefix)]
-        logger.info(
-            f"Deleting {len(project_pipelines)} registered inference pipelines related "
-            f"to project with id: {request.project_id}"
-        )
-        for pipeline in project_pipelines:
-            try:
-                await inference.remove_inference(name=pipeline.name, namespace=MODELMESH_NAMESPACE)
-                self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=pipeline.name)
-                logger.info(
-                    f"InferenceService {pipeline.name} removed. Inference model artifacts deleted from object storage."
-                )
-            except (RuntimeError, ClientError) as err:
-                logger.error(f"Failed to remove inference pipeline {pipeline.name}. Encountered error: {err}")
-                success = False
-
-        # Then, find and delete any leftover inference model folders on S3 that are
-        # owned by the project
         folder_names = self.s3.list_folders(bucket_name=S3_BUCKETNAME)
         project_folder_names = [n for n in folder_names if n.startswith(project_prefix)]
-        logger.info(
-            f"Deleting {len(project_folder_names)} inference model artifact folders "
-            f"for project with id {request.project_id} from object storage. Folder "
-            f"names: {project_folder_names}"
-        )
+        logger.info(f"Deleting {len(project_folder_names)} compose model folders for project {request.project_id}")
         for folder_name in project_folder_names:
             try:
                 self.s3.delete_folder(bucket_name=S3_BUCKETNAME, object_key=folder_name)
-                logger.info(f"Inference model artifacts for pipeline {folder_name} deleted from object storage.")
+                self.ovms.remove_model(pipeline_name=folder_name)
+                self.ovms.remove_model_directory(pipeline_name=folder_name)
             except ClientError as err:
                 logger.error(
                     f"Failed to remove inference model artifact folder {folder_name}. S3 client returned error: {err}"

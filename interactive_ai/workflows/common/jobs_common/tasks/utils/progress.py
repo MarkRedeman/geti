@@ -4,13 +4,13 @@
 """This module defines methods and wrappers to work with task progress"""
 
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from typing import Any
 
-from flytekit import current_context
 from geti_kafka_tools import publish_event
 from geti_types import CTX_SESSION_VAR
 from grpc_interfaces.job_update.client import JobUpdateClient
@@ -20,6 +20,18 @@ from jobs_common.exceptions import TaskErrorMessage
 from jobs_common.tasks.utils.secrets import JobMetadata
 
 logger = logging.getLogger(__name__)
+
+
+def _current_execution_id() -> str:
+    if execution_id := os.environ.get("WORKFLOW_EXECUTION_ID"):
+        return execution_id
+    if job_id := os.environ.get("JOB_METADATA_ID"):
+        return f"ex-{job_id}"
+    return "compose-execution"
+
+
+def _current_task_id() -> str:
+    return os.environ.get("TASK_ID") or os.environ.get("WORKFLOW_TASK_ID") or "compose-task"
 
 
 @dataclass
@@ -68,9 +80,8 @@ def report_progress(
     if progress is None and message is None and warning is None:
         return
 
-    context = current_context()
-    execution_id = context.execution_id.name
-    task_id = context.task_id.name
+    execution_id = _current_execution_id()
+    task_id = _current_task_id()
     key = f"{execution_id}-{task_id}"
     body: dict = {"execution_id": execution_id, "task_id": task_id}
     if progress is not None:
@@ -80,7 +91,7 @@ def report_progress(
     if warning is not None:
         body["warning"] = warning
 
-    logger.debug(f"Reporting {context.execution_id.name} execution's {context.task_id.name} task's progress: {body}")
+    logger.debug(f"Reporting {execution_id} execution's {task_id} task's progress: {body}")
     publish_event(
         topic="job_step_details",
         body=body,
@@ -99,10 +110,9 @@ def publish_metadata_update(metadata: dict) -> None:
 
     :param metadata: dict of metadata keys and values
     """
-    context = current_context()
-    execution_id = context.execution_id.name
+    execution_id = _current_execution_id()
 
-    logger.debug(f"Task {context.task_id.name} is updating {execution_id} execution's metadata: {metadata}")
+    logger.debug(f"Task {_current_task_id()} is updating {execution_id} execution's metadata: {metadata}")
     JobUpdateClient(metadata_getter=lambda: CTX_SESSION_VAR.get().as_tuple()).job_update(
         execution_id=execution_id, metadata=metadata
     )
@@ -116,12 +126,9 @@ def publish_consumed_resources(amount: int, unit: str, service: str) -> None:
     :param unit: paid resource unit
     :param service: service, which consumed the resources
     """
-    context = current_context()
-    execution_id = context.execution_id.name
+    execution_id = _current_execution_id()
 
-    logger.debug(
-        f"Task {context.task_id.name} of execution {execution_id} publishes consumed resources: {amount} {unit}"
-    )
+    logger.debug(f"Task {_current_task_id()} of execution {execution_id} publishes consumed resources: {amount} {unit}")
     JobUpdateClient(metadata_getter=lambda: CTX_SESSION_VAR.get().as_tuple()).job_update(
         execution_id=execution_id,
         cost=JobUpdateRequest.Cost(
@@ -138,10 +145,9 @@ def release_gpu() -> None:
     """
     Send message to release reserved GPU.
     """
-    context = current_context()
-    execution_id = context.execution_id.name
+    execution_id = _current_execution_id()
 
-    logger.debug(f"Task {context.task_id.name} is releasing {execution_id} execution's GPU")
+    logger.debug(f"Task {_current_task_id()} is releasing {execution_id} execution's GPU")
     JobUpdateClient(metadata_getter=lambda: CTX_SESSION_VAR.get().as_tuple()).job_update(
         execution_id=execution_id,
         gpu=JobUpdateRequest.Gpu(action=JobUpdateRequest.Gpu.RELEASE),
@@ -183,7 +189,10 @@ def task_progress(
                     )
                 )
                 message += f" (ID: {JobMetadata.from_env_vars().id})"
-                report_progress(message=message)
+                # Ensure failure events overwrite stale in-flight step progress.
+                # Without explicit progress, the UI can keep the last intermediate
+                # percentage while the job has already failed.
+                report_progress(progress=0, message=message)
                 raise ex
             finally:
                 if not failed and finish_message is not None:

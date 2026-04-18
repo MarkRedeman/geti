@@ -1,12 +1,13 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 import logging
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from geti_spicedb_tools import Permissions, SpiceDB
 from geti_supported_models.default_models import DefaultModels
+from managers.authz import assign_project_admin_role, get_permitted_project_ids, remove_project_roles
 
 from communication.exceptions import DatasetStorageNotInProjectException, LabelNotFoundException, ProjectLockedException
 from managers.annotation_manager import AnnotationManager
@@ -43,6 +44,10 @@ TITLE = "title"
 TO = "to"
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
 
 
 @dataclass
@@ -90,11 +95,10 @@ class ProjectManager:
             default_models_per_task=DefaultModels.get_default_models_per_task(),
         )
 
-        # TODO: CVS-89772 call spicedb before storing a project in database
-        SpiceDB().create_project(
-            workspace_id=str(workspace_id),
+        assign_project_admin_role(
+            user_id=creator_id,
+            organization_id=str(CTX_SESSION_VAR.get().organization_id),
             project_id=str(project.id_),
-            creator=creator_id,
         )
         publish_event(
             topic="project_creations",
@@ -329,7 +333,10 @@ class ProjectManager:
         project_repo.hide(project)
 
         DeletionHelpers.delete_project_by_id(project_id=project_id)
-        SpiceDB().delete_project(project_id)
+        remove_project_roles(
+            organization_id=str(CTX_SESSION_VAR.get().organization_id),
+            project_id=str(project_id),
+        )
 
         publish_event(
             topic="project_deletions",
@@ -366,8 +373,13 @@ class ProjectManager:
         :param user_uid: caller user's uid
         :return: all ID's of projects found (accessible for the caller) with their names
         """
-        permitted_projects = SpiceDB().get_user_projects(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
-        permitted_project_ids = tuple(ID(project_id) for project_id in permitted_projects)
+        if _is_mock_auth_mode():
+            permitted_project_ids = None
+        else:
+            permitted_project_ids = get_permitted_project_ids(
+                user_id=user_uid,
+                organization_id=str(CTX_SESSION_VAR.get().organization_id),
+            )
         return ProjectRepo().get_names(permitted_project_ids)
 
     @staticmethod
@@ -385,8 +397,13 @@ class ProjectManager:
         :param include_hidden: Whether to include hidden (not fully created) projects
         :return: list of Project in the workspace with filtering and pagination and count of all projects in workspace
         """
-        permitted_projects = SpiceDB().get_user_projects(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
-        permitted_project_ids = tuple(ID(project_id) for project_id in permitted_projects)
+        if _is_mock_auth_mode():
+            permitted_project_ids = None
+        else:
+            permitted_project_ids = get_permitted_project_ids(
+                user_id=user_uid,
+                organization_id=str(CTX_SESSION_VAR.get().organization_id),
+            )
         project_repo = ProjectRepo()
         projects = project_repo.get_by_page(
             query_data=query_data,

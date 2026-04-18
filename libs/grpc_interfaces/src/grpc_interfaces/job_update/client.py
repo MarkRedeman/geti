@@ -87,7 +87,7 @@ class JobUpdateClient:
         """
         Sends a request to update running job information (metadata, consumed cost, GPU action).
 
-        :param execution_id: job Flyte execution ID
+        :param execution_id: job execution ID
         :param metadata: job's metadata
         :param cost: job consumed costs update
         :param gpu: GPU update

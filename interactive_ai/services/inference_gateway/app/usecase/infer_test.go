@@ -4,6 +4,7 @@
 package usecase
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -158,4 +159,27 @@ func TestInferBatch(t *testing.T) {
 			mockFrameExtractor.ExpectedCalls = nil
 		})
 	}
+}
+
+func TestInferOne_MissingPredictionsParam(t *testing.T) {
+	ctx := t.Context()
+	mockModelAccess := service.NewMockModelAccessService(t)
+	mockVideoRepo := storage.NewMockVideoRepository(t)
+	mockFrameExtractor := frames.NewMockCLIFrameExtractor(t)
+
+	request := &entities.PredictionRequestData{
+		ProjectID: sdkentities.ID{ID: "69b6afc6c369ebbc276fd8ae"},
+		ModelID:   sdkentities.ID{ID: "active"},
+		Media:     bytes.NewBuffer([]byte("test-image")),
+	}
+
+	mockModelAccess.EXPECT().
+		InferImageBytes(mock.Anything, mock.AnythingOfType("service.InferParameters")).
+		Return(&pb.ModelInferResponse{Parameters: map[string]*pb.InferParameter{}}, nil).
+		Once()
+
+	infer := NewInferImpl(mockModelAccess, mockVideoRepo, mockFrameExtractor)
+	_, err := infer.One(ctx, request, false)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "missing 'predictions' parameter")
 }

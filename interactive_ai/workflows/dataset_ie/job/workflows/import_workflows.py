@@ -3,15 +3,12 @@
 
 """This module implements import workflows"""
 
-from flytekit import workflow
-
 from job.tasks.import_tasks.create_project_from_dataset import create_project_from_dataset
 from job.tasks.import_tasks.import_dataset_to_project import import_dataset_to_project
 from job.tasks.import_tasks.parse_dataset_existing_project import parse_dataset_for_import_to_existing_project
 from job.tasks.import_tasks.parse_dataset_new_project import parse_dataset_for_import_to_new_project
 
 
-@workflow
 def prepare_import_new_project_workflow(import_id: str) -> None:
     """
     Prepare import workflow for import to new project
@@ -26,7 +23,6 @@ def prepare_import_new_project_workflow(import_id: str) -> None:
     parse_dataset_for_import_to_new_project(import_id=import_id)
 
 
-@workflow
 def prepare_import_existing_project_workflow(import_id: str, project_id: str) -> None:
     """
     Prepare import workflow for import to existing project
@@ -45,7 +41,6 @@ def prepare_import_existing_project_workflow(import_id: str, project_id: str) ->
     )
 
 
-@workflow
 def create_project_from_dataset_workflow(
     import_id: str,
     project_name: str,
@@ -77,7 +72,6 @@ def create_project_from_dataset_workflow(
     )
 
 
-@workflow
 def import_dataset_to_project_workflow(
     project_id: str,
     import_id: str,

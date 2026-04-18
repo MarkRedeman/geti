@@ -3,6 +3,6 @@
 
 """This module contains Task-related utility functions"""
 
-from .primary_container_task import flyte_multi_container_dynamic, flyte_multi_container_task
+from .primary_container_task import compose_dynamic, compose_task
 
-__all__ = ["flyte_multi_container_dynamic", "flyte_multi_container_task"]
+__all__ = ["compose_dynamic", "compose_task"]

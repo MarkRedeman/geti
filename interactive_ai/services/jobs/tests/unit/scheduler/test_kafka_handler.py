@@ -5,20 +5,17 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from bson import ObjectId
-from flytekit.models.core.workflow import NodeMetadata
 
 from model.job import (
     JobCancellationInfo,
     JobConsumedResource,
     JobCost,
     JobResource,
-    JobStepDetails,
-    JobTaskExecutionBranch,
 )
 from model.job_state import JobTaskState
-from scheduler.flyte import Flyte
-from scheduler.jobs_templates import JobsTemplates, JobTemplateStep
+from scheduler.execution_type import ExecutionType
 from scheduler.kafka_handler import ProgressHandler
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_kafka_tools import KafkaRawMessage
@@ -32,24 +29,14 @@ def mock_job_service(self, *args, **kwargs) -> None:
     return None
 
 
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
-
-
-def mock_jobs_templates(self, *args, **kwargs) -> None:
-    return None
-
-
 def mock_progress_handler(self, *args, **kwargs) -> None:
     return None
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     ProgressHandler._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
-    JobsTemplates._instance = None  # type: ignore[attr-defined]
+    LocalExecutor._instance = None  # type: ignore[attr-defined]
 
 
 @pytest.mark.parametrize(
@@ -66,20 +53,17 @@ def reset_singletons() -> None:
     ],
 )
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_event_wrong_event_type(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_wrong_event_type(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     headers,
     request,
@@ -99,15 +83,13 @@ def test_on_flyte_event_wrong_event_type(
     )
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
     # Assert
     mock_make_session.assert_not_called()
-    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_local_executor_get_metadata.assert_not_called()
     mock_sm_get_by_id.assert_not_called()
-    mock_handle_workflow_event.assert_not_called()
-    mock_handle_node_event.assert_not_called()
-    mock_handle_task_event.assert_not_called()
+    mock_handle_workflow_event_by_type.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -121,20 +103,17 @@ def test_on_flyte_event_wrong_event_type(
     ],
 )
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_event_missing_event(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_missing_event(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     value,
     request,
@@ -153,38 +132,33 @@ def test_on_flyte_event_missing_event(
         [
             (
                 "ce_type",
-                b"com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest",
+                b"com.geti.jobs.WorkflowExecutionEventRequest",
             )
         ],
     )
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
     # Assert
     mock_make_session.assert_not_called()
-    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_local_executor_get_metadata.assert_not_called()
     mock_sm_get_by_id.assert_not_called()
-    mock_handle_workflow_event.assert_not_called()
-    mock_handle_node_event.assert_not_called()
-    mock_handle_task_event.assert_not_called()
+    mock_handle_workflow_event_by_type.assert_not_called()
 
 
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_event_no_execution(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_no_execution(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     request,
 ) -> None:
@@ -202,39 +176,34 @@ def test_on_flyte_event_no_execution(
         [
             (
                 "ce_type",
-                b"com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest",
+                b"com.geti.jobs.WorkflowExecutionEventRequest",
             )
         ],
     )
-    mock_flyte_fetch_workflow_execution.return_value = None
+    mock_local_executor_get_metadata.return_value = None
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
     # Assert
     mock_make_session.assert_not_called()
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="ex-workspace-job")
+    mock_local_executor_get_metadata.assert_called_once_with("ex-workspace-job")
     mock_sm_get_by_id.assert_not_called()
-    mock_handle_workflow_event.assert_not_called()
-    mock_handle_node_event.assert_not_called()
-    mock_handle_task_event.assert_not_called()
+    mock_handle_workflow_event_by_type.assert_not_called()
 
 
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_event_no_job(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_no_job(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     request,
 ) -> None:
@@ -252,22 +221,20 @@ def test_on_flyte_event_no_job(
         [
             (
                 "ce_type",
-                b"com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest",
+                b"com.geti.jobs.WorkflowExecutionEventRequest",
             )
         ],
     )
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.organization_id = str(ORG)
+    record.workspace_id = "workspace_id"
+    record.job_id = "job_id"
+    record.execution_type = ExecutionType.MAIN
+    mock_local_executor_get_metadata.return_value = record
     mock_sm_get_by_id.return_value = None
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
     # Assert
     mock_make_session.assert_called_once_with(
@@ -275,28 +242,23 @@ def test_on_flyte_event_no_job(
         workspace_id=ID("workspace_id"),
         source=RequestSource.INTERNAL,
     )
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="ex-workspace-job")
+    mock_local_executor_get_metadata.assert_called_once_with("ex-workspace-job")
     mock_sm_get_by_id.assert_called_once_with(job_id=ID("job_id"))
-    mock_handle_workflow_event.assert_not_called()
-    mock_handle_node_event.assert_not_called()
-    mock_handle_task_event.assert_not_called()
+    mock_handle_workflow_event_by_type.assert_not_called()
 
 
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_workflow_event(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_main(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     request,
 ) -> None:
@@ -315,24 +277,22 @@ def test_on_flyte_workflow_event(
         [
             (
                 "ce_type",
-                b"com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest",
+                b"com.geti.jobs.WorkflowExecutionEventRequest",
             )
         ],
     )
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.organization_id = str(ORG)
+    record.workspace_id = "workspace_id"
+    record.job_id = "job_id"
+    record.execution_type = ExecutionType.MAIN
+    mock_local_executor_get_metadata.return_value = record
 
     job = MagicMock()
     mock_sm_get_by_id.return_value = job
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
     # Assert
     mock_make_session.assert_called_once_with(
@@ -340,31 +300,32 @@ def test_on_flyte_workflow_event(
         workspace_id=ID("workspace_id"),
         source=RequestSource.INTERNAL,
     )
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="ex-workspace-job")
+    mock_local_executor_get_metadata.assert_called_once_with("ex-workspace-job")
     mock_sm_get_by_id.assert_called_once_with(job_id=ID("job_id"))
-    mock_handle_workflow_event.assert_called_once_with(event=event, execution=execution, job=job)
-    mock_handle_node_event.assert_not_called()
-    mock_handle_task_event.assert_not_called()
+    mock_handle_workflow_event_by_type.assert_called_once_with(
+        event=event,
+        execution=None,
+        execution_type=ExecutionType.MAIN,
+        job=job,
+    )
 
 
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_node_event(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_node(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     request,
 ) -> None:
+    """NODE_EXECUTION_EVENT_REQUEST returns early – no handlers called."""
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
@@ -377,54 +338,43 @@ def test_on_flyte_node_event(
         0,
         "key",
         {"event": event},
-        [("ce_type", b"com.flyte.resource.flyteidl.admin.NodeExecutionEventRequest")],
+        [("ce_type", b"com.geti.jobs.NodeExecutionEventRequest")],
     )
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.organization_id = str(ORG)
+    record.workspace_id = "workspace_id"
+    record.job_id = "job_id"
+    record.execution_type = ExecutionType.MAIN
+    mock_local_executor_get_metadata.return_value = record
 
     job = MagicMock()
     mock_sm_get_by_id.return_value = job
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
-    # Assert
-    mock_make_session.assert_called_once_with(
-        organization_id=ORG,
-        workspace_id=ID("workspace_id"),
-        source=RequestSource.INTERNAL,
-    )
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="ex-workspace-job")
+    # Assert – node events are not processed in compose mode
+    mock_local_executor_get_metadata.assert_called_once_with("ex-workspace-job")
     mock_sm_get_by_id.assert_called_once_with(job_id=ID("job_id"))
-    mock_handle_workflow_event.assert_not_called()
-    mock_handle_node_event.assert_called_once_with(event=event, execution=execution, job=job)
-    mock_handle_task_event.assert_not_called()
+    mock_handle_workflow_event_by_type.assert_not_called()
 
 
 @patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "__init__", new=mock_job_service)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(ProgressHandler, "handle_task_event")
-@patch.object(ProgressHandler, "handle_node_event")
-@patch.object(ProgressHandler, "handle_workflow_event")
-def test_on_flyte_task_event(
-    mock_handle_workflow_event,
-    mock_handle_node_event,
-    mock_handle_task_event,
+@patch.object(ProgressHandler, "handle_workflow_event_by_type")
+def test_on_workflow_event_task(
+    mock_handle_workflow_event_by_type,
     mock_sm_get_by_id,
-    mock_flyte_fetch_workflow_execution,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
     mock_make_session,
     request,
 ) -> None:
+    """TASK_EXECUTION_EVENT_REQUEST returns early – no handlers called."""
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
@@ -437,34 +387,25 @@ def test_on_flyte_task_event(
         0,
         "key",
         {"event": event},
-        [("ce_type", b"com.flyte.resource.flyteidl.admin.TaskExecutionEventRequest")],
+        [("ce_type", b"com.geti.jobs.TaskExecutionEventRequest")],
     )
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.organization_id = str(ORG)
+    record.workspace_id = "workspace_id"
+    record.job_id = "job_id"
+    record.execution_type = ExecutionType.MAIN
+    mock_local_executor_get_metadata.return_value = record
 
     job = MagicMock()
     mock_sm_get_by_id.return_value = job
 
     # Act
-    ProgressHandler().on_flyte_event(message)
+    ProgressHandler().on_workflow_event(message)
 
-    # Assert
-    mock_make_session.assert_called_once_with(
-        organization_id=ORG,
-        workspace_id=ID("workspace_id"),
-        source=RequestSource.INTERNAL,
-    )
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="ex-workspace-job")
+    # Assert – task events are not processed in compose mode
+    mock_local_executor_get_metadata.assert_called_once_with("ex-workspace-job")
     mock_sm_get_by_id.assert_called_once_with(job_id=ID("job_id"))
-    mock_handle_workflow_event.assert_not_called()
-    mock_handle_node_event.assert_not_called()
-    mock_handle_task_event.assert_called_once_with(event=event, execution=execution, job=job)
+    mock_handle_workflow_event_by_type.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -474,11 +415,10 @@ def test_on_flyte_task_event(
         {"executionId": {}},
     ],
 )
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_wrong_event(
+def test_handle_workflow_event_by_type_wrong_event(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     event,
@@ -487,22 +427,22 @@ def test_handle_workflow_event_wrong_event(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(event=event, execution=execution, job=job)
+    ProgressHandler().handle_workflow_event_by_type(
+        event=event, execution=None, execution_type=ExecutionType.MAIN, job=job
+    )
 
     # Assert
     mock_ph_handle_main_workflow_event.assert_not_called()
     mock_ph_handle_revert_workflow_event.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_no_phase(
+def test_handle_workflow_event_by_type_no_phase(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     request,
@@ -510,13 +450,13 @@ def test_handle_workflow_event_no_phase(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(
+    ProgressHandler().handle_workflow_event_by_type(
         event={"executionId": {"name": "ex-workspace-job"}},
-        execution=execution,
+        execution=None,
+        execution_type=ExecutionType.MAIN,
         job=job,
     )
 
@@ -527,11 +467,10 @@ def test_handle_workflow_event_no_phase(
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "RUNNING", "FAILED", "ABORTED"])
 @patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_main_execution(
+def test_handle_workflow_event_by_type_main_execution(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     request,
@@ -540,19 +479,13 @@ def test_handle_workflow_event_main_execution(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(
+    ProgressHandler().handle_workflow_event_by_type(
         event={"executionId": {"name": "ex-workspace-job"}, "phase": phase},
-        execution=execution,
+        execution=None,
+        execution_type=ExecutionType.MAIN,
         job=job,
     )
 
@@ -562,11 +495,10 @@ def test_handle_workflow_event_main_execution(
 
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "RUNNING", "FAILED", "ABORTED"])
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "handle_revert_workflow_event")
 @patch.object(ProgressHandler, "handle_main_workflow_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_handle_workflow_event_revert_execution(
+def test_handle_workflow_event_by_type_revert_execution(
     mock_ph_handle_main_workflow_event,
     mock_ph_handle_revert_workflow_event,
     request,
@@ -575,19 +507,13 @@ def test_handle_workflow_event_revert_execution(
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "REVERT",
-    }
     job = MagicMock()
 
     # Act
-    ProgressHandler().handle_workflow_event(
+    ProgressHandler().handle_workflow_event_by_type(
         event={"executionId": {"name": "ex-workspace-job"}, "phase": phase},
-        execution=execution,
+        execution=None,
+        execution_type=ExecutionType.REVERT,
         job=job,
     )
 
@@ -596,7 +522,6 @@ def test_handle_workflow_event_revert_execution(
     mock_ph_handle_revert_workflow_event.assert_called_once_with(job=job, phase=phase)
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
 @patch.object(StateMachine, "set_and_publish_finished_state")
@@ -625,7 +550,6 @@ def test_handle_main_workflow_event_running(
     mock_set_and_publish_cancelled_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
 @patch.object(StateMachine, "set_and_publish_finished_state")
@@ -654,7 +578,6 @@ def test_handle_main_workflow_event_finished(
     mock_set_and_publish_cancelled_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
 @patch.object(StateMachine, "set_and_publish_finished_state")
@@ -681,7 +604,6 @@ def test_handle_main_workflow_event_failed(
     mock_set_and_publish_finished_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_finished_state")
 @patch.object(StateMachine, "set_ready_for_revert_state")
@@ -707,7 +629,6 @@ def test_handle_main_workflow_event_aborted(
     mock_set_and_publish_finished_state.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
@@ -734,7 +655,6 @@ def test_handle_revert_workflow_event_running(
 
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "FAILED"])
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
@@ -764,7 +684,6 @@ def test_handle_revert_workflow_event_cancelled(
 
 
 @pytest.mark.parametrize("phase", ["SUCCEEDED", "FAILED"])
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_and_publish_failed_state")
 @patch.object(StateMachine, "set_and_publish_cancelled_state")
@@ -792,476 +711,15 @@ def test_handle_revert_workflow_event_failed(
     mock_set_and_publish_failed_state.assert_called_once_with(job_id=ID("job"))
 
 
-@pytest.mark.parametrize(
-    "event",
-    [
-        {},
-        {"parentNodeExecutionId": {}},
-        {"parentNodeExecutionId": {"executionId": {}}},
-        {"parentNodeExecutionId": {"executionId": {"name": "ex-workspace-job"}}},
-        {"parentNodeExecutionId": {"executionId": {}, "nodeId": "n0"}},
-    ],
-)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_task_event_wrong_event(mock_sm_set_step_details, event, request) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    job = MagicMock()
-
-    # Act
-    ProgressHandler().handle_task_event(event=event, execution=execution, job=job)
-
-    # Assert
-    mock_sm_set_step_details.assert_not_called()
-
-
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_task_event_missing_phase(mock_sm_set_step_details, request) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    job = MagicMock()
-
-    # Act
-    ProgressHandler().handle_task_event(
-        event={
-            "parentNodeExecutionId": {
-                "executionId": {"name": "ex-workspace-job"},
-                "nodeId": "n0",
-            }
-        },
-        execution=execution,
-        job=job,
-    )
-
-    # Assert
-    mock_sm_set_step_details.assert_not_called()
-
-
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_task_event_revert(mock_sm_set_step_details, request) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "execution_type": "REVERT",
-    }
-    job = MagicMock()
-
-    # Act
-    ProgressHandler().handle_task_event(
-        event={
-            "parentNodeExecutionId": {"executionId": {"name": "ex-workspace-job"}},
-            "taskId": {"name": "task_id"},
-            "phase": "RUNNING",
-        },
-        execution=execution,
-        job=job,
-    )
-
-    # Assert
-    mock_sm_set_step_details.assert_not_called()
-
-
-@pytest.mark.freeze_time("2020-01-01")
-@pytest.mark.parametrize(
-    "phase, state, error, message",
-    [
-        ("RUNNING", JobTaskState.RUNNING, None, None),
-        ("SUCCEEDED", JobTaskState.FINISHED, None, None),
-        ("FAILED", JobTaskState.FAILED, None, None),
-        (
-            "FAILED",
-            JobTaskState.FAILED,
-            {"code": "OOMKilled"},
-            "The job failed due to insufficient memory. "
-            "This may happen if the chosen model is too large for the available hardware, "
-            "or if there is an internal bug in the training pipeline. Please try again with a more "
-            "lightweight model if possible: if the problem persists, please report the issue.",
-        ),
-        (
-            "FAILED",
-            JobTaskState.FAILED,
-            {"message": "Pod has been OOM-killed"},
-            "The job failed due to insufficient memory. "
-            "This may happen if the chosen model is too large for the available hardware, "
-            "or if there is an internal bug in the training pipeline. Please try again with a more "
-            "lightweight model if possible: if the problem persists, please report the issue.",
-        ),
-    ],
-)
-@patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(JobsTemplates, "get_job_steps")
-@patch.object(JobsTemplates, "__init__", new=mock_jobs_templates)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_task_event_main(
-    mock_jt_get_job_steps,
-    mock_sm_set_step_details,
-    request,
-    phase,
-    state,
-    error,
-    message,
-) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    job = MagicMock()
-    job.workspace_id = ID("workspace_id")
-    job.id = ID("job_id")
-
-    mock_jt_get_job_steps.return_value = [JobTemplateStep(name="Test task", task_id="task_id")]
-
-    # Act
-    event = {
-        "parentNodeExecutionId": {"executionId": {"name": "ex-workspace-job"}},
-        "taskId": {"name": "task_id"},
-        "phase": phase,
-    }
-    if error is not None:
-        event["error"] = error
-    ProgressHandler().handle_task_event(event=event, execution=execution, job=job)
-
-    # Assert
-
-    mock_sm_set_step_details.assert_called_once_with(
-        job_id=ID("job_id"),
-        task_id="task_id",
-        state=state,
-        start_time=now() if state == JobTaskState.RUNNING else None,
-        end_time=now() if state != JobTaskState.RUNNING else None,
-        message=message,
-        progress=100.0 if state == JobTaskState.FINISHED else None,
-    )
-
-
-@pytest.mark.freeze_time("2020-01-01")
-@pytest.mark.parametrize(
-    "phase, state, error, message",
-    [
-        ("RUNNING", JobTaskState.RUNNING, None, "Start message"),
-        ("SUCCEEDED", JobTaskState.FINISHED, None, "Finish message"),
-        ("FAILED", JobTaskState.FAILED, None, "Failure message"),
-    ],
-)
-@patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(JobsTemplates, "get_job_steps")
-@patch.object(JobsTemplates, "__init__", new=mock_jobs_templates)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_task_event_main_message_from_template(
-    mock_jt_get_job_steps,
-    mock_sm_set_step_details,
-    request,
-    phase,
-    state,
-    error,
-    message,
-) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    job = MagicMock()
-    job.workspace_id = ID("workspace_id")
-    job.id = ID("job_id")
-
-    mock_jt_get_job_steps.return_value = [
-        JobTemplateStep(
-            name="Test task",
-            task_id="task_id",
-            start_message="Start message",
-            finish_message="Finish message",
-            failure_message="Failure message",
-        )
-    ]
-
-    # Act
-    event = {
-        "parentNodeExecutionId": {"executionId": {"name": "ex-workspace-job"}},
-        "taskId": {"name": "task_id"},
-        "phase": phase,
-    }
-    if error is not None:
-        event["error"] = error
-    ProgressHandler().handle_task_event(event=event, execution=execution, job=job)
-
-    # Assert
-
-    mock_sm_set_step_details.assert_called_once_with(
-        job_id=ID("job_id"),
-        task_id="task_id",
-        state=state,
-        start_time=now() if state == JobTaskState.RUNNING else None,
-        end_time=now() if state != JobTaskState.RUNNING else None,
-        message=f"{message} (ID: {job.id})" if state == JobTaskState.FAILED else message,
-        progress=100.0 if state == JobTaskState.FINISHED else None,
-    )
-
-
-@pytest.mark.freeze_time("2020-01-01")
-@patch("scheduler.kafka_handler.make_session", return_value=MagicMock())
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(JobsTemplates, "get_job_steps")
-@patch.object(JobsTemplates, "__init__", new=mock_jobs_templates)
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_task_event_main_task_not_initiated(
-    mock_jt_get_job_steps,
-    mock_sm_set_step_details,
-    request,
-) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    job = MagicMock()
-    job.workspace_id = ID("workspace_id")
-    job.id = ID("job_id")
-    job.step_details = (
-        JobStepDetails(
-            index=0,
-            task_id="task_id",
-            step_name="Test step",
-            state=JobTaskState.WAITING,
-        ),
-    )
-
-    mock_jt_get_job_steps.return_value = [JobTemplateStep(name="Test task", task_id="task_id")]
-
-    # Act
-    event = {
-        "parentNodeExecutionId": {"executionId": {"name": "ex-workspace-job"}},
-        "taskId": {"name": "task_id"},
-        "phase": "FAILED",
-    }
-    ProgressHandler().handle_task_event(event=event, execution=execution, job=job)
-
-    # Assert
-
-    mock_sm_set_step_details.assert_called_once_with(
-        job_id=ID("job_id"),
-        task_id="task_id",
-        state=JobTaskState.FAILED,
-        start_time=None,
-        end_time=now(),
-        message=(
-            "An issue was encountered while initializing this workload. Please retry or reach out to "
-            "us on GitHub if problem persists."
-        ),
-        progress=None,
-    )
-
-
-@pytest.mark.parametrize(
-    "event",
-    [
-        {},
-        {"phase": "SUCCEEDED"},
-        {"phase": "RUNNING"},
-        {"phase": "FAILED"},
-        {"phase": "ABORTED"},
-        {"phase": "QUEUED", "id": {}},
-        {"phase": "QUEUED", "id": {"executionId": {}}},
-    ],
-)
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(JobsTemplates, "get_job_steps")
-@patch.object(Flyte, "get_workflow_branch_nodes")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_node_event_wrong_event(
-    mock_flyte_get_workflow_branch_nodes,
-    mock_get_job_steps,
-    mock_sm_set_step_details,
-    request,
-    event,
-) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    job = MagicMock()
-
-    # Act
-    ProgressHandler().handle_node_event(event=event, execution=execution, job=job)
-
-    # Assert
-    mock_flyte_get_workflow_branch_nodes.assert_not_called()
-    mock_get_job_steps.assert_not_called()
-    mock_sm_set_step_details.assert_not_called()
-
-
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(JobsTemplates, "get_job_steps")
-@patch.object(Flyte, "get_workflow_branch_nodes")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_node_event_revert(
-    mock_flyte_get_workflow_branch_nodes,
-    mock_get_job_steps,
-    mock_sm_set_step_details,
-    request,
-) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "REVERT",
-    }
-    job = MagicMock()
-
-    # Act
-    ProgressHandler().handle_node_event(
-        event={
-            "id": {
-                "executionId": {"name": "ex-workspace-job"},
-            },
-            "phase": "QUEUED",
-            "nodeName": "n0-n0",
-        },
-        execution=execution,
-        job=job,
-    )
-
-    # Assert
-    mock_flyte_get_workflow_branch_nodes.assert_not_called()
-    mock_get_job_steps.assert_not_called()
-    mock_sm_set_step_details.assert_not_called()
-
-
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(StateMachine, "__init__", new=mock_job_service)
-@patch.object(JobsTemplates, "get_job_steps")
-@patch.object(JobsTemplates, "__init__", new=mock_jobs_templates)
-@patch.object(Flyte, "get_workflow_branch_nodes")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_handle_node_event_main_set_step_details(
-    mock_flyte_get_workflow_branch_nodes,
-    mock_get_job_steps,
-    mock_sm_set_step_details,
-    request,
-) -> None:
-    request.addfinalizer(lambda: reset_singletons())
-
-    # Arrange
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "organization_id": str(ORG),
-        "workspace_id": "workspace_id",
-        "job_id": "job_id",
-        "execution_type": "MAIN",
-    }
-    job = MagicMock()
-    job.workspace_id = ID("workspace_id")
-    job.id = ID("job_id")
-    job.type = "test_job"
-    job.step_details = [
-        JobStepDetails(
-            index=1,
-            task_id="test_task",
-            step_name="Test task",
-            state=JobTaskState.WAITING,
-            branches=(JobTaskExecutionBranch(condition="condition", branch="branch1"),),
-        )
-    ]
-
-    workflow = MagicMock()
-    execution.flyte_workflow = workflow
-    branch_node = MagicMock()
-    branch_node.metadata = NodeMetadata(name="condition")
-    mock_flyte_get_workflow_branch_nodes.return_value = {"branch2": branch_node}
-
-    mock_get_job_steps.return_value = [
-        JobTemplateStep(
-            name="Test task",
-            task_id="test_task",
-            branches=[
-                {
-                    "condition": "condition",
-                    "branch": "branch1",
-                    "skip_message": "Skipped",
-                }
-            ],
-        )
-    ]
-
-    # Act
-    ProgressHandler().handle_node_event(
-        event={
-            "id": {
-                "executionId": {"name": "ex-workspace-job"},
-            },
-            "phase": "QUEUED",
-            "nodeName": "branch2",
-        },
-        execution=execution,
-        job=job,
-    )
-
-    # Assert
-    mock_flyte_get_workflow_branch_nodes.assert_called_once_with(workflow=workflow)
-    mock_get_job_steps.assert_called_once_with(job_type="test_job")
-    mock_sm_set_step_details.assert_called_once_with(
-        job_id=ID("job_id"),
-        task_id="test_task",
-        state=JobTaskState.SKIPPED,
-        message="Skipped",
-    )
-
-
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-@patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-@patch.object(StateMachine, "set_step_details")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_step_details_missing_execution_id(
-    mock_flyte_fetch_workflow_execution, mock_sm_set_step_details, request
+    mock_sm_set_step_details,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1284,16 +742,21 @@ def test_on_job_step_details_missing_execution_id(
     ProgressHandler().on_job_step_details(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_local_executor_get_metadata.assert_not_called()
     mock_sm_set_step_details.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
+@patch.object(StateMachine, "get_by_execution_id", return_value=None)
 @patch.object(StateMachine, "set_step_details")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_step_details_missing_execution(
-    mock_flyte_fetch_workflow_execution, mock_sm_set_step_details, request
+    mock_sm_set_step_details,
+    mock_sm_get_by_execution_id,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1312,23 +775,28 @@ def test_on_job_step_details_missing_execution(
         ],
     )
 
-    mock_flyte_fetch_workflow_execution.return_value = None
+    mock_local_executor_get_metadata.return_value = None
 
     # Act
     ProgressHandler().on_job_step_details(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
+    mock_sm_get_by_execution_id.assert_called_once_with("execution")
     mock_sm_set_step_details.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
 @patch.object(StateMachine, "get_by_id")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_step_details(
-    mock_flyte_fetch_workflow_execution, mock_sm_get_by_id, mock_sm_set_step_details, request
+    mock_sm_get_by_id,
+    mock_sm_set_step_details,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1352,26 +820,24 @@ def test_on_job_step_details(
         ],
     )
 
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "workspace_id": "workspace_id",
-        "organization_id": str(ORG),
-        "job_id": "job_id",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.job_id = "job_id"
+    mock_local_executor_get_metadata.return_value = record
 
     job = MagicMock()
     job.cancellation_info = JobCancellationInfo(is_cancelled=False)
+    job.executions.main.execution_id = "execution"
+    job.executions.revert = None
     mock_sm_get_by_id.return_value = job
 
     # Act
     ProgressHandler().on_job_step_details(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
     mock_sm_set_step_details.assert_called_once_with(
         job_id=ID("job_id"),
-        state=None,
+        state=JobTaskState.RUNNING,
         task_id="task_id",
         progress=45,
         message="Custom message",
@@ -1379,13 +845,17 @@ def test_on_job_step_details(
     )
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "set_step_details")
 @patch.object(StateMachine, "get_by_id")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_step_details_cancelled(
-    mock_flyte_fetch_workflow_execution, mock_sm_get_by_id, mock_sm_set_step_details, request
+    mock_sm_get_by_id,
+    mock_sm_set_step_details,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1409,32 +879,33 @@ def test_on_job_step_details_cancelled(
         ],
     )
 
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "workspace_id": "workspace_id",
-        "organization_id": str(ORG),
-        "job_id": "job_id",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.job_id = "job_id"
+    mock_local_executor_get_metadata.return_value = record
 
     job = MagicMock()
     job.cancellation_info = JobCancellationInfo(is_cancelled=True)
+    job.executions.main.execution_id = "execution"
+    job.executions.revert = None
     mock_sm_get_by_id.return_value = job
 
     # Act
     ProgressHandler().on_job_step_details(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
     mock_sm_set_step_details.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
 @patch.object(StateMachine, "update_metadata")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_update_missing_execution_id(
-    mock_flyte_fetch_workflow_execution, mock_sm_update_metadata, request
+    mock_sm_update_metadata,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1457,15 +928,22 @@ def test_on_job_update_missing_execution_id(
     ProgressHandler().on_job_update(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_not_called()
+    mock_local_executor_get_metadata.assert_not_called()
     mock_sm_update_metadata.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
+@patch.object(StateMachine, "get_by_execution_id", return_value=None)
 @patch.object(StateMachine, "update_metadata")
-@patch.object(Flyte, "fetch_workflow_execution")
-def test_on_job_update_missing_execution(mock_flyte_fetch_workflow_execution, mock_sm_update_metadata, request) -> None:
+def test_on_job_update_missing_execution(
+    mock_sm_update_metadata,
+    mock_sm_get_by_execution_id,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
+) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
@@ -1483,21 +961,29 @@ def test_on_job_update_missing_execution(mock_flyte_fetch_workflow_execution, mo
         ],
     )
 
-    mock_flyte_fetch_workflow_execution.return_value = None
+    mock_local_executor_get_metadata.return_value = None
 
     # Act
     ProgressHandler().on_job_update(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
+    mock_sm_get_by_execution_id.assert_called_once_with("execution")
     mock_sm_update_metadata.assert_not_called()
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
+@patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "update_metadata")
-@patch.object(Flyte, "fetch_workflow_execution")
-def test_on_job_update_metadata(mock_flyte_fetch_workflow_execution, mock_sm_update_metadata, request) -> None:
+def test_on_job_update_metadata(
+    mock_sm_update_metadata,
+    mock_sm_get_by_id,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
+) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
@@ -1515,31 +1001,37 @@ def test_on_job_update_metadata(mock_flyte_fetch_workflow_execution, mock_sm_upd
         ],
     )
 
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "workspace_id": "workspace_id",
-        "organization_id": str(ORG),
-        "job_id": "job_id",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.job_id = "job_id"
+    mock_local_executor_get_metadata.return_value = record
+
+    job = MagicMock()
+    job.executions.main.execution_id = "execution"
+    job.executions.revert = None
+    mock_sm_get_by_id.return_value = job
 
     # Act
     ProgressHandler().on_job_update(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
     mock_sm_update_metadata.assert_called_once_with(
         job_id=ID("job_id"),
         metadata={"key": "value"},
     )
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
+@patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "update_cost_consumed")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_update_consumed_cost(
-    mock_flyte_fetch_workflow_execution, mock_sm_update_cost_consumed, request
+    mock_sm_update_cost_consumed,
+    mock_sm_get_by_id,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1570,19 +1062,20 @@ def test_on_job_update_consumed_cost(
         ],
     )
 
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "workspace_id": "workspace_id",
-        "organization_id": str(ORG),
-        "job_id": "job_id",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.job_id = "job_id"
+    mock_local_executor_get_metadata.return_value = record
+
+    job = MagicMock()
+    job.executions.main.execution_id = "execution"
+    job.executions.revert = None
+    mock_sm_get_by_id.return_value = job
 
     # Act
     ProgressHandler().on_job_update(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
     mock_sm_update_cost_consumed.assert_called_once_with(
         job_id=ID("job_id"),
         consumed_resources=[
@@ -1596,12 +1089,17 @@ def test_on_job_update_consumed_cost(
     )
 
 
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
+@patch.object(LocalExecutor, "get_execution_metadata")
+@patch.object(LocalExecutor, "__init__", return_value=None)
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
+@patch.object(StateMachine, "get_by_id")
 @patch.object(StateMachine, "set_gpu_state_released")
-@patch.object(Flyte, "fetch_workflow_execution")
 def test_on_job_update_release_gpu(
-    mock_flyte_fetch_workflow_execution, mock_sm_set_gpu_state_released, request
+    mock_sm_set_gpu_state_released,
+    mock_sm_get_by_id,
+    mock_local_executor_init,
+    mock_local_executor_get_metadata,
+    request,
 ) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
@@ -1620,19 +1118,20 @@ def test_on_job_update_release_gpu(
         ],
     )
 
-    execution = MagicMock()
-    execution.spec.annotations.values = {
-        "workspace_id": "workspace_id",
-        "organization_id": str(ORG),
-        "job_id": "job_id",
-    }
-    mock_flyte_fetch_workflow_execution.return_value = execution
+    record = MagicMock()
+    record.job_id = "job_id"
+    mock_local_executor_get_metadata.return_value = record
+
+    job = MagicMock()
+    job.executions.main.execution_id = "execution"
+    job.executions.revert = None
+    mock_sm_get_by_id.return_value = job
 
     # Act
     ProgressHandler().on_job_update(message)
 
     # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution")
+    mock_local_executor_get_metadata.assert_called_once_with("execution")
     mock_sm_set_gpu_state_released.assert_called_once_with(job_id=ID("job_id"))
 
 
@@ -2187,13 +1686,14 @@ def test_on_job_cancelled_consumed_resources(
     mock_sm_set_cost_reported.assert_called_once_with(job_id=ID("job_id"))
 
 
-@pytest.mark.freeze_time("2024-01-01 00:00:01")
+@patch("scheduler.kafka_handler.now", return_value=datetime(2024, 1, 1, 0, 0, 1))
 @patch("scheduler.kafka_handler.publish_event")
 @patch.object(ProgressHandler, "__init__", new=mock_progress_handler)
-def test_send_metering_event(mock_publish, request) -> None:
+def test_send_metering_event(mock_publish, mock_now, request) -> None:
     request.addfinalizer(lambda: reset_singletons())
 
     # Arrange
+    frozen_now = datetime(2024, 1, 1, 0, 0, 1)
 
     # Act
     ProgressHandler().send_metering_event(
@@ -2202,7 +1702,7 @@ def test_send_metering_event(mock_publish, request) -> None:
         cost=JobCost(
             requests=(JobResource(amount=100, unit="image"),),
             lease_id="lease_id",
-            consumed=(JobConsumedResource(amount=100, unit="image", consuming_date=now(), service="training"),),
+            consumed=(JobConsumedResource(amount=100, unit="image", consuming_date=frozen_now, service="training"),),
             reported=False,
         ),
         project_id="project_123",
@@ -2216,7 +1716,7 @@ def test_send_metering_event(mock_publish, request) -> None:
             "project_id": "project_123",
             "lease_id": "lease_id",
             "consumption": [{"amount": 100, "unit": "image"}],
-            "date": now().timestamp() * 1000,
+            "date": frozen_now.timestamp() * 1000,
         },
         key=b"job_id",
         headers_getter=ANY,

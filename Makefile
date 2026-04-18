@@ -1,10 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-.PHONY: build list-image list-umbrella-chart clean push static-code-analysis tests test-unit test-integration test-component
+.PHONY: build list-image clean push static-code-analysis tests test-unit test-integration test-component compose-config compose-smoke compose-parity compose-bootstrap compose-bootstrap-reset compose-bootstrap-seed-weights compose-prepare-certs
 .DEFAULT_GOAL := build
 PROJECTS = interactive_ai platform web_ui web_ui/dex_templates
-DISTRIB_CHARTS := deploy/charts interactive_ai/migration_job
 
 build-image:
 	echo "Building images for all projects..."
@@ -13,22 +12,9 @@ build-image:
 		$(MAKE) -C $$dir build-image; \
 	done
 
-build-chart:
-	echo "Building charts for all projects..."
-	@for dir in $(PROJECTS); do \
-		echo "Running make build-chart in $$dir..."; \
-		$(MAKE) -C $$dir build-chart; \
-	done
-
-build-umbrella-chart: build-chart
-	@for dir in $(DISTRIB_CHARTS); do \
-		echo "Building umbrella charts in $$dir..."; \
-		$(MAKE) -C $$dir clean build-chart; \
-	done
-
 clean:
 	echo "Cleaning all projects..."	
-	@for dir in $(PROJECTS) $(DISTRIB_CHARTS); do \
+	@for dir in $(PROJECTS); do \
 		echo "Running make clean in $$dir..."; \
 		$(MAKE) -C $$dir clean; \
 	done
@@ -38,22 +24,11 @@ list-image:
 		$(MAKE) -C $$dir list-image; \
 	done
 
-list-umbrella-chart:
-	@for dir in $(DISTRIB_CHARTS); do \
-		$(MAKE) -C $$dir list-umbrella-chart; \
-	done
-
 publish-image:
 	echo "Pushing all projects..."
 	@for dir in $(PROJECTS); do \
 		echo "Running make publish-image in $$dir..."; \
 		$(MAKE) -C $$dir publish-image; \
-	done
-
-publish-umbrella-chart: build-umbrella-chart
-	@for dir in $(DISTRIB_CHARTS); do \
-		echo "Publishing umbrella charts in $$dir..."; \
-		$(MAKE) -C $$dir publish-chart; \
 	done
 
 static-code-analysis:
@@ -90,3 +65,24 @@ test-component:
 		echo "Running make test-component in $$dir..."; \
 		$(MAKE) -C $$dir test-component; \
 	done
+
+compose-config:
+	docker compose config --quiet
+
+compose-smoke:
+	bash infrastructure/compose-smoke.sh
+
+compose-parity:
+	bash infrastructure/compose-parity.sh
+
+compose-bootstrap:
+	bash infrastructure/compose-bootstrap.sh
+
+compose-bootstrap-reset:
+	bash infrastructure/compose-bootstrap.sh --reset
+
+compose-bootstrap-seed-weights:
+	bash infrastructure/compose-bootstrap.sh --seed-weights
+
+compose-prepare-certs:
+	@echo "Cert preparation is handled by unified init service (geti_init)."

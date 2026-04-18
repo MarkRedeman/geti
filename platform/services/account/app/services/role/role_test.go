@@ -13,11 +13,6 @@ type MockRolesManager struct {
 	mock.Mock
 }
 
-func (m *MockRolesManager) WriteSchema() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
 func (m *MockRolesManager) WriteRelationship(relation string, subject *v1.SubjectReference, resource *v1.ObjectReference, operation v1.RelationshipUpdate_Operation) error {
 	args := m.Called(relation, subject, resource, operation)
 	return args.Error(0)
@@ -46,6 +41,66 @@ func (m *MockRolesManager) GetOrganizationRelationships(orgID string, relation s
 func (m *MockRolesManager) GetRelationships(filter *v1.RelationshipFilter) ([]*v1.Relationship, error) {
 	args := m.Called(filter)
 	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) ChangeOrganizationRelation(resourceType string, resourceID string, relations []string, organizationID string, operation v1.RelationshipUpdate_Operation) error {
+	args := m.Called(resourceType, resourceID, relations, organizationID, operation)
+	return args.Error(0)
+}
+
+func (m *MockRolesManager) AddServiceAccountToUser(userID string, serviceAccountID string) error {
+	args := m.Called(userID, serviceAccountID)
+	return args.Error(0)
+}
+
+func (m *MockRolesManager) DeleteServiceAccountFromUser(userID string, serviceAccountID string) error {
+	args := m.Called(userID, serviceAccountID)
+	return args.Error(0)
+}
+
+func (m *MockRolesManager) GetUserRelationships(userID string, resourceType string) ([]*v1.Relationship, error) {
+	args := m.Called(userID, resourceType)
+	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) GetRelationshipsByOrganization(organizationID string, resourceType string) ([]*v1.Relationship, error) {
+	args := m.Called(organizationID, resourceType)
+	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) GetWorkspaceParentOrganizationID(workspaceID string) (string, error) {
+	args := m.Called(workspaceID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockRolesManager) GetProjectParentWorkspaceID(projectID string) (string, error) {
+	args := m.Called(projectID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockRolesManager) GetUserOrganization(organizationID string, userID string) ([]*v1.Relationship, error) {
+	args := m.Called(organizationID, userID)
+	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) GetUserOrgWorkspaces(organizationID string, userID string) ([]*v1.Relationship, error) {
+	args := m.Called(organizationID, userID)
+	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) GetUserOrgProjects(organizationID string, userID string, orgWorkspaceRelationships []*v1.Relationship) ([]*v1.Relationship, error) {
+	args := m.Called(organizationID, userID, orgWorkspaceRelationships)
+	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) GetUserAllRelationshipsByOrganization(organizationID string, userID string) ([]*v1.Relationship, error) {
+	args := m.Called(organizationID, userID)
+	return args.Get(0).([]*v1.Relationship), args.Error(1)
+}
+
+func (m *MockRolesManager) GetAdminSubjectUsers() ([]string, error) {
+	args := m.Called()
+	return args.Get(0).([]string), args.Error(1)
 }
 
 func TestRoleService_IsLastOrgAdmin(t *testing.T) {

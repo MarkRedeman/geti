@@ -10,7 +10,6 @@ import logging
 import os
 from datetime import datetime
 
-from communication.exceptions import MissingJobPayloadAttribute
 from metrics.instruments import (
     ModelTrainingDurationAttributes,
     TrainingDurationCounterJobStatus,
@@ -68,7 +67,11 @@ class JobKafkaHandler(BaseKafkaHandler, metaclass=Singleton):
         project_id = ID(payload_project_id) if payload_project_id else None
 
         if not project_id:
-            raise MissingJobPayloadAttribute(attribute="project_id")
+            logger.info(
+                "Skipping on_job_finished handling without project_id for job_type=%s",
+                job_type,
+            )
+            return
 
         if job_type:
             ProjectService.unlock(job_type=job_type, project_id=project_id)
@@ -170,7 +173,11 @@ class JobKafkaHandler(BaseKafkaHandler, metaclass=Singleton):
         logger.debug(f"Job failed event received: {value}")
 
         if not project_id:
-            raise MissingJobPayloadAttribute(attribute="project_id")
+            logger.info(
+                "Skipping on_job_failed handling without project_id for job_type=%s",
+                job_type,
+            )
+            return
 
         if job_type:
             ProjectService.unlock(job_type=job_type, project_id=project_id)
@@ -217,7 +224,11 @@ class JobKafkaHandler(BaseKafkaHandler, metaclass=Singleton):
         project_id = ID(payload_project_id) if payload_project_id else None
 
         if not project_id:
-            raise MissingJobPayloadAttribute(attribute="project_id")
+            logger.info(
+                "Skipping on_job_cancelled handling without project_id for job_type=%s",
+                job_type,
+            )
+            return
 
         if job_type:
             ProjectService.unlock(job_type=job_type, project_id=project_id)

@@ -16,7 +16,6 @@ from functools import partial
 from bson.binary import UuidRepresentation
 from bson.json_util import DatetimeRepresentation, JSONOptions, loads
 from geti_kafka_tools import publish_event
-from geti_spicedb_tools import SpiceDB
 from geti_types import CTX_SESSION_VAR, ID, ProjectIdentifier, Session
 from grpc_interfaces.model_registration.client import ModelRegistrationClient
 from iai_core.entities.model import NullModel
@@ -26,6 +25,7 @@ from iai_core.repos.storage.storage_client import BinaryObjectType
 from iai_core.services import ModelService
 from iai_core.utils.iteration import multi_map
 from iai_core.versioning import DataVersion
+from jobs_common.tasks.utils.authz import assign_project_admin_role
 from jobs_common.tasks.utils.progress import publish_metadata_update
 
 from job.entities import ProjectZipArchive, ProjectZipArchiveWrapper
@@ -502,13 +502,7 @@ class ProjectImportUseCase:
             headers_getter=lambda: CTX_SESSION_VAR.get().as_list_bytes(),
         )
 
-        # Register project in SpiceDB
-        logger.info("Creating project in SpiceDB")
-        SpiceDB().create_project(
-            workspace_id=str(project_identifier.workspace_id),
-            project_id=str(project_identifier.project_id),
-            creator=str(creator_id),
-        )
+        assign_project_admin_role(user_id=str(creator_id), project_id=str(project_identifier.project_id))
 
         # Update the metrics
         logger.info(

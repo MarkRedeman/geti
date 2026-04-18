@@ -2,7 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 import json
 from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import grpc
 import pytest
@@ -10,11 +10,10 @@ import pytest
 from microservice.grpc_api.grpc_job_service import DEFAULT_N_JOBS_RETURNED, GRPCJobService
 from microservice.job_manager import JobManager, JobsAcl, JobSortingField, Pagination, SortDirection, TimestampFilter
 from model.duplicate_policy import DuplicatePolicy
-from model.job import Job, JobCancellationInfo, JobFlyteExecutions, JobMainFlyteExecution
+from model.job import Job, JobCancellationInfo, JobExecutions, JobMainExecution
 from model.job_state import JobState, JobStateGroup
 from model.telemetry import Telemetry
 
-from geti_spicedb_tools import Permissions, SpiceDB, SpiceDBResourceTypes
 from geti_types import ID, make_session
 from grpc_interfaces.credit_system.client import InsufficientCreditsException
 from grpc_interfaces.job_submission.pb.job_service_pb2 import (
@@ -51,7 +50,7 @@ DUMMY_JOB = Job(
     creation_time=datetime.strptime("2022-01-15 15:32:45", "%Y-%m-%d %H:%M:%S"),
     author=DUMMY_USER,
     cancellation_info=JobCancellationInfo(cancellable=True, is_cancelled=False),
-    executions=JobFlyteExecutions(main=JobMainFlyteExecution()),
+    executions=JobExecutions(main=JobMainExecution()),
     session=make_session(),
     telemetry=Telemetry(),
 )
@@ -252,10 +251,12 @@ class TestGRPCJobService:
 
         with (
             patch.object(JobManager, "get_jobs_count", return_value=dummy_count) as mock_get_jobs_count,
-            patch.object(SpiceDB, "get_user_projects", return_value=[]) as mock_spice_db_get_user_projects,
-            patch.object(
-                SpiceDB, "check_permission", return_value=False
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.grpc_api.grpc_job_service.get_permitted_project_ids", return_value=[]
+            ) as mock_get_projects,
+            patch(
+                "microservice.grpc_api.grpc_job_service.can_view_all_workspace_jobs", return_value=False
+            ) as mock_can_view,
         ):
             request = GetJobsCountRequest(
                 workspace_id=dummy_workspace_id,
@@ -280,8 +281,8 @@ class TestGRPCJobService:
             acl=JobsAcl(),
             workspace_id=dummy_workspace_id,
         )
-        mock_spice_db_get_user_projects.assert_not_called()
-        mock_spice_db_check_user_workspace_permission.assert_not_called()
+        mock_get_projects.assert_not_called()
+        mock_can_view.assert_not_called()
         assert isinstance(result, GetJobsCountResponse)
         assert result.count == dummy_count
 
@@ -297,7 +298,9 @@ class TestGRPCJobService:
 
         with (
             patch.object(JobManager, "get_jobs_count", return_value=dummy_count) as mock_get_jobs_count,
-            patch.object(SpiceDB, "get_user_projects", return_value=[]) as mock_spice_db_get_user_projects,
+            patch(
+                "microservice.grpc_api.grpc_job_service.get_permitted_project_ids", return_value=[]
+            ) as mock_get_projects,
         ):
             request = GetJobsCountRequest(
                 type=dummy_type,
@@ -321,9 +324,7 @@ class TestGRPCJobService:
             acl=JobsAcl(permitted_projects=[], workspace_jobs_author=None),
             workspace_id=None,
         )
-        mock_spice_db_get_user_projects.assert_called_once_with(
-            user_id=dummy_author_uid, permission=Permissions.VIEW_PROJECT
-        )
+        mock_get_projects.assert_called_once_with(user_id=dummy_author_uid, organization_id=ANY)
         assert isinstance(result, GetJobsCountResponse)
         assert result.count == dummy_count
 
@@ -341,10 +342,13 @@ class TestGRPCJobService:
 
         with (
             patch.object(JobManager, "get_jobs_count", return_value=dummy_count) as mock_get_jobs_count,
-            patch.object(SpiceDB, "get_user_projects", return_value=[]) as mock_spice_db_get_user_projects,
-            patch.object(
-                SpiceDB, "check_permission", return_value=view_all_workspace_jobs
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.grpc_api.grpc_job_service.get_permitted_project_ids", return_value=[]
+            ) as mock_get_projects,
+            patch(
+                "microservice.grpc_api.grpc_job_service.can_view_all_workspace_jobs",
+                return_value=view_all_workspace_jobs,
+            ) as mock_can_view,
         ):
             request = GetJobsCountRequest(
                 workspace_id=dummy_workspace_id,
@@ -372,16 +376,8 @@ class TestGRPCJobService:
             ),
             workspace_id=dummy_workspace_id,
         )
-        mock_spice_db_get_user_projects.assert_called_once_with(
-            user_id=dummy_author_uid, permission=Permissions.VIEW_PROJECT
-        )
-        mock_spice_db_check_user_workspace_permission.assert_called_once_with(
-            resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-            resource_id=dummy_workspace_id,
-            subject_type=SpiceDBResourceTypes.USER.value,
-            subject_id=dummy_author_uid,
-            permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-        )
+        mock_get_projects.assert_called_once_with(user_id=dummy_author_uid, organization_id=ANY)
+        mock_can_view.assert_called_once_with(user_id=dummy_author_uid, organization_id=ANY, workspace_id=ANY)
         assert isinstance(result, GetJobsCountResponse)
         assert result.count == dummy_count
 
@@ -400,10 +396,12 @@ class TestGRPCJobService:
         with (
             patch.object(JobManager, "find", return_value=[DUMMY_JOB]) as mock_find,
             patch.object(JobManager, "get_jobs_count", return_value=1) as mock_count,
-            patch.object(SpiceDB, "get_user_projects", return_value=[]) as mock_spice_db_get_user_projects,
-            patch.object(
-                SpiceDB, "check_permission", return_value=False
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.grpc_api.grpc_job_service.get_permitted_project_ids", return_value=[]
+            ) as mock_get_projects,
+            patch(
+                "microservice.grpc_api.grpc_job_service.can_view_all_workspace_jobs", return_value=False
+            ) as mock_can_view,
         ):
             request = FindJobsRequest(
                 workspace_id=dummy_workspace_id,
@@ -441,8 +439,8 @@ class TestGRPCJobService:
             project_id=dummy_project_id,
             acl=JobsAcl(),
         )
-        mock_spice_db_get_user_projects.assert_not_called()
-        mock_spice_db_check_user_workspace_permission.assert_not_called()
+        mock_get_projects.assert_not_called()
+        mock_can_view.assert_not_called()
         assert isinstance(result, ListJobsResponse)
         assert len(result.jobs) == 1
         assert result.jobs[0].key == NORMALIZED_DUMMY_KEY
@@ -463,10 +461,13 @@ class TestGRPCJobService:
         with (
             patch.object(JobManager, "find", return_value=[DUMMY_JOB]) as mock_find,
             patch.object(JobManager, "get_jobs_count", return_value=1) as mock_count,
-            patch.object(SpiceDB, "get_user_projects", return_value=[]) as mock_spice_db_get_user_projects,
-            patch.object(
-                SpiceDB, "check_permission", return_value=view_all_workspace_jobs
-            ) as mock_spice_db_check_user_workspace_permission,
+            patch(
+                "microservice.grpc_api.grpc_job_service.get_permitted_project_ids", return_value=[]
+            ) as mock_get_projects,
+            patch(
+                "microservice.grpc_api.grpc_job_service.can_view_all_workspace_jobs",
+                return_value=view_all_workspace_jobs,
+            ) as mock_can_view,
         ):
             request = FindJobsRequest(
                 workspace_id=dummy_workspace_id,
@@ -510,16 +511,8 @@ class TestGRPCJobService:
                 workspace_jobs_author=None if view_all_workspace_jobs else dummy_author_uid,
             ),
         )
-        mock_spice_db_get_user_projects.assert_called_once_with(
-            user_id=dummy_author_uid, permission=Permissions.VIEW_PROJECT
-        )
-        mock_spice_db_check_user_workspace_permission.assert_called_once_with(
-            resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-            resource_id=dummy_workspace_id,
-            subject_type=SpiceDBResourceTypes.USER.value,
-            subject_id=dummy_author_uid,
-            permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-        )
+        mock_get_projects.assert_called_once_with(user_id=dummy_author_uid, organization_id=ANY)
+        mock_can_view.assert_called_once_with(user_id=dummy_author_uid, organization_id=ANY, workspace_id=ANY)
         assert isinstance(result, ListJobsResponse)
         assert len(result.jobs) == 1
         assert result.jobs[0].key == NORMALIZED_DUMMY_KEY

@@ -1,16 +1,15 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-from flytekit.core.testing import task_mock
+from unittest.mock import patch
 
-from job.tasks.model_testing import run_model_test
 from job.workflows.model_test_workflow import model_test_workflow
 
 
 class TestModelTest:
     def test_model_test(self) -> None:
         with (
-            task_mock(run_model_test) as mock_model_test,
+            patch("job.workflows.model_test_workflow.run_model_test") as mock_model_test,
         ):
             model_test_workflow(
                 project_id="project_id",

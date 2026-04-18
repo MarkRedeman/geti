@@ -11,6 +11,9 @@ import (
 	"net/http"
 	"time"
 
+	authproxyhttp "account_service/app/auth_proxy/http"
+	"account_service/app/auth_proxy/jwk"
+	"account_service/app/auth_proxy/request_processor"
 	"account_service/app/common/utils"
 	"account_service/app/config"
 	"account_service/app/grpc/membership"
@@ -46,7 +49,8 @@ import (
 )
 
 var (
-	logger = utils.InitializeLogger()
+	logger        = utils.InitializeLogger()
+	extProcServer = &request_processor.ExtProcServer{}
 )
 
 func runGRPCServer(db *gorm.DB) {
@@ -70,7 +74,7 @@ func runGRPCServer(db *gorm.DB) {
 	pb.RegisterUserStatusServer(s, &userStatusServer)
 	membershipRepository := repository.NewMembershipRepository(db)
 	organizationRepository := repository.NewOrganizationRepository(db)
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Fatalf("unable to initialize client: %v", err)
 	}
@@ -120,6 +124,46 @@ func runGRPCGatewayServer() {
 		logger.Fatalf("failed to register POST /logout custom rest handler for GRPC Gateway: %v", err)
 	}
 
+	err = mux.HandlePath("POST", "/api/v1/organizations/{organization_id}/users/create", rest.HandleCreateOrganizationUser)
+	if err != nil {
+		logger.Fatalf("failed to register POST /organizations/{organization_id}/users/create custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("POST", "/api/v1/organizations/{organization_id}/users/invitations", rest.HandleInviteUser)
+	if err != nil {
+		logger.Fatalf("failed to register POST /organizations/{organization_id}/users/invitations custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("POST", "/api/v1/organizations/{organization_id}/invitations", rest.HandleInviteUser)
+	if err != nil {
+		logger.Fatalf("failed to register POST /organizations/{organization_id}/invitations custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("POST", "/api/v1/users/request_password_reset", rest.HandleRequestPasswordReset)
+	if err != nil {
+		logger.Fatalf("failed to register POST /users/request_password_reset custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("POST", "/api/v1/users/reset_password", rest.HandleResetPassword)
+	if err != nil {
+		logger.Fatalf("failed to register POST /users/reset_password custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("POST", "/api/v1/users/confirm_registration", rest.HandleConfirmRegistration)
+	if err != nil {
+		logger.Fatalf("failed to register POST /users/confirm_registration custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("POST", "/api/v1/users/{user_id}/update_password", rest.HandleUpdatePassword)
+	if err != nil {
+		logger.Fatalf("failed to register POST /users/{user_id}/update_password custom rest handler for GRPC Gateway: %v", err)
+	}
+
+	err = mux.HandlePath("GET", "/api/v1/users/count", rest.HandleUsersCount)
+	if err != nil {
+		logger.Fatalf("failed to register GET /users/count custom rest handler for GRPC Gateway: %v", err)
+	}
+
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
 	err = pb.RegisterOrganizationHandlerFromEndpoint(ctx, mux, config.GrpcServerAddress, opts)
@@ -157,8 +201,15 @@ func runGRPCGatewayServer() {
 		logger.Fatalf("failed to register personal access token for GRPC Gateway: %v", err)
 	}
 
+	authproxyhttp.SetExtProcServer(extProcServer)
+	mainMux := http.NewServeMux()
+	mainMux.HandleFunc("/api/v1/keys/", authproxyhttp.HandleKeys)
+	mainMux.HandleFunc("/api/v1/set_cookie", authproxyhttp.HandleCookies)
+	mainMux.HandleFunc("/api/v1/auth", authproxyhttp.HandleForwardAuth)
+	mainMux.Handle("/", mux)
+
 	logger.Infof("grpc gateway server listening at %v", config.GRPCGatewayServerAddress)
-	err = http.ListenAndServe(config.GRPCGatewayServerAddress, mux)
+	err = http.ListenAndServe(config.GRPCGatewayServerAddress, mainMux)
 	if err != nil {
 		logger.Fatalf("failed to run GRPC Gateway Server: %v", err)
 	}
@@ -192,8 +243,10 @@ func initDB() *gorm.DB {
 	userStatusModel := models.UserStatus{}
 	pat := models.PersonalAccessToken{}
 	userSettings := models.UserSettings{}
+	userCredential := models.UserCredential{}
+	authorizationRelationship := models.AuthorizationRelationship{}
 
-	err = db.AutoMigrate(&org, &orgStatusHistory, &worksp, &userModel, &userStatusModel, &pat, &userSettings)
+	err = db.AutoMigrate(&org, &orgStatusHistory, &worksp, &userModel, &userStatusModel, &pat, &userSettings, &userCredential, &authorizationRelationship)
 	if err != nil {
 		logger.Fatalf("failed to migrate db: %v", err)
 	}
@@ -207,23 +260,6 @@ func initDB() *gorm.DB {
 	}
 
 	return db
-}
-
-func initSpiceDB() {
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
-	if err != nil {
-		logger.Fatalf("unable to initialize client: %v", err)
-	}
-
-	err = rolesMgr.DeleteUserDirectory()
-	if err != nil {
-		logger.Errorf("unable to migrate user_directory: %v", err)
-	}
-
-	err = rolesMgr.WriteSchema()
-	if err != nil {
-		logger.Fatalf("unable to initialize schema: %v", err)
-	}
 }
 
 func initMetrics(db *gorm.DB) {
@@ -242,6 +278,8 @@ func main() {
 	logger.Info("starting app...")
 
 	db := initDB()
+	roles.SetDB(db)
+	rest.SetDB(db)
 	conn, err := db.DB()
 	if err != nil {
 		logger.Fatalf("error getting db connection: %v", err)
@@ -253,9 +291,13 @@ func main() {
 		}
 	}(conn)
 
-	initSpiceDB()
+	migration.MigrateUsers()
 
-    migration.MigrateUsers()
+	err = extProcServer.Init()
+	if err != nil {
+		logger.Fatalf("failed to initialize auth proxy processor: %v", err)
+	}
+	go jwk.ScheduleJWKSUpdate()
 
 	go runGRPCServer(db)
 	if config.OtelEnableMetrics {

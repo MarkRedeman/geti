@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"account_service/app/config"
 	"account_service/app/grpc/common"
 	grpcUtils "account_service/app/grpc/utils"
 	"account_service/app/models"
@@ -142,7 +141,7 @@ func retrieveRolesForUsers(users []models.User) (UserIDToUserRolesMap, error) {
 
 	logger.Debug("Starting role retrieval")
 	userRolesMap := make(UserIDToUserRolesMap)
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
@@ -415,9 +414,9 @@ func (s *GRPCServer) Find(ctx context.Context, findRequest *pb.FindUserRequest) 
 	} else {
 		const DefaultLimit = 10
 		nextPageFields := common.CalculateNextPage(response.TotalCount, findRequest.Skip, func() int32 {
-		if findRequest.Limit < DefaultLimit {
-			return DefaultLimit
-		}
+			if findRequest.Limit < DefaultLimit {
+				return DefaultLimit
+			}
 			return findRequest.Limit
 		}())
 

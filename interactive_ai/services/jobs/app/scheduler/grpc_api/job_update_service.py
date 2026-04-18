@@ -17,7 +17,7 @@ import grpc
 from pymongo.errors import AutoReconnect
 
 from model.job import JobConsumedResource
-from scheduler.flyte import Flyte
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_telemetry_tools import unified_tracing
@@ -58,13 +58,37 @@ class JobUpdateService(JobUpdateServiceServicer):
         :raises: JobPayloadNotDeserializableException if the payload is not deserializable
         """
         logger.info(f"Job update request received: {request}")
-        execution = Flyte().fetch_workflow_execution(execution_name=request.execution_id)
 
-        if execution is None:
-            logger.error(f"Unable to fetch execution {request.execution_id}")
+        record = LocalExecutor().get_execution_metadata(request.execution_id)
+        if record is not None:
+            job_id = record.job_id
+        else:
+            logger.warning(
+                f"[compose mode] Unable to find execution {request.execution_id} in local registry, "
+                "falling back to DB lookup"
+            )
+            job = StateMachine().get_by_execution_id(request.execution_id)
+            if job is None:
+                logger.error(f"Unable to resolve execution {request.execution_id}")
+                return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
+            job_id = str(job.id)
+
+        job = StateMachine().get_by_id(ID(job_id))
+        if job is None:
+            logger.error(f"Unable to find job by it's ID {job_id}")
             return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
 
-        job_id = Flyte.get_execution_job_id(execution)
+        current_main_execution = job.executions.main.execution_id
+        current_revert_execution = job.executions.revert.execution_id if job.executions.revert is not None else None
+        if request.execution_id not in {current_main_execution, current_revert_execution}:
+            logger.warning(
+                "Ignoring stale gRPC job update for execution=%s job_id=%s (current main=%s revert=%s)",
+                request.execution_id,
+                job_id,
+                current_main_execution,
+                current_revert_execution,
+            )
+            return JobUpdateResponse(error=Error(code=EXECUTION_NOT_FOUND))
 
         try:
             if request.HasField("metadata"):

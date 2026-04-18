@@ -111,10 +111,11 @@ Geti™ supports several neural network architectures, each tailored to specific
 
 ## 🛫 Getting Started
 
-Geti™ can be deployed either on a local machine, on-premises, or on a virtual machine. Geti™ software uses Kubernetes to orchestrate various component services. The client front end uses HTTP protocol to connect to the platform, so users can access the software through a web browser.
+Geti™ can be deployed either on a local machine, on-premises, or on a virtual machine. For local development, Docker Compose is the default path. The client front end uses HTTP protocol to connect to the platform, so users can access the software through a web browser.
 
 Geti™ can be installed:
 
+- Local development (default): Docker Compose (see [Contributing Guide](CONTRIBUTING.md#getting-started))
 - [Using the Geti™ Installer](https://docs.geti.intel.com/docs/user-guide/getting-started/installation/using-geti-installer)
 - [Using Helm Charts](https://docs.geti.intel.com/docs/user-guide/getting-started/installation/using-helm-charts)
 
@@ -127,7 +128,7 @@ Quick Start videos:
 Geti™ is a cloud-native distributed system architecture comprising interactive microservice and AI workflows. Most components of Geti™ adhere to the microservice architecture style, while some components, such as active learning, follow the service-based architecture style. Additionally, event-driven architecture is utilized for asynchronous communication between components.
 The core subsystems of Geti™ are:
 
-- **Platform Services and K8S deployment**: provides basic services (identity and access management, logging and observability), serves as an abstraction layer over the infrastructure services.
+- **Platform Services and deployment infrastructure**: provides basic services (identity and access management, logging and observability), serves as an abstraction layer over the infrastructure services.
 - **Workflows & Interactive Microservices**: enables seamless workflows from dataset management to model training, optimization, evaluation, and deployment.
 - **Geti™ Deep Learning Frameworks**: implement modern ML development stack to support computer vision datasets management, training, evaluation, optimization and deployment ML models, end-to-end inference API, Visual explanation for OpenVINO models and anomaly detection library.
 

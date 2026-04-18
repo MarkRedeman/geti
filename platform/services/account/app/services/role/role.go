@@ -5,7 +5,6 @@ package role
 
 import (
 	"account_service/app/common/utils"
-	"account_service/app/config"
 	accErr "account_service/app/errors"
 	"account_service/app/roles"
 
@@ -20,7 +19,7 @@ type Service struct {
 var logger = utils.InitializeLogger()
 
 func GetUserAllRelationshipsByOrganization(orgId string, userId string) ([]*v1.Relationship, error) {
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("Unable to initialize roles manager: %v", err)
 		return nil, status.Error(codes.Internal, "unexpected error")
@@ -36,7 +35,7 @@ func GetUserAllRelationshipsByOrganization(orgId string, userId string) ([]*v1.R
 }
 
 func CreateRole(resourceType string, resourceId string, role string, userId string) error {
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("Unable to initialize roles manager: %v", err)
 		return status.Error(codes.Internal, "unexpected error")
@@ -52,7 +51,7 @@ func CreateRole(resourceType string, resourceId string, role string, userId stri
 }
 
 func DeleteRole(resourceType string, resourceId string, role string, userId string) error {
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("Unable to initialize roles manager: %v", err)
 		return status.Error(codes.Internal, "unexpected error")

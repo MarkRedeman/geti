@@ -3,18 +3,15 @@
 
 """This module implements project export workflow"""
 
-from flytekit import workflow
-
 from job.tasks.export_project import export_project
 
 
-@workflow
 def export_project_workflow(
     project_id: str,
     include_models: str = "all",
 ) -> None:
     """
-    Flyte workflow for exporting geti projects to zip.
+    Workflow for exporting geti projects to zip.
 
     :param project_id: ID of the project to export
     :param include_models: specifies which models to include in the export, default is "all"

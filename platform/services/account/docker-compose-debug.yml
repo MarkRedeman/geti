@@ -33,19 +33,6 @@ services:
     ports:
       - "8333:8333"
 
-  spicedb:
-    image: authzed/spicedb:v1.34.0
-    command: serve --grpc-preshared-key "somerandomkeyhere"
-    ports:
-      - "50051:50051"
-    restart: always
-    healthcheck:
-      test: ["CMD", "grpc_health_probe", "-v", "-addr=localhost:50051"]
-      start_period: 15s
-      interval: 10s
-      retries: 5
-      timeout: 10s
-
   db:
     image: postgres:14.13
     environment:

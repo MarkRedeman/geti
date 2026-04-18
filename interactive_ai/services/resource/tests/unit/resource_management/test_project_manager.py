@@ -1,10 +1,9 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 from typing import TYPE_CHECKING, cast
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
-from geti_spicedb_tools import Permissions, SpiceDB
 
 from managers.project_manager import ProjectManager
 
@@ -29,12 +28,14 @@ class TestProjectManagerGetProjects:
 
         with (
             patch.object(ProjectRepo, "get_names", return_value={fxt_project.id_: "Test project"}) as pr_get_names,
-            patch.object(SpiceDB, "get_user_projects", return_value=permitted_projects) as sdb_get_user_projects,
+            patch(
+                "managers.project_manager.get_permitted_project_ids", return_value=permitted_projects
+            ) as mock_get_projects,
         ):
             result_names = ProjectManager().get_projects_names(user_uid=user_uid)
 
         assert result_names == {fxt_project.id_: "Test project"}, "Expected to return projects names from repo"
-        sdb_get_user_projects.assert_called_once_with(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
+        mock_get_projects.assert_called_once_with(user_id=user_uid, organization_id=ANY)
         pr_get_names.assert_called_once_with(permitted_projects)
 
     def test_get_projects_and_count_all(self, fxt_project) -> None:
@@ -60,7 +61,9 @@ class TestProjectManagerGetProjects:
                 "count_all",
                 return_value=1,
             ) as pr_count_all,
-            patch.object(SpiceDB, "get_user_projects", return_value=permitted_projects) as sdb_get_user_projects,
+            patch(
+                "managers.project_manager.get_permitted_project_ids", return_value=permitted_projects
+            ) as mock_get_projects,
         ):
             result_projects, result_count = ProjectManager().get_projects_and_count_all(
                 user_uid=user_uid, query_data=query_data
@@ -68,7 +71,7 @@ class TestProjectManagerGetProjects:
 
         assert result_projects == [fxt_project], "Expected to return projects from repo"
         assert result_count == 1, "Expected to return projects count from repo"
-        sdb_get_user_projects.assert_called_once_with(user_id=user_uid, permission=Permissions.VIEW_PROJECT)
+        mock_get_projects.assert_called_once_with(user_id=user_uid, organization_id=ANY)
         pr_get_by_page.assert_called_once_with(
             query_data=query_data,
             include_hidden=True,

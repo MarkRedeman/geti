@@ -4,14 +4,13 @@
 import logging
 import os
 
-from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
-
 from model.job import Job, JobStepDetails, JobTaskExecutionBranch
 from model.job_state import JobTaskState
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.execution_type import ExecutionType
 from scheduler.jobs_templates import JobsTemplates
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
-from scheduler.utils import get_main_execution_name, resolve_main_job
+from scheduler.utils import get_main_execution_name
 
 from geti_telemetry_tools import unified_tracing
 from geti_types import ID, session_context
@@ -20,12 +19,6 @@ logger = logging.getLogger(__name__)
 
 MAX_START_RETRY_COUNT = int(os.environ.get("MAX_START_RETRY_COUNT", 5))
 logger.info(f"Max start retries number is {MAX_START_RETRY_COUNT}")
-
-
-class FlyteWorkflowNotFound(Exception):
-    """
-    Exception to indicate that a Flyte workflow is not found and therefore cannot be started
-    """
 
 
 def run_scheduling_loop() -> None:
@@ -53,10 +46,10 @@ def schedule_main_job(job_id: ID) -> None:
     If this is not the first attempt to schedule this job and number of retries exceeded allowed maximum, transfers
     the job to FAILED state.
     If this is not the first attempt to schedule this job and the maximum number of retries has not been reached,
-    attempt to obtain Flyte execution.
-    If execution is found, uses it. Otherwise starts execution in Flyte.
+    attempt to obtain an existing execution.
+    If execution is found, uses it. Otherwise starts a new execution.
     Updates the job and sets SCHEDULED state.
-    If Flyte execution start fails, sets READY_FOR_SCHEDULING state.
+    If execution start fails, sets READY_FOR_SCHEDULING state.
     :param job_id: Job ID
     """
     logger.info(f"Job to be scheduled: {job_id}")
@@ -74,7 +67,7 @@ def schedule_main_job(job_id: ID) -> None:
         return
 
     try:
-        workflow, execution = start_main_execution(job=job)
+        execution_name, launch_plan_id = start_main_execution(job=job)
         job_steps = JobsTemplates().get_job_steps(job_type=job.type)
 
         step_details = [
@@ -102,91 +95,49 @@ def schedule_main_job(job_id: ID) -> None:
         # Update job in database
         StateMachine().set_scheduled_state(
             job_id=job_id,
-            flyte_launch_plan_id=execution.spec.launch_plan.name,
-            flyte_execution_id=execution.id.name,
+            launch_plan_id=launch_plan_id,
+            execution_id=execution_name,
             step_details=step_details,
         )
     except Exception:
-        logger.exception(f"Failed to schedule Flyte execution for job {job_id}")
+        logger.exception(f"Failed to schedule execution for job {job_id}")
         StateMachine().reset_scheduling_job(job_id=job_id)
 
 
 @unified_tracing
-def start_main_execution(job: Job) -> tuple[FlyteWorkflow, FlyteWorkflowExecution]:
+def start_main_execution(job: Job) -> tuple[str, str]:
     """
-    Starts jobs main execution
+    Starts jobs main execution.
+
+    Launches via LocalExecutor (Docker/Celery compose runtime).
 
     :param job: Job to start main execution for
-    :return: FlyteWorkflow, FlyteWorkflowExecution Tuple of Flyte workflow and  Flyte workflow execution object
+    :return: Tuple of (execution_name, launch_plan_id).
+             In compose mode launch_plan_id equals execution_name.
     """
     execution_name = get_main_execution_name(job_id=job.id)
 
-    # Resolving Flyte workflow name and version
-    workflow_name, workflow_version = resolve_main_job(job_type=job.type)
+    payload = {
+        **job.payload,
+        "organization_id": str(job.session.organization_id),
+        "workspace_id": str(job.workspace_id),
+        "job_id": str(job.id),
+        "job_name": job.job_name,
+        "author": str(job.author),
+        "start_time": job.start_time.isoformat() if job.start_time is not None else "null",
+    }
 
-    logger.debug(f"Trying to lookup for {workflow_name}:{workflow_version} workflow")
-    workflow = Flyte().fetch_workflow(workflow_name=workflow_name, workflow_version=workflow_version)
-    if workflow is None:
-        logger.debug(f"Workflow {workflow_name}:{workflow_version} is not found")
-        raise FlyteWorkflowNotFound(f"Workflow {workflow_name}:{workflow_version} is not found")
-
-    logger.debug(
-        f"Workflow {workflow_name}:{workflow_version} is found, launching it with execution name {execution_name}"
-    )
-    return (
-        workflow,
-        start_execution(
-            job=job,
-            workflow=workflow,
-            execution_type=ExecutionType.MAIN,
-            execution_name=execution_name,
-            payload=job.payload,
-        ),
-    )
-
-
-@unified_tracing
-def start_execution(
-    job: Job,
-    workflow: FlyteWorkflow,
-    execution_type: ExecutionType,
-    execution_name: str,
-    payload: dict,
-) -> FlyteWorkflowExecution:
-    """
-    Starts job related execution
-
-    :param job: Job to start execution for
-    :param workflow: Job workflow
-    :param execution_type: Execution type: MAIN or REVERT
-    :param execution_name: Execution name
-    :return: FlyteWorkflowExecution Flyte workflow execution object
-    """
-    # Let's check maybe it's already running
-    execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
-
-    if execution is not None:
-        logger.info(f"Reusing already running job execution in Flyte: {execution.id.name}")
-        return execution
-
-    # If no running execution exists, need to launch it
-    project_id = str(job.project_id) if job.project_id is not None else None
-    logger.info(
-        f"Scheduling a job execution with name {execution_name} in Flyte: "
-        f"workspace_id={job.workspace_id}, project_id={project_id}, "
-        f"workflow={workflow.id}, payload={job.payload}"
-    )
-
-    execution = Flyte().start_workflow_execution(
-        workspace_id=job.workspace_id,
-        job=job,
-        project_id=project_id,
-        execution_type=execution_type,
+    container_id = LocalExecutor().start_execution(
         execution_name=execution_name,
-        workflow=workflow,
+        job_id=str(job.id),
+        workspace_id=str(job.workspace_id),
+        organization_id=str(job.session.organization_id),
+        execution_type=ExecutionType.MAIN,
+        job_type=job.type,
         payload=payload,
-        telemetry=job.telemetry,
-        session=job.session,
+        session_headers=list(job.session.as_list_bytes()),
     )
-    logger.info(f"Job execution scheduled in Flyte: {execution.id.name}")
-    return execution
+    logger.info(
+        f"Job execution started locally (compose mode): execution_name={execution_name}, container_id={container_id}"
+    )
+    return execution_name, execution_name

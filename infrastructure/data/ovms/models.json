@@ -1,0 +1,30 @@
+{
+  "model_config_list": [
+    {
+      "config": {
+        "name": "69b7118a6425803506deb44b-1773605893030",
+        "base_path": "/models/69b705a759871bb24004f100-active/69b7118a6425803506deb44b-1773605893030",
+        "plugin_config": {
+          "NUM_STREAMS": "2"
+        }
+      }
+    },
+    {
+      "config": {
+        "name": "69b714b6e5ec0acb753764fe-1773606151033",
+        "base_path": "/models/69b6fac47821ac582a60c159-active/69b714b6e5ec0acb753764fe-1773606151033",
+        "plugin_config": {
+          "NUM_STREAMS": "1"
+        }
+      }
+    }
+  ],
+  "mediapipe_config_list": [
+    {
+      "name": "69b705a759871bb24004f100-active"
+    },
+    {
+      "name": "69b6fac47821ac582a60c159-active"
+    }
+  ]
+}

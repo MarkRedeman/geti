@@ -176,8 +176,8 @@ class TrainWorkflowData:
 
 @dataclass_json
 @dataclass
-class TrainWorkflowDataForFlyteTaskTrainer:
-    """Dataclass to store everything required for Flyte task based model training."""
+class TrainWorkflowDataForTaskTrainer:
+    """Dataclass to store everything required for workflow task based model training."""
 
     train_data: TrainWorkflowData
     dataset_id: str

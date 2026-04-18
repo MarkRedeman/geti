@@ -1,9 +1,8 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-from flytekit.core.testing import task_mock
+from unittest.mock import patch
 
-from job.tasks.import_project import import_project
 from job.workflows.import_project_workflow import import_project_workflow
 
 
@@ -15,7 +14,7 @@ class TestImportWorkflow:
         user_id = "dummy_user_id"
 
         # Act
-        with task_mock(import_project) as mock_import_project_task:
+        with patch("job.workflows.import_project_workflow.import_project") as mock_import_project_task:
             import_project_workflow(
                 file_id=file_id,
                 keep_original_dates=False,

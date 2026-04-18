@@ -1,5 +1,0 @@
-apiVersion: v1
-name: ${COMPONENT_NAME}
-description: Chart that will deploy script to migrate data
-version: ${TAG}
-appVersion: ${TAG}

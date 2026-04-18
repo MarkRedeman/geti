@@ -12,8 +12,8 @@ from model.job import (
     JobCancellationInfo,
     JobConsumedResource,
     JobCost,
-    JobFlyteExecutions,
-    JobMainFlyteExecution,
+    JobExecutions,
+    JobMainExecution,
     JobResource,
     JobStepDetails,
 )
@@ -93,7 +93,7 @@ def fxt_job(fxt_step_details, fxt_dummy_job_id):
         project_id=ID("project_id"),
         start_time=DUMMY_TIME,
         end_time=DUMMY_TIME,
-        executions=JobFlyteExecutions(main=JobMainFlyteExecution()),
+        executions=JobExecutions(main=JobMainExecution()),
         session=make_session(
             organization_id=ID(DUMMY_ORGANIZATION_ID),
             workspace_id=ID(DUMMY_WORKSPACE_ID),
@@ -134,7 +134,7 @@ def fxt_workspace_job(fxt_step_details, fxt_dummy_job_id):
         cancellation_info=JobCancellationInfo(cancellable=True, is_cancelled=False, cancel_time=None, user_uid=None),
         start_time=DUMMY_TIME,
         end_time=DUMMY_TIME,
-        executions=JobFlyteExecutions(main=JobMainFlyteExecution()),
+        executions=JobExecutions(main=JobMainExecution()),
         session=make_session(
             organization_id=ID(DUMMY_ORGANIZATION_ID),
             workspace_id=ID(DUMMY_WORKSPACE_ID),

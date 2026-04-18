@@ -15,7 +15,6 @@ dependencies = [
     "geti-feature-tools",
     "geti-fastapi-tools",
     "geti-kafka-tools",
-    "geti_spicedb_tools",
     "geti-telemetry-tools[telemetry,fastapi,logger,kafka,grpc]",
     "geti-types",
     "iai_core",
@@ -30,7 +29,6 @@ geti-fastapi-tools = { path = "../../../libs/fastapi_tools", editable = true }
 geti-kafka-tools = { path = "../../../libs/kafka_tools", editable = true }
 geti-telemetry-tools = { path = "../../../libs/telemetry_tools", editable = true }
 geti-types = { path = "../../../libs/types", editable = true }
-geti_spicedb_tools = { path = "../../../libs/spicedb_tools", editable = true }
 iai_core = { path = "../../libs/iai_core_py", editable = true }
 media_utils = { path = "../../libs/media_utils", editable = true }
 grpc_interfaces = { path = "../../../libs/grpc_interfaces", editable = true }

@@ -1,7 +1,7 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-"""This module contains the FlyteTaskTrainCommands"""
+"""This module contains the TrainTaskCommands"""
 
 import json
 import logging
@@ -204,10 +204,10 @@ def _get_export_parameters(
 
 @unified_tracing
 def prepare_train(train_data: TrainWorkflowData, dataset: Dataset) -> TrainOutputModels:
-    """Function should be called in prior to model training Flyte task.
+    """Function should be called in prior to model training workflow task.
 
     It creates iai-core model entities and prepares buckets for
-    the subsequent model training Flyte task.
+    the subsequent model training workflow task.
 
     :param train_data: Data class defining data used for training and providing helpers to get
         frequently used objects
@@ -322,7 +322,7 @@ def finalize_train(
     train_output_model_ids: TrainOutputModelIds,
     retain_training_artifacts: bool = False,
 ) -> None:
-    """Function should be called after model training Flyte task.
+    """Function should be called after model training workflow task.
 
     It decides whether the model training is failed or not. If succeeded, update
     iai-core model entity status and clean the directory in the bucket.
@@ -330,7 +330,7 @@ def finalize_train(
     :param train_data: Data class defining data used for training and providing helpers to get
         frequently used objects
     :param train_output_model_ids: IDs of output models created from the previous command,
-        PrepareFlyteTaskTrainCommand
+        PrepareTrainTaskCommand
     :param retain_training_artifacts: If true, do not remove the artifacts in bucket even if training succeeds.
         It would be useful for debugging.
     """

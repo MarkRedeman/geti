@@ -1,7 +1,7 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-"""This module defines Flyte task to create task train dataset"""
+"""This module defines workflow task to create task train dataset"""
 
 import logging
 

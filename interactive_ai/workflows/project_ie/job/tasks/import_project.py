@@ -6,7 +6,7 @@
 import logging
 
 from geti_types import ID
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import report_progress, task_progress
 from jobs_common.tasks.utils.secrets import env_vars

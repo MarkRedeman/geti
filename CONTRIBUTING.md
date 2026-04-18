@@ -108,44 +108,53 @@ Each component typically includes:
 
 Before you begin, ensure you have:
 
-- Local Kubernetes cluster (kind, k3s, or minikube)
-- Docker
-- Helm (v3+)
-- kubectl
+- Docker with Compose support
 - make (optional)
 
-#### Setup Steps
+#### Setup Steps (Compose-first)
 
 1. Clone the repository
-2. Configure local Docker registry
+2. Prepare local runtime configuration and certificates
     ```bash
-    docker run -d -p 5000:5000 --restart=always --name registry registry:3
+    make compose-prepare-certs
     ```
-3. Build and push all images to local registry
+3. Bootstrap Mongo/S3 migrations
     ```bash
-    # from root of the repository
-    make build-image
-    
-    # to push to local registry
-    make publish-image
+    make compose-bootstrap
     ```
-4. Build and push helm charts
+4. Start local stack
     ```bash
-    # from root of the repository
-    make build-umbrella-chart
-    
-    # to push to local registry
-    make publish-umbrella-chart
+    docker compose up -d --build
     ```
-5. Install Geti™ on your local machine
+5. Run smoke checks through Traefik
     ```bash
-    # copy installer to directory eq. /tmp/geti
-    cp platform/services/installer/platform_<TAG>/platform_installer /tmp/geti
-   
-    # launch installation and follow prompts
-    cd /tmp/geti
-    ./platform_installer install
+    make compose-smoke
     ```
+
+#### Local Auth Mock Mode (local-only)
+
+Local compose uses mock auth by default:
+
+- `AUTH_MODE=mock`
+- `DEPLOYMENT_MODE=compose`
+
+In this mode, identity and authorization checks are bypassed for local development.
+Do not use this mode in shared or production environments.
+
+#### Unsupported / Placeholder features in compose mode
+
+Current compose migration intentionally keeps some paths disabled or placeholder:
+
+- `interactive_ai_inference_gateway` returns `404` for all routes in compose mode.
+- KServe/Kubernetes-backed model serving is replaced by compose-native registry behavior in model_registration.
+- Jobs execution uses compose local executor simulation mode by default (`LOCAL_EXECUTOR_MODE=simulate`).
+
+For compose setup and current local behavior, see `docs/compose/getting-started-with-compose.md` and `docs/compose/README.md`.
+
+#### Kubernetes/Helm path (non-default)
+
+Kubernetes + Helm flow is still available for environments that require it, but it is no longer the default local
+development path.
 
 ### Local Development
 

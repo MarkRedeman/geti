@@ -35,7 +35,7 @@ class ExperimentsBinaryRepo(BinaryRepo):
         """
         # NOTE: There is no interface for server-side object copy in iai-core.
         # This is a workaround for it. We need it because some models have
-        # huge model artifacts (>500 MiB) and it makes the Flyte task
+        # huge model artifacts (>500 MiB) and it makes the workflow task
         # OOMKilled without the server-side object copy.
         # TODO: Implement a clean interface for it on the iai-core side.
         # CVS-133877
@@ -67,7 +67,7 @@ class ExperimentsBinaryRepo(BinaryRepo):
         """
         # NOTE: There is no interface for server-side object copy in iai-core.
         # This is a workaround for it. We need it because some models have
-        # huge model artifacts (>500 MiB) and it makes the Flyte task
+        # huge model artifacts (>500 MiB) and it makes the workflow task
         # OOMKilled without the server-side object copy.
         # TODO: Implement a clean interface for it on the iai-core side.
         # CVS-133877

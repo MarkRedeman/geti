@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
-from geti_spicedb_tools import SpiceDB
 from jsonschema import ValidationError
 
 from communication.exceptions import (
@@ -160,9 +159,9 @@ class TestProjectCRUD:
             },
         }
 
-    @patch.object(SpiceDB, "create_project")
-    @patch.object(SpiceDB, "delete_project")
-    def test_create_project(self, mock_spicedb_create_project, mock_spicedb_delete_project, request) -> None:
+    @patch("managers.project_manager.assign_project_admin_role")
+    @patch("managers.project_manager.remove_project_roles")
+    def test_create_project(self, mock_remove_project_roles, mock_assign_project_admin_role, request) -> None:
         """
         <b>Description:</b>
         To test the creation of a project using pipeline data.

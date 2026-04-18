@@ -1,7 +1,7 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-"""This module defines Flyte task to infer and evaluate a model on multiple datasets"""
+"""This module defines workflow task to infer and evaluate a model on multiple datasets"""
 
 import logging
 from collections.abc import Callable, Sequence
@@ -17,9 +17,8 @@ from iai_core.entities.model_template import TaskType
 from iai_core.entities.model_test_result import ModelTestResult, TestState
 from iai_core.entities.task_node import TaskNode
 from iai_core.repos import EvaluationResultRepo, MediaScoreRepo, ModelTestResultRepo
-from kubernetes.client import V1ResourceRequirements, V1Toleration
 
-from jobs_common.tasks.primary_container_task import get_flyte_pod_spec
+from jobs_common.tasks.primary_container_task import get_pod_spec
 from jobs_common.utils.progress_helper import create_bounded_progress_callback, noop_progress_callback
 from jobs_common_extras.evaluation.entities.batch_inference_dataset import BatchInferenceDataset
 from jobs_common_extras.evaluation.services.batch_inference import BatchInference
@@ -38,11 +37,11 @@ BATCH_INFERENCE_NUM_ASYNC_REQUESTS = 4
 WORKLOAD_NODE_SELECTOR_KEY = getenv("WORKLOAD_NODE_SELECTOR_KEY")
 WORKLOAD_NODE_SELECTOR_VALUE = getenv("WORKLOAD_NODE_SELECTOR_VALUE")
 
-INFER_AND_EVALUATE_TASK_POD_SPEC = get_flyte_pod_spec(
-    resources=V1ResourceRequirements(
-        limits={"cpu": "100", "memory": "25Gi", "ephemeral-storage": "100Gi"},
-        requests={"cpu": "2", "memory": "4Gi", "ephemeral-storage": "2Gi"},
-    ),
+INFER_AND_EVALUATE_TASK_POD_SPEC = get_pod_spec(
+    resources={
+        "limits": {"cpu": "100", "memory": "25Gi", "ephemeral-storage": "100Gi"},
+        "requests": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "2Gi"},
+    },
     node_selector=(
         {WORKLOAD_NODE_SELECTOR_KEY: WORKLOAD_NODE_SELECTOR_VALUE}
         if (WORKLOAD_NODE_SELECTOR_KEY and WORKLOAD_NODE_SELECTOR_VALUE)
@@ -50,12 +49,12 @@ INFER_AND_EVALUATE_TASK_POD_SPEC = get_flyte_pod_spec(
     ),
     tolerations=(
         [
-            V1Toleration(
-                effect="NoSchedule",
-                key=WORKLOAD_NODE_SELECTOR_KEY,
-                operator="Equal",
-                value=WORKLOAD_NODE_SELECTOR_VALUE,
-            )
+            {
+                "effect": "NoSchedule",
+                "key": WORKLOAD_NODE_SELECTOR_KEY,
+                "operator": "Equal",
+                "value": WORKLOAD_NODE_SELECTOR_VALUE,
+            }
         ]
         if (WORKLOAD_NODE_SELECTOR_KEY and WORKLOAD_NODE_SELECTOR_VALUE)
         else None

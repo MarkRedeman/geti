@@ -41,11 +41,6 @@ const (
 	s3UserPhotosBucketNameEnvVarName        = "S3_USER_PHOTOS_BUCKET_NAME"
 	s3UserPhotosBucketNameDefault           = "userphotos"
 
-	spiceDBAddressEnvVarName = "SPICEDB_ADDRESS"
-	spiceDBAddressDefault    = "127.0.0.1:50051"
-	spiceDBTokenEnvVarName   = "SPICEDB_TOKEN"
-	spiceDBTokenDefault      = "somerandomkeyhere"
-
 	otelEnableMetricsEnvVarName   = "ENABLE_METRICS"
 	otelServiceNameEnvVarName     = "OTEL_SERVICE_NAME"
 	otelMetricsReceiverEnvVarName = "OTLP_METRICS_RECEIVER"
@@ -79,8 +74,6 @@ const (
 
 	defaultWorkspaceNameEnvVarName = "DEFAULT_WORKSPACE_NAME"
 	defaultWorkspaceNameDefault    = "Default workspace"
-
-	sslCertificatesDirEnvVarName = "SPICEDB_SSL_CERTIFICATES_DIR"
 
 	featureFlagOrgQuotasEnvVarName = "FEATURE_FLAG_ORG_QUOTAS"
 	featureFlagDefaultValue        = false
@@ -123,10 +116,6 @@ var (
 	S3OrganizationsLogosBucketName = utils.GetStringEnvOrDefault(s3OrganizationLogosBucketNameEnvVarName, s3OrganizationLogosBucketNameDefault)
 	S3UserPhotosBucketName         = utils.GetStringEnvOrDefault(s3UserPhotosBucketNameEnvVarName, s3UserPhotosBucketNameDefault)
 
-	// spicedb
-	SpiceDBAddress = utils.GetStringEnvOrDefault(spiceDBAddressEnvVarName, spiceDBAddressDefault)
-	SpiceDBToken   = utils.GetStringEnvOrDefault(spiceDBTokenEnvVarName, spiceDBTokenDefault)
-
 	// OTEL
 	OtelEnableMetrics   = utils.GetBoolEnvOrDefault(otelEnableMetricsEnvVarName, false)
 	OtelServiceName     = utils.GetStringEnvOrDefault(otelServiceNameEnvVarName, "account-service")
@@ -160,8 +149,6 @@ var (
 	OrganizationRejectRequestedAccessTopic   = utils.GetStringEnvOrDefault(organizationRejectRequestedAccessTopicEnvVarName, defaultInvitationMailTopic)
 
 	DefaultWorkspaceName = utils.GetStringEnvOrDefault(defaultWorkspaceNameEnvVarName, defaultWorkspaceNameDefault)
-
-	SSLCertificatesDir = utils.GetStringEnvOrDefault(sslCertificatesDirEnvVarName, "")
 
 	FeatureFlagOrgQuotas        = utils.GetBoolEnvOrDefault(featureFlagOrgQuotasEnvVarName, featureFlagDefaultValue)
 	FeatureFlagManageUsers      = utils.GetBoolEnvOrDefault(featureFlagManageUsers, featureFlagDefaultValue)

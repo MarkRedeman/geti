@@ -505,7 +505,7 @@ func (s *GRPCServer) GetActiveUser(ctx context.Context, req *pb.UserIdRequest) (
 		return nil, err
 	}
 
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
@@ -689,7 +689,7 @@ func (s *GRPCServer) Delete(_ context.Context, req *pb.UserIdRequest) (*emptypb.
 		return nil, status.Error(codes.InvalidArgument, "malformed user UUID")
 	}
 
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize roles manager: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
@@ -840,7 +840,7 @@ func (s *GRPCServer) Modify(ctx context.Context, data *pb.UserData) (*pb.UserDat
 					return status.Errorf(codes.Unauthenticated, "Unexpected error")
 				}
 
-				rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+				rolesMgr, err := roles.NewRolesManager()
 				if err != nil {
 					logger.Errorf("unable to initialize roles manager: %v", err)
 					return status.Errorf(codes.Unknown, "unexpected error")
@@ -1045,7 +1045,7 @@ func (s *GRPCServer) GetRoles(_ context.Context, req *pb.UserGetRolesRequest) (*
 		return nil, err
 	}
 
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
@@ -1075,7 +1075,7 @@ func (s *GRPCServer) GetRoles(_ context.Context, req *pb.UserGetRolesRequest) (*
 
 func ChangeUserRelationsByRoleOperations(userID string, roleOps []*pb.UserRoleOperation) ([]*pb.UserRoleOperation, error) {
 	var roleOpsAlreadyApplied []*pb.UserRoleOperation
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return roleOpsAlreadyApplied, status.Errorf(codes.Unknown, "unexpected error")
@@ -1145,6 +1145,12 @@ func (s *GRPCServer) SetRoles(_ context.Context, req *pb.UserRolesRequest) (*emp
 	}
 
 	roleOps := req.GetRoles()
+	if !config.FeatureFlagWorkspaceActions {
+		roleOps, err = UpdateRolesList(roleOps, req.GetOrganizationId(), context.Background(), s.DB)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	roleOpsAlreadyApplied, err := ChangeUserRelationsByRoleOperations(req.GetUserId(), roleOps)
 	if err != nil {

@@ -8,11 +8,9 @@ dependencies = [
     "openvino_model_api==0.3.0.2",
     "defusedxml==0.7.1",
     "moto==5.0.2",
-    "asynctest==0.13.0",
     "asyncio==3.4.3",
     "aiofiles==24.1.0",
     "dpath==2.0.1",
-    "kubernetes_asyncio==29.0.0",
     "httpx~=0.26",
     "grpc_interfaces[model_registration]"
 ]

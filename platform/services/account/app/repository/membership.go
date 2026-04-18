@@ -4,7 +4,6 @@
 package repository
 
 import (
-	"account_service/app/config"
 	accErr "account_service/app/errors"
 	"account_service/app/grpc/common"
 	"account_service/app/models"
@@ -220,7 +219,7 @@ func (r *membershipRepository) DeleteMemberships(ctx context.Context, userID str
 				return patErr
 			}
 
-			rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+			rolesMgr, err := roles.NewRolesManager()
 			if err != nil {
 				return accErr.NewUnknownError("unexpected error during role manager initialization")
 			}

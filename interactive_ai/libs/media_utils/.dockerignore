@@ -1,3 +1,7 @@
 *
 !media_utils
 !pyproject.toml
+!uv.lock
+**/__pycache__/
+**/*.pyc
+**/*.pyo

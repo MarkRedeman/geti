@@ -1,6 +1,0 @@
----
-apiVersion: v2
-name: ${COMPONENT_NAME}
-description: A Helm chart for weights uploader service
-version: ${TAG}
-appVersion: ${TAG}

@@ -8,7 +8,6 @@ dependencies = [
     "geti-kafka-tools==1.0.0",
     "geti-telemetry-tools[telemetry,grpc,kafka,logger]==1.0.2",
     "geti-types~=1.0.2",
-    "geti-k8s-tools==1.0.0",
     "workflows_common[evaluation, shard_dataset]",
 ]
 
@@ -16,7 +15,6 @@ dependencies = [
 geti-kafka-tools = { path = "../../../libs/kafka_tools", editable = true }
 geti-telemetry-tools = { path = "../../../libs/telemetry_tools", editable = true }
 geti-types = { path = "../../../libs/types", editable = true }
-geti-k8s-tools = { path = "../../../libs/k8s_tools", editable = true }
 workflows_common = { path = "../common", editable = true }
 
 [dependency-groups]

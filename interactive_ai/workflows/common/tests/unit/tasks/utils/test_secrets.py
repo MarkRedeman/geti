@@ -2,7 +2,7 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 import os
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 from geti_types import ID, RequestSource
 
@@ -10,71 +10,8 @@ from jobs_common.tasks.utils.secrets import JobMetadata, env_vars, set_env_vars
 
 
 class TestSecrets:
-    @patch("jobs_common.tasks.utils.secrets.current_context")
-    def test_set_env_vars(self, mock_current_context) -> None:
-        # Arrange
-        context = MagicMock()
-        secrets = MagicMock()
-        secrets_get = MagicMock()
-
-        context.secrets = secrets
-        context.secrets.get = secrets_get
-        secrets_get.return_value = "secret_value"
-        mock_current_context.return_value = context
-        os.environ["S3_CREDENTIALS_PROVIDER"] = "local"
-        os.environ["MONGODB_CREDENTIALS_PROVIDER"] = "local"
-        # Act
+    def test_set_env_vars_noop(self) -> None:
         set_env_vars()
-
-        # Assert
-        secrets_get.assert_has_calls(
-            [
-                call("impt-kafka-jaas-flyte", "user"),
-                call("impt-kafka-jaas-flyte", "password"),
-                call("impt-spice-db", "SPICEDB_GRPC_PRESHARED_KEY"),
-                call("impt-seaweed-fs", "flyte_workflows_access_key"),
-                call("impt-seaweed-fs", "flyte_workflows_secret_key"),
-                call("impt-seaweed-fs", "flyte_workflows_s3_presigned_url_access_key"),
-                call("impt-seaweed-fs", "flyte_workflows_s3_presigned_url_secret_key"),
-                call("impt-mongodb", "jobs-mongodb-username"),
-                call("impt-mongodb", "jobs-mongodb-password"),
-            ]
-        )
-        assert (
-            os.environ.get("DATABASE_USERNAME") == "secret_value"
-            and os.environ.get("DATABASE_PASSWORD") == "secret_value"
-            and os.environ.get("KAFKA_USERNAME") == "secret_value"
-            and os.environ.get("KAFKA_PASSWORD") == "secret_value"
-            and os.environ.get("SPICEDB_TOKEN") == "secret_value"
-        )
-
-    @patch("jobs_common.tasks.utils.secrets.current_context")
-    def test_set_env_vars_eks(self, mock_current_context) -> None:
-        # Arrange
-        context = MagicMock()
-        secrets = MagicMock()
-        secrets_get = MagicMock()
-
-        context.secrets = secrets
-        context.secrets.get = secrets_get
-        secrets_get.return_value = "secret_value"
-        mock_current_context.return_value = context
-        # Act
-        set_env_vars()
-
-        # Assert
-        secrets_get.assert_has_calls(
-            [
-                call("impt-kafka-jaas-flyte", "user"),
-                call("impt-kafka-jaas-flyte", "password"),
-                call("impt-spice-db", "SPICEDB_GRPC_PRESHARED_KEY"),
-            ]
-        )
-        assert (
-            os.environ.get("KAFKA_USERNAME") == "secret_value"
-            and os.environ.get("KAFKA_PASSWORD") == "secret_value"
-            and os.environ.get("SPICEDB_TOKEN") == "secret_value"
-        )
 
     @patch("jobs_common.tasks.utils.secrets.make_session")
     @patch("jobs_common.tasks.utils.secrets.set_env_vars")
@@ -90,7 +27,6 @@ class TestSecrets:
             pass
 
         # Act
-
         with patch.dict(os.environ, session_env_vars):
             test_function()
 

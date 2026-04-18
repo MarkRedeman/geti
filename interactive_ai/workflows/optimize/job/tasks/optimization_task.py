@@ -1,7 +1,7 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-"""This module defines Flyte dynamic subworkflow to shard dataset, prepare models and start optimization"""
+"""This module defines dynamic subworkflow to shard dataset, prepare models and start optimization"""
 
 import logging
 from typing import Optional
@@ -11,8 +11,8 @@ from geti_types import CTX_SESSION_VAR, ID
 from iai_core.entities.model_storage import ModelStorageIdentifier
 from iai_core.repos import ModelRepo, ProjectRepo
 from jobs_common.jobs.helpers.project_helpers import lock_project
-from jobs_common.k8s_helpers.trainer_pod_definition import create_flyte_container_task
-from jobs_common.tasks import flyte_multi_container_dynamic as dynamic
+from jobs_common.runtime_helpers.trainer_pod_definition import create_container_task
+from jobs_common.tasks import compose_dynamic as dynamic
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, env_vars
@@ -118,7 +118,7 @@ def shard_dataset_prepare_models_and_start_optimization(  # noqa: PLR0913
         max_number_of_annotations=max_number_of_annotations,
     )
 
-    optimize_task = create_flyte_container_task(
+    optimize_task = create_container_task(
         session=CTX_SESSION_VAR.get(),
         project_id=optimization_ctx.project_id,
         job_id=optimization_ctx.job_id,

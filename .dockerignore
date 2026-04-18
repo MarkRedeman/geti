@@ -1,0 +1,10 @@
+*
+!libs
+!platform/libs
+!interactive_ai/data_migration
+!interactive_ai/migration_job/migration_job
+!infrastructure/geti_init
+
+**/__pycache__/
+**/*.pyc
+**/*.pyo

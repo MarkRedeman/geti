@@ -1,6 +1,6 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from botocore.exceptions import ClientError
@@ -13,9 +13,8 @@ from grpc_interfaces.model_registration.pb.service_pb2 import (
     RecoverRequest,
     RegisterRequest,
 )
-from kubernetes_asyncio.client.rest import ApiException
 
-from service.config import MODELMESH_NAMESPACE, S3_STORAGE
+from service.config import S3_BUCKETNAME
 from service.model_registration import ModelRegistration
 from service.responses import Responses
 
@@ -36,231 +35,142 @@ def converter(mocker):
 
 
 @pytest.fixture
-def model_registration(s3_client, converter):
+def ovms_manager(mocker):
+    return mocker.patch("service.model_registration.OvmsConfigManager")
+
+
+@pytest.fixture
+def model_registration(s3_client, converter, ovms_manager):
     return ModelRegistration()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "name, override, expected_response",
+    "name, override, existing, expected_response",
     [
-        ("test", True, Responses.Created),
-        ("test", False, Responses.AlreadyRegistered),
-        ("new", False, Responses.Created),
+        ("test", True, {"pipeline_name": "test"}, Responses.Created),
+        ("test", False, {"pipeline_name": "test"}, Responses.AlreadyRegistered),
+        ("new", False, None, Responses.Created),
     ],
 )
-@patch("service.model_registration.InferenceManager.create_inference")
-@patch("service.model_registration.InferenceManager.get_inference")
-@patch("service.model_registration.InferenceManager.remove_inference")
 async def test_register_new_pipelines(
-    remove_inference,
-    get_inference,
-    create_inference,
     model_registration,
     converter,
     servicer_context,
+    s3_client,
+    ovms_manager,
     name,
     override,
+    existing,
     expected_response,
 ):
-    pipeline = MagicMock()
-    get_inference.side_effect = AsyncMock(return_value=pipeline if name == "test" else None)
-    create_inference.side_effect = AsyncMock()
-    remove_inference.side_effect = AsyncMock()
-
+    s3_client.return_value.get_json_object.return_value = existing
     req = RegisterRequest(name=name, override=override)
     response = await model_registration.register_new_pipelines(req, servicer_context)
 
     assert response.status == expected_response
-    get_inference.assert_awaited_once()
-    if override:
-        remove_inference.assert_awaited_once()
-    if expected_response == Responses.Created:
-        converter.assert_called_once()
-        create_inference.assert_awaited_once_with(
-            name=name, namespace=MODELMESH_NAMESPACE, storage_name=S3_STORAGE, path=name
-        )
+    if existing and not override:
+        s3_client.return_value.upload_folder.assert_not_called()
+        ovms_manager.return_value.add_model.assert_not_called()
+        return
+
+    s3_client.return_value.upload_folder.assert_called_once()
+    s3_client.return_value.put_json_object.assert_called_once()
+    ovms_manager.return_value.sync_model_directory.assert_called_once()
+    ovms_manager.return_value.add_model.assert_called_once_with(pipeline_name=name)
+    converter.assert_called_once()
+    if existing and override:
+        s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key=name)
+        ovms_manager.return_value.remove_model.assert_called_once_with(pipeline_name=name)
+        ovms_manager.return_value.remove_model_directory.assert_called_once_with(pipeline_name=name)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "reason, expected_response",
-    [
-        ("Conflict", Responses.AlreadyRegistered),
-        ("SomethingElse", Responses.Failed),
-    ],
-)
-@patch("service.model_registration.InferenceManager.get_inference")
-async def test_register_new_pipelines_failed(
-    get_inference, model_registration, servicer_context, reason, expected_response
-):
-    get_inference.side_effect = ApiException(reason=reason)
-    req = RegisterRequest(name="test", override=False)
-    response = await model_registration.register_new_pipelines(req, servicer_context)
-    assert response.status == expected_response
-
-
-@pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.get_inference")
-async def test_register_new_pipelines_error(get_inference, model_registration, servicer_context):
-    get_inference.side_effect = RuntimeError()
+async def test_register_new_pipelines_error(model_registration, servicer_context, s3_client):
+    s3_client.return_value.get_json_object.side_effect = ClientError(
+        {"Error": {"Code": 500, "Message": "Error"}}, "get_object"
+    )
     req = RegisterRequest(name="test", override=False)
     response = await model_registration.register_new_pipelines(req, servicer_context)
     assert response.status == Responses.Failed
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.remove_inference")
-async def test_deregister_pipeline(remove_inference, model_registration, servicer_context):
-    remove_inference.side_effect = AsyncMock()
-
+async def test_deregister_pipeline(model_registration, servicer_context, s3_client, ovms_manager):
     req = DeregisterRequest(name="test")
     response = await model_registration.deregister_pipeline(req, servicer_context)
 
-    assert response.status == "REMOVED"
-    remove_inference.assert_awaited_once()
+    assert response.status == Responses.Removed
+    s3_client.return_value.delete_folder.assert_called_once_with(bucket_name=S3_BUCKETNAME, object_key="test")
+    ovms_manager.return_value.remove_model.assert_called_once_with(pipeline_name="test")
+    ovms_manager.return_value.remove_model_directory.assert_called_once_with(pipeline_name="test")
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.remove_inference")
-async def test_deregister_pipeline_faile(remove_inference, model_registration, servicer_context):
-    remove_inference.side_effect = ApiException()
-
+async def test_deregister_pipeline_failed(model_registration, servicer_context, s3_client):
+    s3_client.return_value.delete_folder.side_effect = ClientError(
+        {"Error": {"Code": 500, "Message": "Error"}}, "delete_object"
+    )
     req = DeregisterRequest(name="test")
     response = await model_registration.deregister_pipeline(req, servicer_context)
-
-    assert response.status == "FAILED"
-    remove_inference.assert_awaited_once()
+    assert response.status == Responses.Failed
 
 
 @pytest.mark.asyncio
 async def test_register_active_pipeline(model_registration, servicer_context):
     req = ActiveRequest()
     response = await model_registration.register_active_pipeline(req, servicer_context)
-    assert response.status == "NOT_IMPLEMENTED"
+    assert response.status == Responses.NotImplemented
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-async def test_list_pipeline(list_inference, model_registration, servicer_context):
-    pipeline1 = MagicMock()
-    pipeline1.name = "model1"
-    pipeline2 = MagicMock()
-    pipeline2.name = "model2"
-    list_inference.side_effect = AsyncMock(return_value=[pipeline1, pipeline2])
-
+async def test_list_pipeline(model_registration, servicer_context, s3_client):
+    s3_client.return_value.list_registry_folders.return_value = ["model1", "model2"]
     req = ListRequest()
     response = await model_registration.list_pipelines(req, servicer_context)
-
     assert response.pipelines == ["model1", "model2"]
-    list_inference.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-async def test_list_pipeline_fail(list_inference, model_registration, servicer_context):
-    list_inference.side_effect = ApiException()
-    req = ListRequest()
-    response = await model_registration.list_pipelines(req, servicer_context)
-    assert response.pipelines == []
-
-
-@pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-async def test_recover_pipelines_registered(list_inference, model_registration, servicer_context):
-    pipeline = MagicMock()
-    pipeline.name = "test"
-    list_inference.side_effect = AsyncMock(return_value=[pipeline])
-
+async def test_recover_pipelines_success(model_registration, servicer_context, s3_client, ovms_manager):
+    s3_client.return_value.check_folder_exists.return_value = True
     req = RecoverRequest(name="test")
     response = await model_registration.recover_pipeline(req, servicer_context)
-
     assert response.success is True
-    list_inference.assert_awaited_once()
+    s3_client.return_value.download_folder.assert_called_once()
+    s3_client.return_value.put_json_object.assert_called_once()
+    ovms_manager.return_value.sync_model_directory.assert_called_once()
+    ovms_manager.return_value.add_model.assert_called_once_with(pipeline_name="test")
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-@patch("service.model_registration.InferenceManager.create_inference")
-async def test_recover_pipelines_notregistered(create_inference, list_inference, model_registration, servicer_context):
-    list_inference.side_effect = AsyncMock()
-    create_inference.side_effect = AsyncMock()
-
-    req = RecoverRequest(name="test")
-    response = await model_registration.recover_pipeline(req, servicer_context)
-
-    assert response.success is True
-    list_inference.assert_awaited_once()
-    create_inference.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-async def test_recover_pipelines_no_recover(list_inference, model_registration, servicer_context, s3_client):
-    list_inference.side_effect = AsyncMock()
+async def test_recover_pipelines_not_found(model_registration, servicer_context, s3_client, ovms_manager):
     s3_client.return_value.check_folder_exists.return_value = False
-
     req = RecoverRequest(name="test")
     response = await model_registration.recover_pipeline(req, servicer_context)
-
     assert response.success is False
-    list_inference.assert_awaited_once()
+    s3_client.return_value.put_json_object.assert_not_called()
+    ovms_manager.return_value.sync_model_directory.assert_not_called()
+    ovms_manager.return_value.add_model.assert_not_called()
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-@patch("service.model_registration.InferenceManager.remove_inference")
-async def test_delete_project_pipelines(
-    remove_inference, list_inference, model_registration, servicer_context, s3_client
-):
-    pipeline = MagicMock()
-    pipeline.name = "test-test"
-    list_inference.side_effect = AsyncMock(return_value=[pipeline])
-    s3_client.return_value.list_folders.return_value = ["test-"]
-
+async def test_delete_project_pipelines(model_registration, servicer_context, s3_client, ovms_manager):
+    s3_client.return_value.list_folders.return_value = ["test-model1", "test-model2", "other-model"]
     req = PurgeProjectRequest(project_id="test")
     response = await model_registration.delete_project_pipelines(req, servicer_context)
-
     assert response.success is True
-    list_inference.assert_awaited_once()
-    remove_inference.assert_awaited_once()
-    s3_client.return_value.list_folders.assert_called_once()
-    s3_client.return_value.delete_folder.assert_called() == 2
+    assert s3_client.return_value.delete_folder.call_count == 2
+    assert ovms_manager.return_value.remove_model.call_count == 2
+    assert ovms_manager.return_value.remove_model_directory.call_count == 2
 
 
 @pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-@patch("service.model_registration.InferenceManager.remove_inference")
-async def test_delete_project_pipelines_remove_fail(
-    remove_inference, list_inference, model_registration, servicer_context, s3_client
-):
-    pipeline = MagicMock()
-    pipeline.name = "test-test"
-    list_inference.side_effect = AsyncMock(return_value=[pipeline])
-    remove_inference.side_effect = RuntimeError()
-
-    req = PurgeProjectRequest(project_id="test")
-    response = await model_registration.delete_project_pipelines(req, servicer_context)
-
-    assert response.success is False
-    list_inference.assert_awaited_once()
-    remove_inference.assert_awaited_once()
-    s3_client.return_value.list_folders.assert_called_once()
-    s3_client.return_value.delete_folder.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("service.model_registration.InferenceManager.list_inference")
-async def test_delete_project_pipelines_delete_failed(list_inference, model_registration, servicer_context, s3_client):
-    s3_client.return_value.list_folders.return_value = ["test-"]
+async def test_delete_project_pipelines_failed(model_registration, servicer_context, s3_client):
+    s3_client.return_value.list_folders.return_value = ["test-model1"]
     s3_client.return_value.delete_folder.side_effect = ClientError(
-        {"Error": {"Code": 500, "Message": "Error"}}, "get_object"
+        {"Error": {"Code": 500, "Message": "Error"}}, "delete_object"
     )
-
     req = PurgeProjectRequest(project_id="test")
     response = await model_registration.delete_project_pipelines(req, servicer_context)
-
     assert response.success is False
-    list_inference.assert_awaited_once()
-    s3_client.return_value.list_folders.assert_called_once()
-    s3_client.return_value.delete_folder.assert_called_once()

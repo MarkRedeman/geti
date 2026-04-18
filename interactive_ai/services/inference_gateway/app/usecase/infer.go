@@ -17,6 +17,7 @@ import (
 	"geti.com/iai_core/storage"
 	"geti.com/iai_core/telemetry"
 	"golang.org/x/sync/errgroup"
+	pb "geti.com/predict"
 
 	"inference_gateway/app/entities"
 	"inference_gateway/app/service"
@@ -75,7 +76,17 @@ func (uc *InferImpl) One(
 	} else if err != nil {
 		return "", err
 	}
-	return response.GetParameters()["predictions"].GetStringParam(), nil
+
+	return extractPredictionsPayload(response)
+}
+
+func extractPredictionsPayload(response *pb.ModelInferResponse) (string, error) {
+	if predictionParam, hasPredictions := response.GetParameters()["predictions"]; hasPredictions && predictionParam != nil {
+		if prediction := predictionParam.GetStringParam(); prediction != "" {
+			return prediction, nil
+		}
+	}
+	return "", errors.New("prediction response missing 'predictions' parameter")
 }
 
 func (uc *InferImpl) Batch(

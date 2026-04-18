@@ -18,6 +18,8 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.30.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2
+	github.com/coocood/freecache v1.2.4
+	github.com/envoyproxy/go-control-plane/envoy v1.32.4
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
@@ -32,6 +34,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.40.0
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/zap v1.27.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
@@ -60,6 +63,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eapache/go-resiliency v1.6.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
@@ -97,7 +101,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect

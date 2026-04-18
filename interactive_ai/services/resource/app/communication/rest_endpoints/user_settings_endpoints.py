@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from communication.constants import MAX_SETTINGS_LENGTH_IN_CHARACTERS
-from communication.exceptions import NoUserSettingsException, SettingsTooLongException
+from communication.exceptions import SettingsTooLongException
 from entities.ui_settings import NullUISettings, UISettings
 from repos.ui_settings_repo import UISettingsRepo
 
@@ -41,7 +41,15 @@ def get_user_settings(
         ui_settings = ui_settings_repo.get_by_user_id_only(user_id=user_id)
     if not isinstance(ui_settings, NullUISettings):
         return {"settings": ui_settings.settings}
-    raise NoUserSettingsException
+
+    user_settings = UISettings(
+        user_id=user_id,
+        project_id=project_id if project_id is not None else None,
+        settings="{}",
+        id_=ui_settings_repo.generate_id(),
+    )
+    ui_settings_repo.save(user_settings)
+    return {"settings": user_settings.settings}
 
 
 @server_router.post("/user_settings")

@@ -2,19 +2,18 @@
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
 """
-Module for Flyte events Kafka handler
+Module for job execution events Kafka handler
 """
 
 import logging
 from datetime import datetime
-
-from flytekit.remote import FlyteWorkflowExecution
+from typing import Any
 
 from model.job import Job, JobConsumedResource, JobCost
-from model.job_state import JobTaskState
+from model.job_state import JobState, JobTaskState
 from scheduler.context import job_context
-from scheduler.flyte import ExecutionType, Flyte
-from scheduler.jobs_templates import JobsTemplates
+from scheduler.execution_type import ExecutionType
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_kafka_tools import BaseKafkaHandler, KafkaRawMessage, TopicSubscription, publish_event
@@ -26,9 +25,9 @@ from iai_core.utils.time_utils import now
 
 logger = logging.getLogger(__name__)
 
-WORKFLOW_EXECUTION_EVENT_REQUEST = "com.flyte.resource.flyteidl.admin.WorkflowExecutionEventRequest"
-TASK_EXECUTION_EVENT_REQUEST = "com.flyte.resource.flyteidl.admin.TaskExecutionEventRequest"
-NODE_EXECUTION_EVENT_REQUEST = "com.flyte.resource.flyteidl.admin.NodeExecutionEventRequest"
+WORKFLOW_EXECUTION_EVENT_REQUEST = "com.geti.jobs.WorkflowExecutionEventRequest"
+TASK_EXECUTION_EVENT_REQUEST = "com.geti.jobs.TaskExecutionEventRequest"
+NODE_EXECUTION_EVENT_REQUEST = "com.geti.jobs.NodeExecutionEventRequest"
 
 PHASE_SUCCEEDED = "SUCCEEDED"
 PHASE_QUEUED = "QUEUED"
@@ -39,15 +38,36 @@ PHASE_ABORTED = "ABORTED"
 
 
 class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
-    """KafkaHandler for Flyte cloud events"""
+    """KafkaHandler for job execution cloud events"""
 
     def __init__(self) -> None:
         super().__init__(group_id="job_scheduler")
 
+    @staticmethod
+    def _resolve_job_id_by_execution(execution_name: str) -> str | None:
+        record = LocalExecutor().get_execution_metadata(execution_name)
+        if record is not None:
+            return record.job_id
+
+        logger.warning(
+            f"[compose mode] Unable to find execution {execution_name} in local registry, falling back to DB lookup"
+        )
+        job = StateMachine().get_by_execution_id(execution_name)
+        if job is None:
+            logger.error(f"Unable to resolve execution {execution_name}")
+            return None
+        return str(job.id)
+
+    @staticmethod
+    def _is_execution_current_for_job(job: Job, execution_name: str) -> bool:
+        main_execution_id = job.executions.main.execution_id
+        revert_execution_id = job.executions.revert.execution_id if job.executions.revert is not None else None
+        return execution_name in {main_execution_id, revert_execution_id}
+
     @property
     def topics_subscriptions(self) -> list[TopicSubscription]:
         return [
-            TopicSubscription(topic="flyte_event", callback=self.on_flyte_event),
+            TopicSubscription(topic="workflow_event", callback=self.on_workflow_event),
             TopicSubscription(topic="job_step_details", callback=self.on_job_step_details),
             TopicSubscription(topic="job_update", callback=self.on_job_update),
             TopicSubscription(topic="project_deletions", callback=self.on_project_deleted),
@@ -58,7 +78,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
 
     @staticmethod
     @unified_tracing
-    def on_flyte_event(raw_message: KafkaRawMessage) -> None:
+    def on_workflow_event(raw_message: KafkaRawMessage) -> None:
         event = raw_message.value["event"] if raw_message.value is not None and "event" in raw_message.value else None
         if event is None:
             return
@@ -80,14 +100,18 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             logger.error("Unable to determine execution_name")
             return
 
-        execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
-        if execution is None:
-            logger.error(f"Unable to fetch execution {execution_name}")
+        # In compose mode look up execution metadata from the local registry
+        # instead of fetching it from a remote orchestrator.
+        record = LocalExecutor().get_execution_metadata(execution_name)
+        if record is None:
+            logger.error(f"[compose mode] Unable to find execution {execution_name} in local registry")
             return
 
-        organization_id = ID(Flyte.get_execution_organization_id(execution))
-        workspace_id = ID(Flyte.get_execution_workspace_id(execution))
-        job_id = Flyte.get_execution_job_id(execution)
+        organization_id = ID(record.organization_id)
+        workspace_id = ID(record.workspace_id)
+        job_id = record.job_id
+        execution_type = record.execution_type
+        execution = None  # no remote execution object in compose mode
 
         with session_context(
             session=make_session(
@@ -101,15 +125,23 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
                 logger.error(f"Unable to find job by it's ID {job_id}")
                 return
 
-            with job_context(job=job, span_name="on_flyte_event"):
+            with job_context(job=job, span_name="on_workflow_event"):
                 if event_type == WORKFLOW_EXECUTION_EVENT_REQUEST:
-                    ProgressHandler.handle_workflow_event(event=event, execution=execution, job=job)
+                    # Compose mode: execution_type already resolved from local registry
+                    ProgressHandler.handle_workflow_event_by_type(
+                        event=event,
+                        execution=execution,
+                        execution_type=execution_type,
+                        job=job,
+                    )
 
                 elif event_type == TASK_EXECUTION_EVENT_REQUEST:
-                    ProgressHandler.handle_task_event(event=event, execution=execution, job=job)
+                    # task-level events are not used in compose mode
+                    return
 
                 elif event_type == NODE_EXECUTION_EVENT_REQUEST:
-                    ProgressHandler.handle_node_event(event=event, execution=execution, job=job)
+                    # node/branch events are not used in compose mode
+                    return
 
     @staticmethod
     def get_execution_name(event_type: str, event: dict) -> str:
@@ -120,14 +152,25 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
         return event["id"]["executionId"]["name"]
 
     @staticmethod
-    def handle_workflow_event(event: dict, execution: FlyteWorkflowExecution, job: Job) -> None:
+    def handle_workflow_event_by_type(
+        event: dict,
+        execution: Any | None,
+        execution_type: ExecutionType,
+        job: Job,
+    ) -> None:
+        """
+        Handle a workflow-level phase change.
+
+        Accepts a pre-resolved *execution_type* so it can be called both from
+        the local path (where ``execution`` is None and metadata comes from the
+        LocalExecutor registry) and any future remote execution path.
+        """
         logger.info(f"Handling workflow event {event}")
 
         if "phase" not in event:
             logger.error("Unable to obtain execution phase from event")
             return
 
-        execution_type = Flyte.get_execution_type(execution)
         if execution_type == ExecutionType.MAIN:
             ProgressHandler.handle_main_workflow_event(job=job, phase=event["phase"])
         elif execution_type == ExecutionType.REVERT:
@@ -157,7 +200,7 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             return
 
         if phase == PHASE_FAILED:
-            logger.critical(f"Revert workflow execution failed: job_id={job.id}")
+            logger.critical(f"Revert execution failed: job_id={job.id}")
 
         if job.cancellation_info.is_cancelled:
             # If job has been cancelled by user, setting final CANCELLED state
@@ -169,157 +212,76 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
             StateMachine().set_and_publish_failed_state(job_id=job.id)
 
     @staticmethod
-    def handle_task_event(event: dict, execution: FlyteWorkflowExecution, job: Job) -> None:
-        logger.info(f"Handling task event {event}")
-
-        phase_state_map = {
-            PHASE_RUNNING: JobTaskState.RUNNING,
-            PHASE_DYNAMIC_RUNNING: JobTaskState.RUNNING,  # Map PHASE_DYNAMIC_RUNNING to JobTaskState.RUNNING too
-            PHASE_SUCCEEDED: JobTaskState.FINISHED,
-            PHASE_FAILED: JobTaskState.FAILED,
-            PHASE_ABORTED: JobTaskState.CANCELLED,
-        }
-
-        phase = event.get("phase")
-        if phase not in phase_state_map:
-            # Do not handle states other than RUNNING, FINISHED, FAILED OR CANCELLED
-            return
-
-        state = phase_state_map.get(phase)
-        error_code = event.get("error", {}).get("code", None)
-        error_message = event.get("error", {}).get("message", None)
-        oom = (error_code is not None and "OOMKilled" in error_code) or (
-            error_message is not None and "OOM-killed" in error_message
-        )
-        message = (
-            (
-                "The job failed due to insufficient memory. "
-                "This may happen if the chosen model is too large for the available hardware, "
-                "or if there is an internal bug in the training pipeline. Please try again with a more "
-                "lightweight model if possible: if the problem persists, please report the issue."
-            )
-            if state == JobTaskState.FAILED and oom
-            else None
-        )
-
-        try:
-            task_id = event["taskId"]["name"]
-        except KeyError:
-            logger.warning("Unable to obtain task ID from event")
-            return
-
-        task = next((step for step in list(job.step_details) if step.task_id == task_id), None)
-        if state == JobTaskState.FAILED and message is None and task is not None and task.message is None:
-            message = (
-                "An issue was encountered while initializing this workload. Please retry or reach out to "
-                "us on GitHub if problem persists."
-            )
-
-        execution_type = Flyte.get_execution_type(execution)
-        if execution_type == ExecutionType.REVERT:
-            # Do not handle revert tasks progress
-            return
-
-        steps = JobsTemplates().get_job_steps(job_type=job.type)
-        step = next((step for step in steps if step.task_id == task_id), None)
-        if message is None and step is not None:
-            if state == JobTaskState.RUNNING and step.start_message is not None:
-                message = step.start_message
-            elif state == JobTaskState.FINISHED and step.finish_message is not None:
-                message = step.finish_message
-            elif state == JobTaskState.FAILED and step.failure_message is not None:
-                message = f"{step.failure_message} (ID: {job.id})"
-
-        logger.info(f"Job changes applied: job_id={job.id}, task_id={task_id}, state={state}, message={message}")
-        StateMachine().set_step_details(
-            job_id=job.id,
-            task_id=task_id,
-            state=state,
-            start_time=now() if state == JobTaskState.RUNNING else None,
-            end_time=now() if state != JobTaskState.RUNNING else None,
-            message=message,
-            progress=100.0 if state == JobTaskState.FINISHED else None,
-        )
-
-    @staticmethod
-    def handle_node_event(event: dict, execution: FlyteWorkflowExecution, job: Job) -> None:
-        logger.info(f"Handling node event {event}")
-
-        phase = event.get("phase")
-        if phase != PHASE_QUEUED:
-            # Do not handle states other than QUEUED
-            return
-
-        try:
-            node_name = event["nodeName"]
-        except KeyError:
-            # Skip, if there is no information about parent node or node name
-            logger.debug("Unable to process event data, skipping")
-            return
-
-        execution_type = Flyte.get_execution_type(execution)
-        if execution_type == ExecutionType.REVERT:
-            # Do not handle revert tasks progress
-            return
-
-        workflow = execution.flyte_workflow
-
-        branch_nodes = Flyte.get_workflow_branch_nodes(workflow=workflow)
-        condition_node = branch_nodes.get(node_name)
-
-        if condition_node is None:
-            logger.warning("Unable to calculate branch node")
-            return
-
-        condition = condition_node.metadata.name
-
-        steps = JobsTemplates().get_job_steps(job_type=job.type)
-        for step in steps:
-            branch = step.get_branch(condition)
-
-            if branch is not None and branch.branch != node_name:
-                skip_message = branch.skip_message
-                logger.info(
-                    f"Job changes applied: job_id={job.id}, task_id={step.task_id}, "
-                    f"state={JobTaskState.SKIPPED.value}, message={skip_message}"
-                )
-                StateMachine().set_step_details(
-                    job_id=job.id,
-                    task_id=step.task_id,
-                    state=JobTaskState.SKIPPED,
-                    message=skip_message,
-                )
-
-    @staticmethod
     @setup_session_kafka
     @unified_tracing
     def on_job_step_details(raw_message: KafkaRawMessage) -> None:
-        value: dict = raw_message.value
+        value = raw_message.value
+        if not isinstance(value, dict):
+            logger.error("Missing or invalid step details payload")
+            return
 
         if "execution_id" not in value:
             logger.error("Missing execution ID")
             return
 
         execution_name = value["execution_id"]
-        execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
 
-        if execution is None:
-            logger.error(f"Unable to fetch execution {execution_name}")
+        job_id = ProgressHandler._resolve_job_id_by_execution(execution_name)
+        if job_id is None:
             return
 
-        job_id = Flyte.get_execution_job_id(execution)
         job = StateMachine().get_by_id(job_id=ID(job_id))
+        if job is None:
+            logger.error(f"Unable to find job by it's ID {job_id}")
+            return
+        if not ProgressHandler._is_execution_current_for_job(job=job, execution_name=execution_name):
+            logger.warning(
+                "Ignoring stale step-details event for execution=%s job_id=%s (current main=%s revert=%s)",
+                execution_name,
+                job_id,
+                job.executions.main.execution_id,
+                job.executions.revert.execution_id if job.executions.revert is not None else None,
+            )
+            return
         if job.cancellation_info.is_cancelled:
             return
+
+        # Step-level progress events can arrive after terminal workflow events.
+        # Only promote into RUNNING from pre-running states.
+        if job.state in {JobState.SCHEDULING, JobState.SCHEDULED}:
+            StateMachine().set_running_state(job_id=ID(job_id))
 
         progress: float | None = value.get("progress")
         message: str | None = value.get("message")
         warning: str | None = value.get("warning")
+        task_id = value.get("task_id")
+        if not isinstance(task_id, str):
+            logger.error("Missing task_id in step details payload")
+            return
+
+        state: JobTaskState | None = JobTaskState.RUNNING
+        if isinstance(message, str) and message.lower().startswith("failed"):
+            state = JobTaskState.FAILED
+        if progress is not None and progress >= 100:
+            state = JobTaskState.FINISHED
+
+            # Keep step ordering coherent for train jobs: only allow evaluation
+            # step updates after training step has completed.
+            if task_id == "job.tasks.evaluate_and_infer.evaluate_and_infer.evaluate_and_infer":
+                train_step = next((step for step in job.step_details if step.task_id == "train"), None)
+                if train_step is not None and train_step.state != JobTaskState.FINISHED:
+                    StateMachine().set_step_details(
+                        job_id=ID(job_id),
+                        state=JobTaskState.FINISHED,
+                        task_id="train",
+                        progress=100,
+                        message="Stage: Training",
+                    )
 
         StateMachine().set_step_details(
             job_id=ID(job_id),
-            state=None,
-            task_id=value["task_id"],
+            state=state,
+            task_id=task_id,
             progress=progress,
             message=message,
             warning=warning,
@@ -329,20 +291,34 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_update(raw_message: KafkaRawMessage) -> None:
-        value: dict = raw_message.value
+        value = raw_message.value
+        if not isinstance(value, dict):
+            logger.error("Missing or invalid job update payload")
+            return
 
         if "execution_id" not in value:
             logger.error("Missing execution ID")
             return
 
         execution_name = value["execution_id"]
-        execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
 
-        if execution is None:
-            logger.error(f"Unable to fetch execution {execution_name}")
+        job_id = ProgressHandler._resolve_job_id_by_execution(execution_name)
+        if job_id is None:
             return
 
-        job_id = Flyte.get_execution_job_id(execution)
+        job = StateMachine().get_by_id(job_id=ID(job_id))
+        if job is None:
+            logger.error(f"Unable to find job by it's ID {job_id}")
+            return
+        if not ProgressHandler._is_execution_current_for_job(job=job, execution_name=execution_name):
+            logger.warning(
+                "Ignoring stale job-update event for execution=%s job_id=%s (current main=%s revert=%s)",
+                execution_name,
+                job_id,
+                job.executions.main.execution_id,
+                job.executions.revert.execution_id if job.executions.revert is not None else None,
+            )
+            return
 
         if "metadata" in value:
             StateMachine().update_metadata(job_id=ID(job_id), metadata=value["metadata"])
@@ -366,7 +342,10 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_project_deleted(raw_message: KafkaRawMessage) -> None:
-        value: dict = raw_message.value
+        value = raw_message.value
+        if not isinstance(value, dict):
+            logger.error("Missing or invalid project deletion payload")
+            return
         project_id = ID(value["project_id"])
 
         logger.info(f"Project {project_id} is deleted, cancelling and removing project jobs")
@@ -381,7 +360,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_failed(raw_message: KafkaRawMessage) -> None:
-        job_id: str = raw_message.key.decode()
+        key = raw_message.key
+        job_id = key.decode() if isinstance(key, bytes) else str(key)
 
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if not job:
@@ -416,7 +396,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_cancelled(raw_message: KafkaRawMessage) -> None:
-        job_id: str = raw_message.key.decode()
+        key = raw_message.key
+        job_id = key.decode() if isinstance(key, bytes) else str(key)
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if not job:
             raise ValueError(f"Job {job_id} not found")
@@ -435,7 +416,8 @@ class ProgressHandler(BaseKafkaHandler, metaclass=Singleton):
     @setup_session_kafka
     @unified_tracing
     def on_job_finished(raw_message: KafkaRawMessage) -> None:
-        job_id: str = raw_message.key.decode()
+        key = raw_message.key
+        job_id = key.decode() if isinstance(key, bytes) else str(key)
         job = StateMachine().get_by_id(job_id=ID(job_id))
         if not job:
             raise ValueError(f"Job {job_id} not found")

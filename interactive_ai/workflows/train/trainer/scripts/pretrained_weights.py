@@ -18,13 +18,13 @@ BUCKET_NAME_PRETRAINEDWEIGHTS = os.environ.get("BUCKET_NAME_PRETRAINEDWEIGHTS")
 logger.info(f"PRETRAINEDWEIGHTS bucket name: {BUCKET_NAME_PRETRAINEDWEIGHTS}")
 
 
-def download_file_from_url(object_name: str, file_path: str) -> None:
+def download_file_from_url(object_name: str, file_path: str, source_url: str | None = None) -> None:
     """
     Download file from weights url and save it in target S3 bucket
     """
     try:
         # Try to download the file from the Internet
-        url = f"{os.environ.get('WEIGHTS_URL')}/{object_name}"
+        url = source_url or f"{os.environ.get('WEIGHTS_URL')}/{object_name}"
         resp = requests.get(url, timeout=600)
         if resp.status_code == 200:
             with open(file_path, "wb") as f:
@@ -47,7 +47,7 @@ def download_file_from_url(object_name: str, file_path: str) -> None:
         raise
 
 
-def download_file(object_name, file_path):  # noqa: ANN001, ANN201, D103
+def download_file(object_name, file_path, source_url: str | None = None):  # noqa: ANN001, ANN201, D103
     client = S3ClientSingleton.instance()
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
@@ -57,7 +57,7 @@ def download_file(object_name, file_path):  # noqa: ANN001, ANN201, D103
     except S3Error as e:
         logger.error(f"Failed to download '{object_name}' from S3 to {file_path}: {e}.")
         if e.code == "NoSuchKey":
-            download_file_from_url(object_name, file_path)
+            download_file_from_url(object_name, file_path, source_url=source_url)
         else:
             logger.warning("Trying to get object using presigned URL")
             url = client.get_presigned_url(bucket_name=BUCKET_NAME_PRETRAINEDWEIGHTS, relative_path=object_name)
@@ -91,12 +91,16 @@ def download_pretrained_weights(work_dir: Path, template_id: str) -> None:
         metadata = json.load(f)
     # Determine obj_name depending on the config
     obj_names = []
+    obj_urls: dict[str, str] = {}
     for model in metadata:
         template_ids = model.get("template_ids")
         if template_ids is not None and isinstance(template_ids, list):
             for id in template_ids:
                 if id == template_id:
-                    obj_names.append(os.path.basename(model["target"]))
+                    object_name = os.path.basename(model["target"])
+                    obj_names.append(object_name)
+                    if isinstance(model.get("url"), str):
+                        obj_urls[object_name] = model["url"]
                     logger.info(
                         f"Found pretrained weights for template_id: {template_id},"
                         "target: {os.path.basename(model['target'])}"
@@ -109,7 +113,7 @@ def download_pretrained_weights(work_dir: Path, template_id: str) -> None:
     model_cache_dir = os.environ.get("MODEL_CACHE_DIR", "/home/non-root/.cache/torch/hub/checkpoints")
     for obj_name in obj_names:
         file_path = os.path.join(model_cache_dir, obj_name)
-        download_file(obj_name, file_path)
+        download_file(obj_name, file_path, source_url=obj_urls.get(obj_name))
         if file_path.endswith(".zip"):
             with zipfile.ZipFile(file_path) as zip_ref:
                 zip_ref.extractall(os.path.dirname(file_path))

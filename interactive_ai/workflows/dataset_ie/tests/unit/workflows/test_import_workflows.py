@@ -3,12 +3,8 @@
 
 """This module tests import workflow"""
 
-from flytekit.core.testing import task_mock
+from unittest.mock import patch
 
-from job.tasks.import_tasks.create_project_from_dataset import create_project_from_dataset
-from job.tasks.import_tasks.import_dataset_to_project import import_dataset_to_project
-from job.tasks.import_tasks.parse_dataset_existing_project import parse_dataset_for_import_to_existing_project
-from job.tasks.import_tasks.parse_dataset_new_project import parse_dataset_for_import_to_new_project
 from job.workflows.import_workflows import (
     create_project_from_dataset_workflow,
     import_dataset_to_project_workflow,
@@ -32,17 +28,17 @@ USER_ID = "user_id"
 
 class TestImportWorkflow:
     def test_prepare_import_new_project_workflow(self) -> None:
-        with task_mock(parse_dataset_for_import_to_new_project) as mock_parse:
+        with patch("job.workflows.import_workflows.parse_dataset_for_import_to_new_project") as mock_parse:
             prepare_import_new_project_workflow(import_id=IMPORT_ID)
         mock_parse.assert_called_once_with(import_id=IMPORT_ID)
 
     def test_prepare_import_existing_project_workflow(self) -> None:
-        with task_mock(parse_dataset_for_import_to_existing_project) as mock_parse:
+        with patch("job.workflows.import_workflows.parse_dataset_for_import_to_existing_project") as mock_parse:
             prepare_import_existing_project_workflow(project_id=PROJECT_ID, import_id=IMPORT_ID)
         mock_parse.assert_called_once_with(project_id=PROJECT_ID, import_id=IMPORT_ID)
 
     def test_perform_import_new_project_workflow(self) -> None:
-        with task_mock(create_project_from_dataset) as mock_create:
+        with patch("job.workflows.import_workflows.create_project_from_dataset") as mock_create:
             create_project_from_dataset_workflow(
                 import_id=IMPORT_ID,
                 project_name=PROJECT_NAME,
@@ -63,7 +59,7 @@ class TestImportWorkflow:
         )
 
     def test_perform_import_existing_project_workflow(self) -> None:
-        with task_mock(import_dataset_to_project) as mock_import:
+        with patch("job.workflows.import_workflows.import_dataset_to_project") as mock_import:
             import_dataset_to_project_workflow(
                 import_id=IMPORT_ID,
                 project_id=PROJECT_ID,

@@ -1,3 +1,0 @@
-dataStoragePath: "/data-xfs"
-storageClassName: "local-storage"
-storageLimit: "1Gi"

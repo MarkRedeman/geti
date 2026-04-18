@@ -1,9 +1,11 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 import logging
+import os
 from collections.abc import Sequence
 from datetime import datetime
 
+from microservice.authz import can_view_all_workspace_jobs, get_permitted_project_ids
 from microservice.exceptions import JobNotCancellableException
 from microservice.job_manager import JobManager, JobsAcl, JobSortingField, Pagination, SortDirection, TimestampFilter
 from microservice.rest.http_exceptions import (
@@ -15,7 +17,6 @@ from microservice.rest.http_exceptions import (
 from microservice.rest.job_rest_views import FindJobsQuery, JobRestViews
 from model.job_state import JobStateGroup
 
-from geti_spicedb_tools import Permissions, SpiceDB, SpiceDBResourceTypes
 from geti_telemetry_tools import unified_tracing
 from geti_types import CTX_SESSION_VAR, ID, Singleton
 
@@ -26,6 +27,10 @@ DEFAULT_N_JOBS_RETURNED = 10
 MAX_N_JOBS_RETURNED = 50
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
 
 
 class JobController(metaclass=Singleton):
@@ -106,17 +111,19 @@ class JobController(metaclass=Singleton):
             _sort_direction = None
 
         session = CTX_SESSION_VAR.get()
-        view_all_workspace_jobs = SpiceDB().check_permission(
-            subject_type=SpiceDBResourceTypes.USER.value,
-            subject_id=user_id,
-            resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-            resource_id=session.workspace_id,
-            permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-        )
-        permitted_projects = [
-            ID(project_id)
-            for project_id in SpiceDB().get_user_projects(user_id=user_id, permission=Permissions.VIEW_PROJECT)
-        ]
+        if _is_mock_auth_mode():
+            view_all_workspace_jobs = True
+            permitted_projects = None
+        else:
+            view_all_workspace_jobs = can_view_all_workspace_jobs(
+                user_id=user_id,
+                organization_id=str(session.organization_id),
+                workspace_id=str(session.workspace_id),
+            )
+            permitted_projects = get_permitted_project_ids(
+                user_id=user_id,
+                organization_id=str(session.organization_id),
+            )
         acl = JobsAcl(
             permitted_projects=permitted_projects, workspace_jobs_author=None if view_all_workspace_jobs else user_id
         )
@@ -188,12 +195,13 @@ class JobController(metaclass=Singleton):
         if job.project_id is None:
             if job.author == ID(user_uid):
                 return JobRestViews.job_to_rest(job=job)
-            view_all_workspace_jobs = SpiceDB().check_permission(
-                subject_type=SpiceDBResourceTypes.USER.value,
-                subject_id=user_uid,
-                resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-                resource_id=CTX_SESSION_VAR.get().workspace_id,
-                permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
+            if _is_mock_auth_mode():
+                return JobRestViews.job_to_rest(job=job)
+            session = CTX_SESSION_VAR.get()
+            view_all_workspace_jobs = can_view_all_workspace_jobs(
+                user_id=user_uid,
+                organization_id=str(session.organization_id),
+                workspace_id=str(session.workspace_id),
             )
             if view_all_workspace_jobs:
                 return JobRestViews.job_to_rest(job=job)

@@ -1,0 +1,107 @@
+# The base path of dex and the external name of the OpenID Connect service.
+#
+# This is the canonical URL that all clients MUST use to refer to dex. If a
+# path is provided, dex's HTTP service will listen at a non-root URL.
+issuer: https://geti.localhost/dex
+#issuer: {{ .Env.DEX_DOMAIN }}
+
+storage:
+  type: sqlite3
+  config:
+    file: /var/dex/dex.db
+    #file: ":memory:"
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+  responseTypes:  ["code", "token", "id_token"]
+  passwordConnector: local
+
+staticClients:
+- id: "web_ui"
+  redirectURIs:
+    - '/callback'
+  name: 'IMPT'
+  public: true
+# http://geti.localhost/dex/auth/regular_users
+# ?client_id=web_ui
+# &redirect_uri=%2Fcallback
+# &response_type=code
+# &scope=openid+profile+groups+email+offline_access
+# &state=252b25730b174d7d9361e90a6a97fc6e
+# &code_challenge=aYyYX5VGXeqLHKNzH3Kr5C1H3cYea4VDVAQtKzPOHs8
+# &code_challenge_method=S256
+# &response_mode=query
+
+enablePasswordDB: true
+
+logger:
+  level: "debug"
+
+staticPasswords:
+- email: "admin@geti.local"
+  # bcrypt hash of the string "AdminPassword123!"
+  hash: "$2y$10$3rYLiop3QvFD8hsOGAa6M.uogYRHBoh7LZzakIC4rE8uh3LECt1Ci"
+  username: "admin"
+  userID: "admin@geti.local"
+
+
+frontend:
+  dir: /web
+  extra:
+    isSMTPDefined: "false"
+    # isSMTPDefined: {{ .Values.isSMTPDefined }}
+
+# # define OpenLDAP as a LDAP
+# connectors:
+# - id: regular_users
+#   type: ldap
+#   name: OpenLDAP
+#   config:
+#     host: "impt-openldap:389"
+
+#     # No TLS for this setup.
+#     insecureNoSSL: true
+#     insecureSkipVerify: true
+
+#     # This would normally be a read-only user.
+#     bindDN: "cn=${LDAP_READONLY_USER_USERNAME},dc=example,dc=org"
+#     bindPW: "${LDAP_READONLY_USER_PASSWORD}"
+
+#     # The attribute to display in the provided password prompt. If unset, will
+#     # display "Username"
+#     # usernamePrompt: SSO Username
+#     userSearch:
+#       baseDN: dc=example,dc=org
+#       filter: "(&(!(gidNumber=502))(objectClass=posixAccount))"
+#       username: mail
+#       # "DN" (case sensitive) is a special attribute name. It indicates that
+#       # this value should be taken from the entity's DN not an attribute on
+#       # the entity.
+#       idAttr: DN
+#       emailAttr: mail
+#       nameAttr: cn
+#       preferredUsernameAttr: uid
+
+#     groupSearch:
+#       baseDN: ou=Groups,dc=example,dc=org
+#       filter: "(objectClass=posixGroup)"
+#       userMatchers:
+#       # A user is a member of a group when their DN matches
+#       # the value of a "member" attribute on the group entity.
+#         - userAttr: uid
+#           groupAttr: memberuid
+#       # The group name should be the "cn" value.
+#       nameAttr: cn
+
+# Expiration configuration for tokens, signing keys, etc.
+# expiry:
+#   deviceRequests: "5m"
+#   signingKeys: "6h"
+#   idTokens: "70m"
+#   refreshTokens:
+#     reuseInterval: "10s"
+#     validForIfNotUsed: "70m"
+#     absoluteLifetime: "8h"

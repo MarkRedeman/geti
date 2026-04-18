@@ -8,6 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"time"
 
@@ -154,16 +157,16 @@ func (s *ModelAccessServiceImpl) IsModelReady(ctx context.Context, modelID strin
 }
 
 func createModelInferRequest(ctx context.Context, params InferParameters) (*pb.ModelInferRequest, error) {
+	return createModelInferRequestWithInputName(ctx, params, "input")
+}
+
+func createModelInferRequestWithInputName(
+	ctx context.Context,
+	params InferParameters,
+	inputName string,
+) (*pb.ModelInferRequest, error) {
 	// Prepare infer request
 	var request pb.ModelInferRequest
-
-	// Setup shape
-	inputTensor := &pb.ModelInferRequest_InferInputTensor{
-		Name:     "input",
-		Datatype: "UINT8",
-		Shape:    []int64{-1, -1, -1, -1},
-	}
-	request.Inputs = append(request.Inputs, inputTensor)
 
 	// Get byte data
 	byteData, err := params.GetByteData()
@@ -172,9 +175,67 @@ func createModelInferRequest(ctx context.Context, params InferParameters) (*pb.M
 		return nil, err
 	}
 
+	shape := []int64{1}
+	rawInputContent := byteData
+	if inputName == "image" {
+		decodedImage, _, decodeErr := image.Decode(bytes.NewReader(byteData))
+		if decodeErr != nil {
+			return nil, fmt.Errorf("failed to decode image bytes: %w", decodeErr)
+		}
+
+		imageBounds := decodedImage.Bounds()
+		height := imageBounds.Dy()
+		width := imageBounds.Dx()
+		shape = []int64{1, int64(height), int64(width), 3}
+
+		rgbData := make([]byte, 0, width*height*3)
+		for y := imageBounds.Min.Y; y < imageBounds.Max.Y; y++ {
+			for x := imageBounds.Min.X; x < imageBounds.Max.X; x++ {
+				r, g, b, _ := decodedImage.At(x, y).RGBA()
+				rgbData = append(rgbData, uint8(r>>8), uint8(g>>8), uint8(b>>8))
+			}
+		}
+		rawInputContent = rgbData
+	}
+
+	// Setup shape
+	inputTensor := &pb.ModelInferRequest_InferInputTensor{
+		Name:     inputName,
+		Datatype: "UINT8",
+		Shape:    shape,
+	}
+	request.Inputs = append(request.Inputs, inputTensor)
+
 	request.ModelName = params.pipelineName
-	request.RawInputContents = [][]byte{byteData} // Byte data
+	request.RawInputContents = [][]byte{rawInputContent}
 	request.Parameters = createParameters(params) // Parameters
+
+	return &request, nil
+}
+
+func createMediapipeModelInferRequest(
+	ctx context.Context,
+	params InferParameters,
+	inputName string,
+) (*pb.ModelInferRequest, error) {
+	var request pb.ModelInferRequest
+
+	byteData, err := params.GetByteData()
+	if err != nil {
+		logger.TracingLog(ctx).Errorf("Error reading media byte data: %s", err)
+		return nil, err
+	}
+
+	inputTensor := &pb.ModelInferRequest_InferInputTensor{
+		Name:     inputName,
+		Datatype: "BYTES",
+		Shape:    []int64{1},
+		Contents: &pb.InferTensorContents{BytesContents: [][]byte{byteData}},
+	}
+
+	request.Inputs = append(request.Inputs, inputTensor)
+	request.ModelName = params.pipelineName
+	request.Parameters = createParameters(params)
 
 	return &request, nil
 }

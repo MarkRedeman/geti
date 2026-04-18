@@ -7,61 +7,32 @@ x-proxies: &proxies
     - https_proxy=${https_proxy}
     - no_proxy=${no_proxy}
 
+x-default-env-file: &default-env-file
+  - .env
+
+x-iai-runtime-env: &iai-runtime-env
+  ACCOUNT_SERVICE_HOST: platform_account
+  ACCOUNT_SERVICE_PORT: 5001
+  ACCOUNT_SERVICE_ADDRESS: platform_account:5001
+  S3_CREDENTIALS_PROVIDER: local
+  S3_PRESIGNED_URL_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_PRESIGNED_URL_SECRET_KEY: ${S3_SECRET_KEY}
+  BUCKET_NAME_IMAGES: images
+  BUCKET_NAME_VIDEOS: videos
+  BUCKET_NAME_THUMBNAILS: thumbnails
+  BUCKET_NAME_TENSORS: tensors
+  BUCKET_NAME_MODELS: models
+  BUCKET_NAME_TEMPORARYFILES: temporaryfiles
+  BUCKET_NAME_RESULTMEDIA: resultmedia
+  BUCKET_NAME_CODEDEPLOYMENTS: codedeployments
+  BUCKET_NAME_MLFLOWEXPERIMENTS: mlflowexperiments
+  BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
+  BUCKET_NAME_VPSREFERENCEFEATURES: vpsreferencefeatures
+  FEATURE_FLAG_OBJECT_STORAGE_OP: "true"
+  FEATURE_FLAGS_HEADER_VALUE: ""
+  FEATURE_FLAGS_URL: ""
+
 services:
-  # Build services
-  #
-  debian:
-    image: ${REGISTRY-ghcr.io/geti}/debian:${TAG-main}
-    build:
-      dockerfile_inline: |
-        FROM debian AS debian
-        LABEL release=1
-
-        RUN apt update \
-            && apt -y install \
-                ca-certificates \
-                curl=7.88.* \
-                wget=1.21.* \
-                netcat-traditional=1.10-* \
-                gpg \
-            && apt clean all \
-            && rm -rf /var/cache/apt/*
-      <<: *proxies
-      additional_contexts:
-        #- debian=docker-image://public.ecr.aws/debian/debian:12.8-slim
-        - debian=docker-image://gcr.io/distroless/static-debian12:nonroot
-
-
-  otx:
-    image: ${REGISTRY-ghcr.io/geti}/otx2:${TAG-main}
-    build:
-      dockerfile_inline: |
-        FROM debian AS otx
-
-        ARG OTX_RELEASE_TAG
-
-        WORKDIR /app
-
-        RUN apt-get update && \
-            apt-get install -y git \
-            && apt clean all \
-            && rm -rf /var/cache/apt/*
-
-        RUN git clone --branch ${OTX_RELEASE_TAG} --single-branch https://github.com/open-edge-platform/training_extensions.git
-
-        RUN cp -r /app/training_extensions/src/otx/tools/templates /model_templates
-      args:
-        - HTTP_PROXY=${HTTP_PROXY}
-        - HTTPS_PROXY=${HTTPS_PROXY}
-        - NO_PROXY=${NO_PROXY}
-        - http_proxy=${http_proxy}
-        - https_proxy=${https_proxy}
-        - no_proxy=${no_proxy}
-        - OTX_RELEASE_TAG=${OTX_RELEASE_TAG}
-      additional_contexts:
-        - debian=docker-image://public.ecr.aws/debian/debian:12.8-slim
-        
-
   # Platform services
   # 
   platform_account:
@@ -70,109 +41,155 @@ services:
       context: ./platform/services/account
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - credit_system=./grpc_interfaces/grpc_interfaces/credit_system/go
-        - account_service_grpc=./grpc_interfaces/grpc_interfaces/account_service/go
+        - credit_system=./libs/grpc_interfaces/src/grpc_interfaces/credit_system/go
+        - account_service_grpc=./libs/grpc_interfaces/src/grpc_interfaces/account_service/go
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.platform-account.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/(users|quotas|credits|activeUser)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/logout/?$`) || PathRegexp(`^/api/v[0-9]+/profile/?$`) || PathRegexp(`^/api/v[0-9]+/personal_access_tokens(/.*)?$`))"
+      - "traefik.http.routers.platform-account.priority=90"
+      - "traefik.http.services.platform-account.loadbalancer.server.port=5002"
+      - "traefik.http.routers.platform-account.middlewares=geti-auth@docker"
+      - "traefik.http.routers.platform-account-set-cookie.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/set_cookie/?$`)"
+      - "traefik.http.routers.platform-account-set-cookie.priority=100"
+      - "traefik.http.routers.platform-account-set-cookie.service=platform-account"
+      - "traefik.http.routers.platform-account-user-directory.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/users/reset_password/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/create/?$`) || PathRegexp(`^/api/v[0-9]+/users/.*/update_password/?$`) || PathRegexp(`^/api/v[0-9]+/users/confirm_registration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/users/invitations/?$`) || PathRegexp(`^/api/v[0-9]+/users/request_password_reset/?$`) || PathRegexp(`^/api/v[0-9]+/users/count/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/invitations/?$`) || PathPrefix(`/confirm-action/registration/reset-password`))"
+      - "traefik.http.routers.platform-account-user-directory.priority=95"
+      - "traefik.http.routers.platform-account-user-directory.service=platform-account"
+    env_file: *default-env-file
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PORT: 5432
+      POSTGRES_DB_NAME: ${DB_NAME}
+      LOGGING_CONFIG_DIR: /
+      FEATURE_FLAG_MANAGE_USERS_ROLES: "true"
+      FEATURE_FLAG_MANAGE_USERS: "true"
+      FEATURE_FLAG_REQ_ACCESS: "false"
+      ACCOUNT_SERVICE_HOST: "platform_account"
+      ACCOUNT_SERVICE_PORT: "5001"
+      ACCOUNT_SERVICE_ADDRESS: "platform_account:5001"
+      JWT_CERTIFICATE_PRIVATE_KEY_PATH: "/etc/geti-jwt-secret/tls.key"
+      JWT_CERTIFICATE_PUBLIC_KEY_PATH: "/etc/geti-jwt-secret/tls.crt"
+      HTTP_SERVER_PORT: "5002"
+      UNAUTHORIZED_URLS: "/api/v1/profile,/api/v1/logout,/api/v1/feature_flags"
+      GETI_SECRET_IMPT_JWT_CONFIG_KEY: ${GETI_JWT_SECRET_KEY}
+      GETI_CM_IMPT_CONFIGURATION_INVITE_USER_EXPIRATION: ${INVITE_USER_EXPIRATION_SEC}
+      GETI_CM_IMPT_CONFIGURATION_PASSWORD_RESET_EXPIRATION: ${PASSWORD_RESET_EXPIRATION_MIN}
+    volumes:
+      - ./infrastructure/data/auth_proxy/certs:/etc/geti-jwt-secret:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_started
+      kafka:
+        condition: service_healthy
 
-  platform_auth_proxy:
-    image: ${REGISTRY-ghcr.io/geti}/platform_auth_proxy:${TAG-main}
+  geti_init:
+    image: ${REGISTRY-ghcr.io/geti}/geti_init:${TAG-main}
     build:
-      context: ./platform/services/auth_proxy
+      context: .
+      dockerfile: infrastructure/geti_init/Dockerfile
       <<: *proxies
-      additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - account_service_client=./grpc_interfaces/grpc_interfaces/account_service/go
-
-  platform_credit:
-    image: ${REGISTRY-ghcr.io/geti}/platform_credit:${TAG-main}
-    build:
-      context: ./platform/services/credit
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs 
-        - grpc_interfaces=./grpc_interfaces
-
-  platform_notifier:
-    image: ${REGISTRY-ghcr.io/geti}/platform_notifier:${TAG-main}
-    build:
-      context: ./platform/services/notifier
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-
-  platform_observability:
-    image: ${REGISTRY-ghcr.io/geti}/platform_observability:${TAG-main}
-    build:
-      context: ./platform/services/observability
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-
-  platform_onboarding:
-    image: ${REGISTRY-ghcr.io/geti}/platform_onboarding:${TAG-main}
-    build:
-      context: ./platform/services/onboarding
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-
-  platform_initial_user:
-    image: ${REGISTRY-ghcr.io/geti}/platform_initial_user:${TAG-main}
-    build:
-      context: ./platform/services/initial_user
-      <<: *proxies
-      additional_contexts:
-        - common_libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - platform_libs=./platform/libs
-
-  platform_user_directory:
-    image: ${REGISTRY-ghcr.io/geti}/platform_user_directory:${TAG-main}
-    build:
-      context: ./platform/services/user_directory
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - platform_libs=./platform/libs
+    env_file: *default-env-file
+    environment:
+      DATABASE_USERNAME: ${MONGODB_ROOT_USERNAME}
+      DATABASE_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      DATABASE_USERNAME_SERVICE: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD_SERVICE: ${DATABASE_PASSWORD}
+      MONGODB_CREDENTIALS_PROVIDER: local
+      S3_CREDENTIALS_PROVIDER: local
+      S3_HOST: s3:8333
+      S3_ADDRESS: ${S3_ENDPOINT}
+      S3_BUCKET: ${GETI_INIT_S3_BUCKET_LIST}
+      WEIGHTS_URL: ${WEIGHTS_URL:-https://storage.geti.intel.com/weights}
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${DB_NAME}
+      ACCOUNT_SERVICE_HOST: platform_account
+      FEATURE_FLAG_WORKSPACE_ACTIONS: "false"
+      LOGGING_CONFIG_DIR: /
+      INIT_SEED_WEIGHTS: ${INIT_SEED_WEIGHTS:-0}
+      DISABLE_WEIGHT_UPLOADING: ${COMPOSE_BOOTSTRAP_DISABLE_WEIGHT_UPLOADING:-0}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      s3:
+        condition: service_started
+      db:
+        condition: service_healthy
+      platform_account:
+        condition: service_started
+    volumes:
+      - ./infrastructure/data:/host_data
+    restart: "no"
 
   # IAI Services
   # 
-  interactive_ai_auto_train:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/auto_train:${TAG-main}
+  interactive_ai_api:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
     build:
-      context: ./interactive_ai/services/auto_train
-      <<: *proxies
-      additional_contexts:
-        - training_extensions_v2=service:otx
-        - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
-
-  interactive_ai_dataset_import_export:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/dataset_import_export:${TAG-main}
-    build:
-      context: ./interactive_ai/services/dataset_ie
+      context: ./interactive_ai/services
+      dockerfile: Dockerfile.api
       <<: *proxies
       additional_contexts:
         - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
-
-  interactive_ai_director:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/director:${TAG-main}
-    build:
-      context: ./interactive_ai/services/director
-      <<: *proxies
-      additional_contexts:
-        - training_extensions_v2=service:otx
+        - iai_core=./interactive_ai/libs/iai_core_py/
+        - media_utils=./interactive_ai/libs/media_utils
+        - supported_models=./interactive_ai/supported_models/
+        - model_templates=https://github.com/open-edge-platform/training_extensions.git#${OTX_RELEASE_TAG}:lib/src/otx/tools/templates
         - schemas=./interactive_ai/services/api
-        - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+    working_dir: /interactive_ai/services
+    command: ["python", "main.py"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-api-health.rule=Host(`geti.localhost`) && Path(`/api/v1/healthz`)"
+      - "traefik.http.routers.interactive-ai-api-health.priority=40"
+      - "traefik.http.routers.interactive-ai-api-health.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-dataset-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/datasets/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/(prepare-for-import|import-from-dataset|prepare-for-export)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/exports(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets/.*:prepare-for-export.*$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+/datasets:prepare-for-import.*$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/[^/]+:import-from-dataset.*$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/[^/]+/projects:import-from-dataset.*$`))"
+      - "traefik.http.routers.interactive-ai-dataset-ie.priority=75"
+      - "traefik.http.routers.interactive-ai-dataset-ie.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-dataset-ie.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-project-ie.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/projects/uploads/resumable(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:export$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/exports/.*/download/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects:import$`))"
+      - "traefik.http.routers.interactive-ai-project-ie.priority=75"
+      - "traefik.http.routers.interactive-ai-project-ie.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-project-ie.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-jobs.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/jobs(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/jobs(/.*)?$`))"
+      - "traefik.http.routers.interactive-ai-jobs.priority=70"
+      - "traefik.http.routers.interactive-ai-jobs.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-jobs.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-director.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/organizations/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/workspaces/.*/(predictions|train|optimize|settings|datasets/active|configuration|tests)(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*:train$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:optimize$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/supported_algorithms/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/project_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/training_configuration/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/training_configuration/?$`))"
+      - "traefik.http.routers.interactive-ai-director.priority=65"
+      - "traefik.http.routers.interactive-ai-director.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-director.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-resource.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/healthz/?$`) || PathRegexp(`^/api/v[0-9]+/product_info/?$`) || PathRegexp(`^/api/v[0-9]+/user_settings/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects_names/?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/projects(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/models(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/datasets(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/.*/media(/.*)?$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/.*/deployment_package.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/.*/training_revisions.*$`) || PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/tests/.*/results:query$`))"
+      - "traefik.http.routers.interactive-ai-resource.priority=50"
+      - "traefik.http.routers.interactive-ai-resource.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-resource.service=interactive-ai-api"
+      - "traefik.http.routers.interactive-ai-resource-test-results.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/organizations/.*/workspaces/.*/projects/.*/tests/.*/results:query$`) || PathRegexp(`^/api/v[0-9]+/.*/projects/.*/tests/.*/results:query$`))"
+      - "traefik.http.routers.interactive-ai-resource-test-results.priority=70"
+      - "traefik.http.routers.interactive-ai-resource-test-results.middlewares=geti-auth@docker"
+      - "traefik.http.routers.interactive-ai-resource-test-results.service=interactive-ai-api"
+      - "traefik.http.services.interactive-ai-api.loadbalancer.server.port=8000"
+    env_file: *default-env-file
+    environment:
+      <<: *iai-runtime-env
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
+      PYTHONPATH: /interactive_ai/services
+      JOB_SERVICE_ADDRESS: localhost:50051
+      GRPC_SERVICE_PORT: 5555
+      BUCKET_NAME_MODELMESH: models
+      RESOURCE_MS_SERVICE: localhost
+      RESOURCE_MS_PORT: 8000
+      OVMS_MODELS_DIR: /ovms_models
+    depends_on:
+      geti_init:
+        condition: service_completed_successfully
+    user: "0:0"
+    volumes:
+      - ./infrastructure/data/ovms:/ovms_models
 
   interactive_ai_inference_gateway:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/inference_gateway:${TAG-main}
@@ -180,22 +197,135 @@ services:
       context: ./interactive_ai/services/inference_gateway
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - go_sdk=./interactive_ai/libs/go_sdk/
-        - modelmesh=./grpc_interfaces/grpc_interfaces/model_mesh/go/pb
-        - modelregistration=./grpc_interfaces/grpc_interfaces/model_registration/go/pb
-        - predict=./grpc_interfaces/grpc_interfaces/predict/go/pb
+        - iai_core=./interactive_ai/libs/iai_core_go/
+        - modelmesh=./libs/grpc_interfaces/src/grpc_interfaces/model_mesh/go/pb
+        - modelregistration=./libs/grpc_interfaces/src/grpc_interfaces/model_registration/go/pb
+        - predict=./libs/grpc_interfaces/src/grpc_interfaces/predict/go/pb
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-inference-gateway.rule=Host(`geti.localhost`) && (PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*/status/?$`) || PathRegexp(`^/api/v[0-9]+/.*/models/.*:(predict|explain|batch_predict|batch_explain|batch_predict_stream)$`))"
+      - "traefik.http.routers.interactive-ai-inference-gateway.priority=80"
+      - "traefik.http.routers.interactive-ai-inference-gateway.middlewares=geti-auth@docker"
+      - "traefik.http.services.interactive-ai-inference-gateway.loadbalancer.server.port=7000"
+    env_file: *default-env-file
+    environment:
+      <<: *iai-runtime-env
+      OVMS_SERVICE: ovms
+      OVMS_PORT: 9000
+      DIRECTOR_MS_SERVICE: interactive_ai_api
+      DIRECTOR_MS_ADDRESS: http://interactive_ai_api:8000
+      MODELREGISTRATION_SERVICE: interactive_ai_api
+      MODELREGISTRATION_PORT: 5555
+      MODELREGISTRATION_ADDRESS: passthrough:///interactive_ai_api:5555
+    depends_on:
+      geti_init:
+        condition: service_completed_successfully
+      ovms:
+        condition: service_started
+      interactive_ai_api:
+        condition: service_started
 
-  interactive_ai_jobs:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/jobs:${TAG-main}
-    build:
-      context: ./interactive_ai/services/jobs
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
+  interactive_ai_jobs_scheduler:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/jobs
+    command:
+      - python
+      - scheduler/main.py
+    env_file: *default-env-file
+    environment:
+      <<: *iai-runtime-env
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
+      PYTHONPATH: /interactive_ai/services/jobs
+      JOBS_TEMPLATES_DIR: /config
+      JOBS_TEMPLATES_FILE: jobs_templates.yaml
+      SCHEDULING_POLICY_SERVICE_LOOP_INTERVAL: 1
+      RESOURCE_MANAGER_LOOP_INTERVAL: 60
+    depends_on:
+      geti_init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./infrastructure/data/jobs/jobs_templates.yaml:/config/jobs_templates.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  interactive_ai_jobs_worker:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/jobs
+    command:
+      - python
+      - -m
+      - celery
+      - -A
+      - scheduler.celery_app.celery_app
+      - worker
+      - --loglevel=INFO
+      - --pool=solo
+      - --concurrency=1
+    env_file: *default-env-file
+    environment:
+      <<: *iai-runtime-env
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
+      PYTHONPATH: /interactive_ai/services/jobs
+      DATASET_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_dataset_import_export:${TAG-main}
+      PROJECT_IE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_project_import_export:${TAG-main}
+      MODEL_TEST_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
+      TRAIN_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
+      OPTIMIZE_WORKFLOW_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_optimize:${TAG-main}
+      TRAINER_RUNTIME_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
+      TRAINER_RUNTIME_XPU_IMAGE: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
+      TRAINER_RUNTIME_COMMAND: run
+      WORKFLOW_RUNTIME_IPC: host
+      SHARD_FILES_DIR: /shard_files
+      BUCKET_NAME_MLFLOWEXPERIMENTS: mlflowexperiments
+      BUCKET_NAME_PRETRAINEDWEIGHTS: pretrainedweights
+      MODEL_CACHE_DIR: /home/non-root/.cache/torch/hub/checkpoints
+      WORKFLOW_EVALUATE_STUB: "true"
+      WORKFLOW_EVALUATE_STUB_METADATA: "true"
+      WORKFLOW_EVALUATE_STUB_EVALUATE: "false"
+      WORKFLOW_EVALUATE_STUB_REGISTER: "false"
+      WORKFLOW_EVALUATE_STUB_ACCEPTANCE: "false"
+      WORKFLOW_EVALUATE_STUB_TASK_INFER: "false"
+      WORKFLOW_EVALUATE_STUB_PIPELINE_INFER: "false"
+      WORKFLOW_OPTIMIZE_STUB_EVALUATE: "false"
+      STORAGE_DIR_PATH: /tmp/ie_storage
+      MONGODB_CREDENTIALS_PROVIDER: local
+      JOBS_SCHEDULER: interactive_ai_jobs_scheduler:50051
+      MODEL_REGISTRATION_SERVICE: interactive_ai_api:5555
+      SESSION_ORGANIZATION_ID: ${MOCK_SESSION_ORGANIZATION_ID}
+      SESSION_WORKSPACE_ID: ${MOCK_SESSION_WORKSPACE_ID}
+      JOB_METADATA_ID: ${MOCK_JOB_METADATA_ID}
+      JOB_METADATA_TYPE: ${MOCK_JOB_METADATA_TYPE}
+      JOB_METADATA_NAME: ${MOCK_JOB_METADATA_NAME}
+      JOB_METADATA_AUTHOR: ${MOCK_JOB_METADATA_AUTHOR}
+      JOB_METADATA_START_TIME: ${MOCK_JOB_METADATA_START_TIME}
+      FEATURE_FLAGS_HEADER_VALUE: ""
+      FEATURE_FLAGS_URL: ""
+      WORKFLOW_DOCKER_NETWORK: ${COMPOSE_DOCKER_NETWORK}
+    depends_on:
+      redis:
+        condition: service_started
+      s3:
+        condition: service_started
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      geti_init:
+        condition: service_completed_successfully
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: "0:0"
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
 
   interactive_ai_media:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/media:${TAG-main}
@@ -203,129 +333,130 @@ services:
       context: ./interactive_ai/services/media
       <<: *proxies
       additional_contexts:
-        - dev-go=docker-image://${GO_IMAGE}
-        - debian_image=service:debian
-        - go_sdk=./interactive_ai/libs/go_sdk/
+        - iai_core=./interactive_ai/libs/iai_core_go/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-media.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/datasets/.*/media/images/.*/display/(full|thumb)$`)"
+      - "traefik.http.routers.interactive-ai-media.priority=70"
+      - "traefik.http.services.interactive-ai-media.loadbalancer.server.port=5002"
+    env_file: *default-env-file
+    environment:
+      <<: *iai-runtime-env
+    depends_on:
+      geti_init:
+        condition: service_completed_successfully
 
-  interactive_ai_mlflow_geti_store:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/mlflow_geti_store:${TAG-main}
-    build:
-      <<: *proxies
-      context: ./interactive_ai/services/mlflow_geti_store
-
-  interactive_ai_model_registration:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/model_registration:${TAG-main}
-    build:
-      context: ./interactive_ai/services/model_registration
-      <<: *proxies
-      additional_contexts:
-        - grpc_interfaces=./grpc_interfaces
-
-  interactive_ai_project_import_export:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/project_import_export:${TAG-main}
-    build:
-      context: ./interactive_ai/services/project_ie
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs 
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk/
-
-  interactive_ai_resource:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/resource:${TAG-main}
-    build:
-      context: ./interactive_ai/services/resource
-      <<: *proxies
-      additional_contexts:
-        - training_extensions_v2=service:otx
-        - schemas=./interactive_ai/services/api
-        - libs=./libs 
-        - grpc_interfaces=./grpc_interfaces
-        - sc_sdk=./interactive_ai/libs/sc_sdk
-        - media_utils=./interactive_ai/libs/media_utils
+  ovms:
+    image: openvino/model_server:2025.0
+    command:
+      - --port=9000
+      - --rest_port=8080
+      - --config_path=/models/models.json
+      - --file_system_poll_wait_seconds=5
+    ports:
+      - "9000:9000"
+      - "8080:8080"
+    volumes:
+      - ./infrastructure/data/ovms:/models
+    restart: unless-stopped
 
   interactive_ai_visual_prompt:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/visual_prompt:${TAG-main}
-    build:
-      context: ./interactive_ai/services/visual_prompt
-      <<: *proxies
-      additional_contexts:
-        - libs=./libs 
-        - sc_sdk=./interactive_ai/libs/sc_sdk
-        - media_utils=./interactive_ai/libs/media_utils
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/api:${TAG-main}
+    working_dir: /interactive_ai/services/visual_prompt/services
+    command: ["python", "main.py"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.interactive-ai-visual-prompt.rule=Host(`geti.localhost`) && PathRegexp(`^/api/v[0-9]+/.*/pipelines/.*:prompt$`)"
+      - "traefik.http.routers.interactive-ai-visual-prompt.priority=80"
+      - "traefik.http.routers.interactive-ai-visual-prompt.middlewares=geti-auth@docker"
+      - "traefik.http.services.interactive-ai-visual-prompt.loadbalancer.server.port=8000"
+    env_file: *default-env-file
+    environment:
+      <<: *iai-runtime-env
+      PATH: /interactive_ai/services/env_core/.venv/bin:$PATH
+      PYTHONPATH: /interactive_ai/services/visual_prompt
+    depends_on:
+      geti_init:
+        condition: service_completed_successfully
 
   # IAI Workflows
   # 
   interactive_ai_workflows_dataset_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_dataset_import_export:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/dataset_ie
+      context: ./interactive_ai/workflows/dataset_ie
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
+        - supported_models=./interactive_ai/supported_models/
+        - model_templates=https://github.com/open-edge-platform/training_extensions.git#${OTX_RELEASE_TAG}:lib/src/otx/tools/templates
 
   interactive_ai_workflows_model_test:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_model_test:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/model_test
+      context: ./interactive_ai/workflows/model_test
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
-
 
   interactive_ai_workflows_project_import_export:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_project_import_export:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/project_ie
+      context: ./interactive_ai/workflows/project_ie
       <<: *proxies
       additional_contexts:
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
         - data_migration=./interactive_ai/data_migration
 
   interactive_ai_workflows_optimize:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_optimize:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/optimize
+      context: ./interactive_ai/workflows/optimize
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
+        - model_templates=https://github.com/open-edge-platform/training_extensions.git#${OTX_RELEASE_TAG}:lib/src/otx/tools/templates
 
   interactive_ai_workflows_train:
     image: ${REGISTRY-ghcr.io/geti}/interactive_ai/workflows_train:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/geti_domain/train
+      context: ./interactive_ai/workflows/train
       <<: *proxies
       additional_contexts:
-        - training_extensions_v2=service:otx
-        - common=./interactive_ai/workflows/geti_domain/common
+        - common=./interactive_ai/workflows/common
         - libs=./libs
-        - sc_sdk=./interactive_ai/libs/sc_sdk
+        - iai_core=./interactive_ai/libs/iai_core_py/
         - media_utils=./interactive_ai/libs/media_utils
-        - grpc_interfaces=./grpc_interfaces
+        - supported_models=./interactive_ai/supported_models/
+        - model_templates=https://github.com/open-edge-platform/training_extensions.git#${OTX_RELEASE_TAG}:lib/src/otx/tools/templates
 
-
-  interactive_ai_workflows_otx_v2:
-    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2:${TAG-main}
+  interactive_ai_workflows_otx_v2_gpu:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_gpu:${TAG-main}
     build:
-      context: ./interactive_ai/workflows/otx_domain/trainer/otx_v2/
+      context: ./interactive_ai/workflows/train/trainer
+      dockerfile: ./gpu/Dockerfile
+      <<: *proxies
+      additional_contexts:
+        - libs=./libs
+
+  interactive_ai_workflows_otx_v2_xpu:
+    image: ${REGISTRY-ghcr.io/geti}/interactive_ai/otx_v2_xpu:${TAG-main}
+    privileged: true
+    build:
+      context: ./interactive_ai/workflows/train/trainer
+      dockerfile: ./xpu/Dockerfile
       <<: *proxies
       additional_contexts:
         - libs=./libs
@@ -342,3 +473,152 @@ services:
         - node_image=docker-image://${NODE_IMAGE}
         - docs_context=./docs 
         - api_context=./interactive_ai/services/api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.geti-web.rule=(Host(`geti.localhost`) && !(PathPrefix(`/dex`)) && !(PathPrefix(`/api`))) || Host(`web.geti.localhost`)"
+      - "traefik.http.routers.geti-web-feature-flags.rule=Host(`geti.localhost`) && Path(`/api/v1/feature_flags`)"
+      - "traefik.http.routers.geti-web-feature-flags.priority=200"
+      - "traefik.http.routers.geti-web-feature-flags.service=geti-web"
+      - "traefik.http.routers.geti-web.priority=1"
+      - "traefik.http.services.geti-web.loadbalancer.server.port=3000"
+
+
+  # Infrastructure
+  #
+  # traefik
+  reverse-proxy:
+    image: traefik:v3.6.13
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.filename=/etc/traefik/tls.yml"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--api=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infrastructure/traefik-tls.yml:/etc/traefik/tls.yml:ro
+      - ./infrastructure/data/auth_proxy/certs/tls.crt:/certs/tls.crt:ro
+      - ./infrastructure/data/auth_proxy/certs/tls.key:/certs/tls.key:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.middlewares.geti-auth.forwardauth.address=http://platform_account:5002/api/v1/auth"
+      - "traefik.http.middlewares.geti-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.geti-auth.forwardauth.authResponseHeaders=x-auth-request-access-token"
+    restart: unless-stopped
+  dex:
+    image: dexidp/dex
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - '${PWD}/infrastructure/data/dex/config.yml:/config.yml:ro'
+      - '${PWD}/infrastructure/data/dex/dex.db:/var/dex/dex.db'
+      - '${PWD}/web_ui/dex_templates:/web'
+    command: ['dex', 'serve','/config.yml']
+    #command: ['/bin/sh']
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dex.rule=(Host(`geti.localhost`) && PathPrefix(`/dex`))"
+      - "traefik.http.services.dex.loadbalancer.server.port=5556"
+    environment:
+      DEX_DOMAIN: "dex.geti.localhost"
+    restart: unless-stopped
+
+
+  kafka:
+    image: apache/kafka:3.7.1
+    env_file: *default-env-file
+    environment:
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx256m"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9094,PLAINTEXT_HOST://:9095
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9095
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 24
+      ALLOW_PLAINTEXT_LISTENER: yes
+    ports:
+      - 9095:9095
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      start_period: 15s
+      interval: 10s
+      retries: 5
+      timeout: 10s
+    restart: always
+
+  s3:
+    image: chrislusf/seaweedfs:3.69
+    restart: always
+    command: server -s3 -dir=/data
+    ports:
+      - "8333:8333"
+    volumes:
+      - s3_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fileservice.rule=Host(`geti.localhost`) && PathPrefix(`/api/v1/fileservice/`)"
+      - "traefik.http.routers.fileservice.priority=60"
+      - "traefik.http.routers.fileservice.middlewares=fileservice-strip@docker"
+      - "traefik.http.middlewares.fileservice-strip.stripprefix.prefixes=/api/v1/fileservice"
+      - "traefik.http.services.fileservice.loadbalancer.server.port=8333"
+
+  db:
+    image: postgres:14.13
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --dbname=${DB_NAME} --username=${DB_USER}"]
+      start_period: 20s
+      interval: 10s
+      retries: 5
+      timeout: 10s
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mongodb:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE_NAME}
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--username", "${MONGODB_ROOT_USERNAME}", "--password", "${MONGODB_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
+      start_period: 20s
+      interval: 10s
+      retries: 5
+      timeout: 10s
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  s3_data:
+  postgres_data:
+  mongodb_data:
+
+networks:
+  default:
+    name: geti

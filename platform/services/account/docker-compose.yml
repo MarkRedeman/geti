@@ -32,17 +32,6 @@ services:
     ports:
       - "8333:8333"
 
-  spicedb:
-    image: authzed/spicedb:v1.34.0
-    command: serve --grpc-preshared-key "somerandomkeyhere"
-    restart: always
-    healthcheck:
-      test: ["CMD", "grpc_health_probe", "-v", "-addr=localhost:50051"]
-      start_period: 15s
-      interval: 10s
-      retries: 5
-      timeout: 10s
-
   db:
     image: postgres:14.13
     environment:
@@ -68,8 +57,6 @@ services:
       S3_ENDPOINT: "http://s3:8333"
       S3_ACCESS_KEY: "dummy"
       S3_SECRET_KEY: "dummy"
-      SPICEDB_ADDRESS: "spicedb:50051"
-      SPICEDB_TOKEN: "somerandomkeyhere"
       KAFKA_ADDRESS: "kafka:9092"
       LOGGING_CONFIG_DIR: "/"
       USERS_PER_ORG_LIMIT: 300
@@ -85,8 +72,6 @@ services:
       s3:
         condition: service_started
       kafka:
-        condition: service_healthy
-      spicedb:
         condition: service_healthy
     volumes:
       - ./LOG_LEVEL:/LOG_LEVEL

@@ -8,20 +8,16 @@ dependencies = [
     "Pillow==12.1.1",
     "defusedxml==0.7.1",
     "geti-kafka-tools",
-    "geti-spicedb-tools",
     "geti-telemetry-tools[telemetry,grpc,kafka,logger]",
     "geti-types",
-    "geti-k8s-tools",
     "migration",
     "workflows_common",
 ]
 
 [tool.uv.sources]
 geti-kafka-tools = { path = "../../../libs/kafka_tools", editable = true }
-geti-spicedb-tools = { path = "../../../libs/spicedb_tools", editable = true }
 geti-telemetry-tools = { path = "../../../libs/telemetry_tools", editable = true }
 geti-types = { path = "../../../libs/types", editable = true }
-geti-k8s-tools = { path = "../../../libs/k8s_tools", editable = true }
 migration = { path = "../../data_migration", editable = true }
 workflows_common = { path = "../common", editable = true }
 

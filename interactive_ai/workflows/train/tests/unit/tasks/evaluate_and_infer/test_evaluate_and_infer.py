@@ -61,10 +61,10 @@ class TestEvaluateAndInferTask:
         mocked_from_env_vars,
         should_activate_model,
         infer_on_pipeline,
-        fxt_train_data_for_flyte_task_trainer,
+        fxt_train_data_for_task_trainer,
     ) -> None:
         # Arrange
-        train_data = fxt_train_data_for_flyte_task_trainer
+        train_data = fxt_train_data_for_task_trainer
         mocked_evaluate.return_value = (False, TRAIN_INFERENCE_SUBSET_ID)
 
         # Act
@@ -110,12 +110,13 @@ class TestEvaluateAndInferTask:
                 call(progress=-1, message="Starting model evaluation and inference"),
                 call(progress=20.0, message="Starting model evaluation"),
                 call(
+                    progress=0,
                     message=(
                         "The training is finished successfully but the new model accuracy is lower than the previous "
                         "model accuracy. Possible solutions: (1) add more annotated data to the dataset, (2) train "
                         "from scratch, (3) use a different model architecture or (4) run optimize accuracy operation "
                         "from the last trained model. (ID: job_id)"
-                    )
+                    ),
                 ),
             ]
         )
@@ -149,10 +150,10 @@ class TestEvaluateAndInferTask:
         mocked_pipeline_infer_on_unannotated,
         mocked_report_progress,
         mocked_from_env_vars,
-        fxt_train_data_for_flyte_task_trainer,
+        fxt_train_data_for_task_trainer,
     ) -> None:
         # Arrange
-        train_data = fxt_train_data_for_flyte_task_trainer
+        train_data = fxt_train_data_for_task_trainer
         mocked_evaluate.side_effect = Exception
 
         # Act
@@ -198,10 +199,11 @@ class TestEvaluateAndInferTask:
                 call(progress=-1, message="Starting model evaluation and inference"),
                 call(progress=20.0, message="Starting model evaluation"),
                 call(
+                    progress=0,
                     message=(
                         "Training failed at evaluation stage. No model is saved from this training round. "
                         "Please try again and if problem persists, reach out to us on GitHub. (ID: job_id)"
-                    )
+                    ),
                 ),
             ]
         )
@@ -235,10 +237,10 @@ class TestEvaluateAndInferTask:
         mocked_pipeline_infer_on_unannotated,
         mocked_report_progress,
         mocked_from_env_vars,
-        fxt_train_data_for_flyte_task_trainer,
+        fxt_train_data_for_task_trainer,
     ) -> None:
         # Arrange
-        train_data = fxt_train_data_for_flyte_task_trainer
+        train_data = fxt_train_data_for_task_trainer
         mocked_evaluate.return_value = (True, TRAIN_INFERENCE_SUBSET_ID)
         mocked_post_model_acceptance.side_effect = Exception
 
@@ -290,10 +292,11 @@ class TestEvaluateAndInferTask:
                 call(progress=20.0, message="Starting model evaluation"),
                 call(progress=40.0, message="Activating trained model"),
                 call(
+                    progress=0,
                     message=(
                         "Training failed at evaluation stage. No model is saved from this training round. "
                         "Please try again and if problem persists, reach out to us on GitHub. (ID: job_id)"
-                    )
+                    ),
                 ),
             ]
         )
@@ -321,10 +324,10 @@ class TestEvaluateAndInferTask:
         mocked_register_models,
         mocked_pipeline_infer_on_unannotated,
         mocked_report_progress,
-        fxt_train_data_for_flyte_task_trainer,
+        fxt_train_data_for_task_trainer,
     ) -> None:
         # Arrange
-        train_data = fxt_train_data_for_flyte_task_trainer
+        train_data = fxt_train_data_for_task_trainer
         mocked_evaluate.return_value = (True, TRAIN_INFERENCE_SUBSET_ID)
         mocked_task_infer_on_unannotated.side_effect = Exception
 
@@ -417,10 +420,10 @@ class TestEvaluateAndInferTask:
         mocked_register_models,
         mocked_pipeline_infer_on_unannotated,
         mocked_report_progress,
-        fxt_train_data_for_flyte_task_trainer,
+        fxt_train_data_for_task_trainer,
     ) -> None:
         # Arrange
-        train_data = fxt_train_data_for_flyte_task_trainer
+        train_data = fxt_train_data_for_task_trainer
         mocked_evaluate.return_value = (True, TRAIN_INFERENCE_SUBSET_ID)
         mocked_pipeline_infer_on_unannotated.side_effect = Exception
 
@@ -520,10 +523,10 @@ class TestEvaluateAndInferTask:
         should_activate_model,
         infer_on_pipeline,
         from_scratch,
-        fxt_train_data_for_flyte_task_trainer,
+        fxt_train_data_for_task_trainer,
     ) -> None:
         # Arrange
-        train_data = fxt_train_data_for_flyte_task_trainer
+        train_data = fxt_train_data_for_task_trainer
         mocked_evaluate.return_value = (True, TRAIN_INFERENCE_SUBSET_ID)
 
         # Act

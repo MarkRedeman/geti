@@ -6,7 +6,6 @@ package common
 import (
 	"errors"
 
-	"account_service/app/config"
 	"account_service/app/models"
 	"account_service/app/roles"
 
@@ -16,7 +15,7 @@ import (
 )
 
 func IsLastOrgAdmin(orgID string, userID string) (bool, error) {
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return false, err

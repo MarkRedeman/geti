@@ -15,7 +15,7 @@ from iai_core.repos import ModelStorageRepo, ModelTestResultRepo, ProjectRepo
 from iai_core.utils.dataset_helper import DatasetHelper
 from jobs_common.exceptions import UnsupportedModelFormatForModelTestingException
 from jobs_common.jobs.helpers.project_helpers import lock_project
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import ProgressRange, report_progress, task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, env_vars

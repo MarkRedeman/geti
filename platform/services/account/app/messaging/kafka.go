@@ -4,11 +4,12 @@
 package messaging
 
 import (
-	"account_service/app/config"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"strings"
+
+	"account_service/app/config"
 
 	"github.com/IBM/sarama"
 	"github.com/xdg-go/scram"

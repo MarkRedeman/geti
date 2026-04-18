@@ -184,15 +184,15 @@ func (s *GRPCServer) Create(ctx context.Context, request *pb.PersonalAccessToken
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
 	}
 
-	logger.Debug("Adding SpiceDB relation")
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	logger.Debug("Adding service account relation")
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
 	}
 	err = rolesMgr.AddServiceAccountToUser(userId.String(), pat.ID.String())
 	if err != nil {
-		logger.Errorf("Error adding service account to SpiceDB: %v", err)
+		logger.Errorf("Error adding service account relationship: %v", err)
 		return nil, status.Error(codes.Unknown, "unexpected error")
 	}
 
@@ -352,14 +352,14 @@ func (s *GRPCServer) Revoke(ctx context.Context, request *pb.PersonalAccessToken
 			return status.Errorf(codes.Unauthenticated, "unexpected error")
 		}
 
-		rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+		rolesMgr, err := roles.NewRolesManager()
 		if err != nil {
 			logger.Errorf("unable to initialize client: %v", err)
 			return status.Errorf(codes.Unauthenticated, "unexpected error")
 		}
 		err = rolesMgr.DeleteServiceAccountFromUser(userId.String(), request.Id)
 		if err != nil {
-			logger.Errorf("Failure during relation deletion from spicedb: %v", err)
+			logger.Errorf("Failure during relationship deletion: %v", err)
 			return status.Errorf(codes.Unauthenticated, "unexpected error")
 		}
 		return nil

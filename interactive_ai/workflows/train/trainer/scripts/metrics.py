@@ -40,4 +40,8 @@ class OTXMetricsLogger(Logger):
         print(self.metrics)
 
     def finalize(self, status: str) -> None:  # noqa: ARG002
-        upload_model_artifact(src_filepath=self.file_path, dst_filepath=Path("live_metrics/metrics.json"))
+        upload_model_artifact(
+            src_filepath=self.file_path,
+            dst_filepath=Path("live_metrics/metrics.json"),
+            overwrite=True,
+        )

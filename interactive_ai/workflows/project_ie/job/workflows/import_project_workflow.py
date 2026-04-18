@@ -3,12 +3,9 @@
 
 """This module implements project import workflow"""
 
-from flytekit import workflow
-
 from job.tasks.import_project import import_project
 
 
-@workflow
 def import_project_workflow(
     file_id: str,
     keep_original_dates: bool,
@@ -16,7 +13,7 @@ def import_project_workflow(
     user_id: str,
 ) -> None:
     """
-    Flyte workflow for importing geti projects.
+    Workflow for importing geti projects.
 
     :param file_id: S3 object id of the uploaded project
     :param keep_original_dates: if True original exported dates are kept

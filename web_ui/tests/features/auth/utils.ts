@@ -8,7 +8,7 @@ import { User } from 'oidc-client-ts';
 import { generateToken as generateJWT } from '../../utils/generate-token';
 
 export const routeLoginRequest = async (page: Page) => {
-    await page.route('/dex/auth/regular_users*', async (route) => {
+    await page.route('/dex/auth/local*', async (route) => {
         const request = route.request();
         const url = new URL(request.url());
 

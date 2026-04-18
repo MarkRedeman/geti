@@ -12,10 +12,6 @@ libs/grpc_interfaces:
   - libs/grpc_interfaces/**
   - libs/types/**
   - .github/libs-path-filters.yml
-libs/k8s_tools:
-  - libs/k8s_tools/**
-  - libs/Makefile**
-  - .github/libs-path-filters.yml
 libs/kafka_tools:
   - libs/kafka_tools/**
   - libs/Makefile**

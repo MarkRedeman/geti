@@ -104,7 +104,7 @@ class TrainTaskJobData:
             "hyper_parameters_id": (str(self.hyper_parameters_id) if self.hyper_parameters_id else ""),
             # NOTE: By CVS-147120, we fix this value to true always to remove feature flag.
             # However, leaving this flag itself can make it easier to debug the future problem (e.g., CVS-142877).
-            # You can still launch the job with `enable_training_from_dataset_shard=False` from Flyte console.
+            # You can still launch the job with `enable_training_from_dataset_shard=False` from the API.
             "enable_training_from_dataset_shard": True,
             "max_training_dataset_size": self.max_training_dataset_size,
             "min_annotation_size": self.min_annotation_size,

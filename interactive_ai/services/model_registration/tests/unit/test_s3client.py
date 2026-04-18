@@ -110,3 +110,38 @@ def test_list_folders(s3_client):
     folder_names = s3_client.list_folders("list-bucket")
     assert "folder1" in folder_names
     assert "folder2" in folder_names
+
+
+def test_put_get_json_object(s3_client):
+    s3_client.client.create_bucket(Bucket="json-bucket")
+    payload = {"pipeline_name": "p1", "status": "created"}
+    s3_client.put_json_object("json-bucket", "p1/.registry.json", payload)
+
+    loaded = s3_client.get_json_object("json-bucket", "p1/.registry.json")
+    assert loaded == payload
+
+
+def test_get_json_object_missing(s3_client):
+    s3_client.client.create_bucket(Bucket="json-bucket")
+    assert s3_client.get_json_object("json-bucket", "missing/.registry.json") is None
+
+
+def test_list_registry_folders(s3_client):
+    s3_client.client.create_bucket(Bucket="registry-bucket")
+    s3_client.client.put_object(Bucket="registry-bucket", Key="p1/.registry.json", Body="{}")
+    s3_client.client.put_object(Bucket="registry-bucket", Key="p2/.registry.json", Body="{}")
+    s3_client.client.put_object(Bucket="registry-bucket", Key="p2/model.xml", Body="data")
+
+    names = s3_client.list_registry_folders("registry-bucket")
+    assert names == ["p1", "p2"]
+
+
+def test_download_folder(s3_client, tmp_path):
+    s3_client.client.create_bucket(Bucket="download-bucket")
+    s3_client.client.put_object(Bucket="download-bucket", Key="pipeline/a.txt", Body="A")
+    s3_client.client.put_object(Bucket="download-bucket", Key="pipeline/sub/b.txt", Body="B")
+
+    s3_client.download_folder("download-bucket", "pipeline", str(tmp_path))
+
+    assert (tmp_path / "a.txt").read_text() == "A"
+    assert (tmp_path / "sub" / "b.txt").read_text() == "B"

@@ -7,7 +7,7 @@ import logging
 from enum import IntEnum, auto
 
 from iai_core.entities.model_template import task_type_to_label_domain
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import publish_metadata_update, task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, env_vars

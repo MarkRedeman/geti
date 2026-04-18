@@ -6,7 +6,6 @@ package common
 import (
 	"fmt"
 
-	"account_service/app/config"
 	"account_service/app/roles"
 
 	"geti.com/account_service_grpc/pb"
@@ -62,7 +61,7 @@ func HasRole(roles []*pb.UserRole, roleName string, resourceTypes []string, reso
 func FilterRolesByCurrentUserPermissions(currentUserID string, rolesToFilter []*pb.UserRole) ([]*pb.UserRole, error) {
 	var filteredRoles []*pb.UserRole
 
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
@@ -82,22 +81,22 @@ func FilterRolesByCurrentUserPermissions(currentUserID string, rolesToFilter []*
 
 		if roleResourceType == "workspace" || roleResourceType == "organization" {
 
-            var organizationID string
+			var organizationID string
 
 			if roleResourceType == "workspace" {
-			    organizationID, err = rolesMgr.GetWorkspaceParentOrganizationID(role.GetResourceId())
-                if err != nil {
-                    logger.Errorf("unable to get parent organization for the workspace %s: %v", role.GetResourceId(), err)
-                    continue
-                }
+				organizationID, err = rolesMgr.GetWorkspaceParentOrganizationID(role.GetResourceId())
+				if err != nil {
+					logger.Errorf("unable to get parent organization for the workspace %s: %v", role.GetResourceId(), err)
+					continue
+				}
 			} else {
-			    organizationID = role.GetResourceId()
+				organizationID = role.GetResourceId()
 			}
 
-            if HasRole(currentUserRoles, "organization_admin", []string{"organization"}, organizationID) {
-                filteredRoles = append(filteredRoles, role)
-                continue
-            }
+			if HasRole(currentUserRoles, "organization_admin", []string{"organization"}, organizationID) {
+				filteredRoles = append(filteredRoles, role)
+				continue
+			}
 
 			resourceAdminRoleName := fmt.Sprintf("%s_%s", roleResourceType, "admin")
 			resourceContributorRoleName := fmt.Sprintf("%s_%s", roleResourceType, "contributor")
@@ -129,10 +128,10 @@ func FilterRolesByCurrentUserPermissions(currentUserID string, rolesToFilter []*
 				continue
 			}
 
-            if HasRole(currentUserRoles, "organization_admin", []string{"organization"}, parentOrganizationID) {
-                filteredRoles = append(filteredRoles, role)
-                continue
-            }
+			if HasRole(currentUserRoles, "organization_admin", []string{"organization"}, parentOrganizationID) {
+				filteredRoles = append(filteredRoles, role)
+				continue
+			}
 
 			if HasRole(currentUserRoles, "workspace_admin", []string{"workspace"}, parentWorkspaceID) {
 				filteredRoles = append(filteredRoles, role)

@@ -18,7 +18,7 @@ from iai_core.repos import DatasetStorageRepo, ModelRepo, ModelStorageRepo, Proj
 from iai_core.utils.dataset_helper import DatasetHelper
 from iai_core.utils.time_utils import now
 from jobs_common.exceptions import CommandInternalError
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, env_vars

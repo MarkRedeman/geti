@@ -621,7 +621,10 @@ class MediaManager:
             try:
                 # Create a thumbnail for the image
                 with tempfile.NamedTemporaryFile(suffix=image.thumbnail_filename) as temp_file:
-                    pil_image.resize((DEFAULT_THUMBNAIL_SIZE, DEFAULT_THUMBNAIL_SIZE)).save(temp_file.name)
+                    thumbnail_image = pil_image.resize((DEFAULT_THUMBNAIL_SIZE, DEFAULT_THUMBNAIL_SIZE))
+                    if thumbnail_image.mode not in ("RGB", "L"):
+                        thumbnail_image = thumbnail_image.convert("RGB")
+                    thumbnail_image.save(temp_file.name)
                     ThumbnailBinaryRepo(dataset_storage_identifier).save(
                         data_source=temp_file.name, dst_file_name=image.thumbnail_filename
                     )

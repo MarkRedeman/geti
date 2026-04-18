@@ -10,7 +10,6 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 import pytest
-from geti_spicedb_tools import SpiceDB
 from geti_types import ID, ProjectIdentifier
 from grpc_interfaces.model_registration.client import ModelRegistrationClient
 from grpc_interfaces.model_registration.pb.service_pb2 import Model as ProtoModel
@@ -105,12 +104,10 @@ class TestProjectImportUseCase:
             patch.object(ProjectZipArchive, "close", return_value=None),
             patch.object(ProjectZipArchive, "get_collection_names", return_value=["coll_1", "project", "job"]),
             patch.object(BinaryStorageRepo, "__init__", new=do_nothing),
-            patch.object(SpiceDB, "__init__", new=do_nothing),
         ]
         with (
             contextlib.ExitStack() as stack,
             patch.object(BinaryStorageRepo, "store_objects_by_type", return_value=None) as mock_store_objects,
-            patch.object(SpiceDB, "create_project", return_value=None) as mock_spicedb_create_project,
             patch.object(DocumentRepo, "insert_documents_to_db_collection", return_value=None) as mock_insert_documents,
             patch.object(ZipStorageRepo, "__init__", new=do_nothing),
             patch.object(ProjectImportUseCase, "_download_import_zip", new=mocked_download_import_zip),
@@ -118,6 +115,7 @@ class TestProjectImportUseCase:
             patch.object(ProjectImportUseCase, "_register_active_models") as mock_register_active_models,
             patch.object(ProjectImportUseCase, "_verify_signature") as mock_signature_verification,
             patch("job.usecases.project_import_usecase.publish_metadata_update") as mock_metadata_update,
+            patch("job.usecases.project_import_usecase.assign_project_admin_role") as mock_assign_project_admin_role,
             patch.object(DataMigrationUseCase, "upgrade_project_to_current_version") as mock_date_upgrade,
             patch.object(DataVersion, "get_current", return_value=current_data_version),
         ):
@@ -145,7 +143,7 @@ class TestProjectImportUseCase:
             mock_date_upgrade.assert_called_once_with(project_id=project_id, version=import_data_version)
         else:
             mock_date_upgrade.assert_not_called()
-        mock_spicedb_create_project.assert_called_once()
+        mock_assign_project_admin_role.assert_called_once_with(user_id=str(creator_id), project_id=str(project_id))
         mock_delete_import_zip.assert_called()
 
     def test_import_zip_signature_verification_failed(self, fxt_ote_id, fxt_mock_progress_callback) -> None:

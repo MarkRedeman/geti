@@ -4,6 +4,7 @@
 import logging
 import os
 import sys
+import json
 
 import boto3
 from botocore.exceptions import ClientError
@@ -95,6 +96,25 @@ class S3Client:
             logger.error(err)
             raise err
 
+    def download_folder(self, bucket_name: str, object_key: str, local_folder_path: str):  # noqa: ANN201
+        """Downloads all objects from a folder prefix to local path"""
+        prefix = object_key if object_key.endswith("/") else f"{object_key}/"
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    rel_key = key.removeprefix(prefix)
+                    if rel_key == "":
+                        continue
+                    local_path = os.path.join(local_folder_path, rel_key)
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    self.client.download_file(bucket_name, key, local_path)
+                    logger.info(f"Downloaded s3://{bucket_name}/{key} to {local_path}")
+        except ClientError as err:
+            logger.error(err)
+            raise err
+
     def delete_folder(self, bucket_name: str, object_key: str):  # noqa: ANN201
         """Deletes folder on s3"""
         try:
@@ -158,9 +178,45 @@ class S3Client:
             raise err
         if "Contents" not in resp:
             return []
-        folder_names: list[str] = []
+        folder_names: set[str] = set()
         for object in resp["Contents"]:
             split_name = object["Key"].split("/")
-            if len(split_name) == 2:
-                folder_names.append(split_name[0])
-        return folder_names
+            if len(split_name) >= 2 and split_name[0]:
+                folder_names.add(split_name[0])
+        return sorted(folder_names)
+
+    def put_json_object(self, bucket_name: str, object_key: str, payload: dict) -> None:
+        try:
+            body = json.dumps(payload).encode("utf-8")
+            self.client.put_object(Bucket=bucket_name, Key=object_key, Body=body)
+        except ClientError as err:
+            logger.error(err)
+            raise err
+
+    def get_json_object(self, bucket_name: str, object_key: str) -> dict | None:
+        try:
+            response = self.client.get_object(Bucket=bucket_name, Key=object_key)
+            body = response["Body"].read().decode("utf-8")
+            return json.loads(body)
+        except ClientError as err:
+            error_code = err.response.get("Error", {}).get("Code", "")
+            if error_code in {"NoSuchKey", "404"}:
+                return None
+            logger.error(err)
+            raise err
+
+    def list_registry_folders(self, bucket_name: str, suffix: str = "/.registry.json") -> list[str]:
+        try:
+            resp = self.client.list_objects_v2(Bucket=bucket_name)
+        except ClientError as err:
+            logger.error(err)
+            raise err
+        if "Contents" not in resp:
+            return []
+
+        result: set[str] = set()
+        for object in resp["Contents"]:
+            key = object["Key"]
+            if key.endswith(suffix):
+                result.add(key.removesuffix(suffix))
+        return sorted(result)

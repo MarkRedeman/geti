@@ -38,28 +38,22 @@ func main() {
 	cleanup := telemetry.SetupTracing(context.Background())
 	defer cleanup()
 
-	meshClient, err := grpc.NewModelMeshClient()
-	if err != nil {
-		logger.Log().Fatalf("Cannot run server: %s", err)
-	}
-	defer func() {
-		_ = meshClient.Close()
-	}()
-
-	registrationClient, err := grpc.NewModelMeshRegistrationClient()
-	if err != nil {
-		logger.Log().Fatalf("Cannot run server: %s", err)
-	}
-	defer func() {
-		_ = registrationClient.Close()
-	}()
-
 	var cfg config
-	if err = env.Parse(&cfg); err != nil {
+	if err := env.Parse(&cfg); err != nil {
 		logger.Log().Fatalf("Cannot parse environment variables: %s", err)
 	}
 
-	modelAccessSrv := service.NewModelAccessService(meshClient, registrationClient)
+	logger.Log().Info("inference_gateway uses OVMS backend bridge")
+
+	ovmsClient, err := grpc.NewOVMSClient()
+	if err != nil {
+		logger.Log().Fatalf("Cannot create OVMS gRPC client: %s", err)
+	}
+	defer func() {
+		_ = ovmsClient.Close()
+	}()
+
+	modelAccessSrv := service.NewOVMSModelAccessService(ovmsClient)
 	clientManager, err := minio.NewClientManager()
 	if err != nil {
 		logger.Log().Fatalf("Cannot instantiate minio client manager: %s", err)

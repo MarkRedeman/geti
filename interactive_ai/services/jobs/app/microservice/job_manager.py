@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from pymongo.client_session import ClientSession
 
+from common.job_acl import grant_job_view_access
 from microservice.exceptions import DuplicateJobFoundException, JobNotCancellableException
 from microservice.job_repo import SessionBasedMicroserviceJobRepo, WorkspaceBasedMicroserviceJobRepo
 from model.duplicate_policy import DuplicatePolicy
@@ -23,7 +24,6 @@ from model.job_state import JobGpuRequestState, JobState, JobStateGroup
 from model.mapper.job_mapper import JobMapper
 from model.telemetry import Telemetry
 
-from geti_spicedb_tools import SpiceDB, SpiceDBResourceTypes
 from geti_telemetry_tools import unified_tracing
 from geti_types import CTX_SESSION_VAR, ID, Singleton
 from grpc_interfaces.credit_system.client import CreditSystemClient, ResourceRequest
@@ -281,19 +281,7 @@ class JobManager(metaclass=Singleton):
                 logger.info(f"Duplicate job with ID {duplicate.get('_id')} has been found, rejecting submitted job")
                 raise DuplicateJobFoundException
         job_id = job_repo.insert_document(document, mongodb_session=mongodb_session)
-        if project_id is not None:
-            SpiceDB().create_job(
-                job_id=str(job_id),
-                parent_entity_type=SpiceDBResourceTypes.PROJECT.value,
-                parent_entity_id=str(project_id),
-            )
-        else:
-            workspace_id = CTX_SESSION_VAR.get().workspace_id
-            SpiceDB().create_job(
-                parent_entity_id=workspace_id,
-                parent_entity_type=SpiceDBResourceTypes.WORKSPACE.value,
-                job_id=str(job_id),
-            )
+        grant_job_view_access(user_id=str(document["author"]), job_id=str(job_id))
         return ID(job_id)
 
     def get_by_id(self, job_id: ID) -> Job | None:

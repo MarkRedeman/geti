@@ -1,0 +1,9 @@
+{
+  "servingMode": "on-prem",
+  "auth": {
+    "type": "dex",
+    "authority": "/dex",
+    "clientId": "web_ui"
+  },
+  "docsUrl": "https://docs.geti.intel.com/",
+}

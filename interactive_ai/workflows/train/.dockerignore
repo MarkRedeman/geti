@@ -1,0 +1,7 @@
+*
+!job
+!pyproject.toml
+!uv.lock
+**/__pycache__/
+**/*.pyc
+**/*.pyo

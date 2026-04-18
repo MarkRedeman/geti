@@ -15,7 +15,6 @@ from model.job import JobCancellationInfo
 from model.job_state import JobState, JobStateGroup
 from model.telemetry import Telemetry
 
-from geti_spicedb_tools import SpiceDB, SpiceDBResourceTypes
 from geti_types import ID
 from iai_core.repos.mappers.mongodb_mappers.id_mapper import IDToMongo
 from iai_core.utils.constants import DEFAULT_USER_NAME
@@ -42,12 +41,13 @@ def reset_singletons() -> None:
     JobManager._instance = None
 
 
-@patch.object(SpiceDB, "create_job")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "insert_document", return_value="job_id")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "update_many")
+@patch("microservice.job_manager.grant_job_view_access")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "__init__", new=mock_job_repo)
 @patch.object(JobManager, "__init__", new=mock_job_manager)
 def test_submit_no_project(
+    mock_grant_job_view_access,
     mock_repo_update_many,
     mock_repo_insert_document,
     request,
@@ -113,17 +113,18 @@ def test_submit_no_project(
         },
         mongodb_session=ANY,
     )
+    mock_grant_job_view_access.assert_called_once_with(user_id=str(author), job_id="job_id")
 
 
-@patch.object(SpiceDB, "create_job")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "insert_document", return_value="job_id")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "update_many")
+@patch("microservice.job_manager.grant_job_view_access")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "__init__", new=mock_job_repo)
 @patch.object(JobManager, "__init__", new=mock_job_manager)
 def test_submit_replace(
+    mock_grant_job_view_access,
     mock_repo_update_many,
     mock_repo_insert_document,
-    mock_create_project_job,
     request,
     fxt_session_ctx,
 ) -> None:
@@ -184,15 +185,10 @@ def test_submit_replace(
         },
         mongodb_session=ANY,
     )
+    mock_grant_job_view_access.assert_called_once_with(user_id=str(author), job_id="job_id")
     assert job_id == ID("job_id")
-    mock_create_project_job.assert_called_once_with(
-        job_id="job_id",
-        parent_entity_type=SpiceDBResourceTypes.PROJECT.value,
-        parent_entity_id=str(project_id),
-    )
 
 
-@patch.object(SpiceDB, "create_job")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "preliminary_query_match_filter", return_value={})
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "find_one", return_value={"_id": DUMMY_JOB_KEY})
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "__init__", new=mock_job_repo)
@@ -200,7 +196,6 @@ def test_submit_replace(
 def test_submit_omit(
     mock_find_one,
     mock_get_preliminary_query,
-    mock_create_project_job,
     request,
     fxt_session_ctx,
 ) -> None:
@@ -231,10 +226,8 @@ def test_submit_omit(
     )
     assert job_id == DUMMY_JOB_KEY
     mock_get_preliminary_query.assert_not_called()
-    mock_create_project_job.assert_not_called()
 
 
-@patch.object(SpiceDB, "create_job")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "preliminary_query_match_filter", return_value={})
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "find_one", return_value={"id": DUMMY_JOB_KEY})
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "__init__", new=mock_job_repo)
@@ -242,7 +235,6 @@ def test_submit_omit(
 def test_submit_reject(
     mock_find_one,
     mock_get_preliminary_query,
-    mock_create_project_job,
     request,
     fxt_session_ctx,
 ) -> None:
@@ -273,20 +265,19 @@ def test_submit_reject(
         mongodb_session=ANY,
     )
     mock_get_preliminary_query.assert_not_called()
-    mock_create_project_job.assert_not_called()
 
 
-@patch.object(SpiceDB, "create_job")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "insert_document", return_value="job_id")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "update_many")
+@patch("microservice.job_manager.grant_job_view_access")
 @patch.object(WorkspaceBasedMicroserviceJobRepo, "__init__", new=mock_job_repo)
 @patch.object(JobManager, "__init__", new=mock_job_manager)
 @patch("microservice.job_manager.CreditSystemClient", autospec=True)
 def test_submit_cost_requests(
     mock_credits_service_client,
+    mock_grant_job_view_access,
     mock_repo_update_many,
     mock_repo_insert_document,
-    mock_create_project_job,
     request,
     fxt_session_ctx,
 ) -> None:
@@ -359,12 +350,8 @@ def test_submit_cost_requests(
         },
         mongodb_session=ANY,
     )
+    mock_grant_job_view_access.assert_called_once_with(user_id=str(author), job_id="job_id")
     assert job_id == ID("job_id")
-    mock_create_project_job.assert_called_once_with(
-        job_id="job_id",
-        parent_entity_type=SpiceDBResourceTypes.PROJECT.value,
-        parent_entity_id=str(project_id),
-    )
 
 
 @patch("microservice.job_manager.JobMapper.backward")

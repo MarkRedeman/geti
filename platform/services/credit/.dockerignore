@@ -1,8 +1,0 @@
-*
-!app
-!entrypoint.sh
-!migration.sh
-!logconfig.ini
-!common_libs
-!uv.lock
-!pyproject.toml

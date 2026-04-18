@@ -6,12 +6,9 @@ Optimize workflow
 
 from typing import Optional
 
-from flytekit import workflow
-
 from job.tasks.model_testing import run_model_test
 
 
-@workflow
 def model_test_workflow(
     project_id: str,
     model_test_result_id: str,

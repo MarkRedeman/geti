@@ -127,7 +127,7 @@ func CountOrganizationStatuses(tx *gorm.DB) (map[string]int64, error) {
 }
 
 func getOrganizationAdmins(tx *gorm.DB, orgID string) ([]*models.User, error) {
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize client: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
@@ -631,7 +631,7 @@ func (s *GRPCServer) Delete(_ context.Context, req *pb.OrganizationIdRequest) (*
 		return nil, status.Errorf(codes.Unknown, "unexpected error")
 	}
 
-	rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+	rolesMgr, err := roles.NewRolesManager()
 	if err != nil {
 		logger.Errorf("unable to initialize roles manager: %v", err)
 		return nil, status.Errorf(codes.Unknown, "unexpected error")

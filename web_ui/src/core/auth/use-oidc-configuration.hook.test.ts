@@ -38,7 +38,7 @@ describe('useOIDCConfiguration', () => {
         expect(configuration.scope).toEqual('openid profile groups email offline_access');
         expect(configuration.response_type).toEqual('code');
         expect(configuration.metadata).toEqual({
-            authorization_endpoint: 'http://localhost/dex/auth/regular_users',
+            authorization_endpoint: 'http://localhost/dex/auth/local',
             token_endpoint: 'http://localhost/dex/token',
             end_session_endpoint: 'http://localhost',
         });

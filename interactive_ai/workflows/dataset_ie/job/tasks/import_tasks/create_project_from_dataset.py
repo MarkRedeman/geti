@@ -8,10 +8,10 @@ import logging
 from enum import IntEnum, auto
 from typing import TYPE_CHECKING, cast
 
-from geti_spicedb_tools import SpiceDB
 from geti_supported_models.default_models import DefaultModels
 from iai_core.utils.project_builder import PersistedProjectBuilder
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
+from jobs_common.tasks.utils.authz import assign_project_admin_role
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import publish_metadata_update, task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, env_vars
@@ -194,11 +194,7 @@ def create_project_from_dataset(
     )
     progress_reporter.finish_step()
 
-    SpiceDB().create_project(
-        workspace_id=str(project.workspace_id),
-        project_id=str(project.id_),
-        creator=user_id,
-    )
+    assign_project_admin_role(user_id=user_id, project_id=str(project.id_))
 
     ImportUtils.publish_project_created_message(project=project)
 

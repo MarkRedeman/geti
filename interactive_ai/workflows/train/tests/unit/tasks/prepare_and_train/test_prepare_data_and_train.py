@@ -52,7 +52,7 @@ class TestPrepareTrainingDataTask:
     @patch("job.tasks.prepare_and_train.prepare_data_and_train.get_train_data")
     @patch.object(ProjectRepo, "mark_locked")
     @patch("job.tasks.prepare_and_train.prepare_data_and_train.prepare_train")
-    @patch("job.tasks.prepare_and_train.prepare_data_and_train.create_flyte_container_task")
+    @patch("job.tasks.prepare_and_train.prepare_data_and_train.create_container_task")
     @patch(
         "job.tasks.prepare_and_train.prepare_data_and_train.EphemeralStorageResources.create_from_compiled_dataset_shards"
     )
@@ -64,7 +64,7 @@ class TestPrepareTrainingDataTask:
         mocked_publish_consumed_resources,
         mocked_trainer_image_info_create,
         mocked_create_from_compiled_dataset_shards,
-        mocked_create_flyte_container_task,
+        mocked_create_container_task,
         mocked_prepare_train,
         mocked_lock_project,
         mocked_get_train_data,
@@ -94,7 +94,7 @@ class TestPrepareTrainingDataTask:
         mocked_shard_dataset_for_train.return_value = "sharded_dataset_id"
         mocked_prepare_train.return_value = fxt_train_output_models
         mocked_train_task = MagicMock()
-        mocked_create_flyte_container_task.return_value = mocked_train_task
+        mocked_create_container_task.return_value = mocked_train_task
         mocked_asyncio_run.return_value = ({"requests": {}, "limits": {}}, "cpu")
         training_configuration_json = json.dumps(training_configuration)
 
@@ -164,7 +164,7 @@ class TestPrepareTrainingDataTask:
         mocked_prepare_train.assert_called_once_with(train_data=train_data, dataset=dataset)
         mocked_trainer_image_info_create.assert_called_once()
         mocked_create_from_compiled_dataset_shards.assert_called_once()
-        mocked_create_flyte_container_task.assert_called_once_with(
+        mocked_create_container_task.assert_called_once_with(
             session=CTX_SESSION_VAR.get(),
             project_id=train_data.project_id,
             job_id=str(JobMetadata.from_env_vars().id),

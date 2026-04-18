@@ -3,13 +3,7 @@
 
 from unittest.mock import MagicMock, call, patch
 
-import pytest
-from flyteidl.core.execution_pb2 import WorkflowExecution
-from flytekit.exceptions.user import FlyteUserException
-from flytekit.remote import FlyteWorkflowExecution
-
 from model.job_state import JobState
-from scheduler.flyte import Flyte
 from scheduler.loops.cancellation import cancel_execution, cancel_main_job, run_cancellation_loop
 from scheduler.state_machine import StateMachine
 
@@ -18,22 +12,11 @@ from geti_types import ID
 job_id = ID("test_job")
 
 
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
-
-
-def mock_flyte_execution(self, *args, **kwargs) -> None:
-    self._closure = MagicMock()
-    self._id = MagicMock()
-
-
 def mock_state_machine(self, *args, **kwargs) -> None:
     return None
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
 
 
@@ -184,7 +167,7 @@ def test_cancel_main_job_not_found(
 
 @patch(
     "scheduler.loops.cancellation.cancel_execution",
-    side_effect=FlyteUserException("Failed to cancel execution"),
+    side_effect=Exception("Failed to cancel execution"),
 )
 @patch.object(StateMachine, "set_ready_for_revert_state")
 @patch.object(StateMachine, "drop_cancelled_flag")
@@ -286,100 +269,13 @@ def test_cancel_main_job_max_retry_counter(
     mock_cancel_execution.assert_not_called()
 
 
-@patch.object(Flyte, "cancel_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_cancel_execution_not_found(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_cancel_workflow_execution,
+@patch("scheduler.loops.cancellation.LocalExecutor")
+def test_cancel_execution_uses_local_executor(
+    mock_local_executor_cls,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
 
-    # Arrange
-    mock_flyte_fetch_workflow_execution.return_value = None
-
-    # Act
     cancel_execution(execution_name="execution_name")
 
-    # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
-    mock_flyte_cancel_workflow_execution.assert_not_called()
-
-
-@pytest.mark.parametrize("phase", [WorkflowExecution.ABORTED, WorkflowExecution.ABORTING])
-@patch.object(Flyte, "cancel_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_cancel_execution_aborted_or_aborting(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_cancel_workflow_execution,
-    request,
-    phase,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Arrange
-    execution = MagicMock()
-    execution.closure.phase = phase
-    mock_flyte_fetch_workflow_execution.return_value = execution
-
-    # Act
-    cancel_execution(execution_name="execution_name")
-
-    # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
-    mock_flyte_cancel_workflow_execution.assert_not_called()
-
-
-@patch.object(Flyte, "cancel_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-def test_cancel_execution(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_cancel_workflow_execution,
-    request,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Arrange
-    execution = MagicMock()
-    execution.is_done = False
-    mock_flyte_fetch_workflow_execution.return_value = execution
-
-    # Act
-    cancel_execution(execution_name="execution_name")
-
-    # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
-    mock_flyte_cancel_workflow_execution.assert_called_once_with(execution=execution)
-
-
-@pytest.mark.parametrize(
-    "phase",
-    [WorkflowExecution.SUCCEEDED, WorkflowExecution.FAILING, WorkflowExecution.FAILED, WorkflowExecution.TIMED_OUT],
-)
-@patch.object(Flyte, "cancel_workflow_execution")
-@patch.object(Flyte, "fetch_workflow_execution")
-@patch.object(Flyte, "__init__", new=mock_flyte_client)
-@patch.object(FlyteWorkflowExecution, "__init__", new=mock_flyte_execution)
-def test_cancel_execution_terminated_or_terminating(
-    mock_flyte_fetch_workflow_execution,
-    mock_flyte_cancel_workflow_execution,
-    request,
-    phase,
-) -> None:
-    request.addfinalizer(reset_singletons)
-
-    # Arrange
-    execution = FlyteWorkflowExecution()
-    execution._closure.phase = phase
-    execution._id.name = "mock_execution_name"
-    mock_flyte_fetch_workflow_execution.return_value = execution
-
-    # Act
-    cancel_execution(execution_name="execution_name")
-
-    # Assert
-    mock_flyte_fetch_workflow_execution.assert_called_once_with(execution_name="execution_name")
-    mock_flyte_cancel_workflow_execution.assert_not_called()
+    mock_local_executor_cls.return_value.cancel_execution.assert_called_once_with(execution_name="execution_name")

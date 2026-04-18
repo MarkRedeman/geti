@@ -8,11 +8,11 @@ from model.job import (
     JobCancellationInfo,
     JobConsumedResource,
     JobCost,
-    JobFlyteExecutions,
+    JobExecutions,
     JobGpuRequest,
-    JobMainFlyteExecution,
+    JobMainExecution,
     JobResource,
-    JobRevertFlyteExecution,
+    JobRevertExecution,
     JobStepDetails,
     JobTaskExecutionBranch,
 )
@@ -696,7 +696,7 @@ class TestJobMapper:
                 creation_time=creation_time,
                 author=ID("author_uid"),
                 cancellation_info=JobCancellationInfo(cancellable=True, is_cancelled=False),
-                executions=JobFlyteExecutions(main=JobMainFlyteExecution()),
+                executions=JobExecutions(main=JobMainExecution()),
                 session=Session(
                     organization_id=ID("000000000000000000000001"),
                     workspace_id=ID("63b183d00000000000000001"),
@@ -794,15 +794,15 @@ class TestJobMapper:
                 cancellation_info=JobCancellationInfo(
                     cancellable=True, is_cancelled=True, cancel_time=current_timestamp
                 ),
-                executions=JobFlyteExecutions(
-                    main=JobMainFlyteExecution(
+                executions=JobExecutions(
+                    main=JobMainExecution(
                         launch_plan_id="launch_plan_id",
                         execution_id="execution_id",
                         start_retry_counter=2,
                         cancel_retry_counter=4,
                         process_start_time=current_timestamp,
                     ),
-                    revert=JobRevertFlyteExecution(
+                    revert=JobRevertExecution(
                         execution_id="revert_execution_id",
                         start_retry_counter=3,
                         process_start_time=current_timestamp,

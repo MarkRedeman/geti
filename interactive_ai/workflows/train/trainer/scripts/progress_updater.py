@@ -137,6 +137,14 @@ class ProgressUpdaterCallback(Callback):
             return
         self.progress_updater.update_progress(progress=self._get_progress(trainer, batch_idx))
 
+    def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:  # noqa: ARG002
+        # NOTE: Report when global_rank == 0
+        if trainer.global_rank != 0:
+            return
+        # bypass interval throttle for final completion event
+        self.progress_updater.timestamp = None
+        self.progress_updater.update_progress(progress=100.0)
+
     @staticmethod
     def _get_progress(trainer: Trainer, batch_idx: int) -> float:
         if trainer.num_training_batches is None or trainer.max_epochs is None:

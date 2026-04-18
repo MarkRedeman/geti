@@ -5,7 +5,7 @@ import logging
 import os
 
 from model.job import Job
-from scheduler.flyte import Flyte
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 
 from geti_types import ID, RequestSource, make_session, session_context
@@ -22,7 +22,7 @@ def run_recovery_loop() -> None:
     """
 
     try:
-        logger.debug("Running job scheduler recovery loop...")
+        logger.debug("[COMPOSE MODE] Running compose-native recovery loop")
         ids = StateMachine().get_session_ids_with_jobs_not_in_final_state()
         for organization_id, workspace_id in ids.items():
             check_and_recover_organization_if_needed(organization_id=organization_id, workspace_id=workspace_id)
@@ -32,7 +32,7 @@ def run_recovery_loop() -> None:
 
 def check_and_recover_organization_if_needed(organization_id: ID, workspace_id: ID) -> None:
     """
-    Checks all organization jobs and resets all the jobs missing in Flyte.
+    Checks all organization jobs and resets all jobs whose execution is no longer tracked.
     :param organization_id: ID of organization to check
     :param workspace_id: ID of the workspace to check
     """
@@ -50,23 +50,26 @@ def check_and_recover_organization_if_needed(organization_id: ID, workspace_id: 
 
 def check_and_recover_organization_jobs_if_needed(jobs: list[Job]) -> None:
     """
-    Checks workspace jobs and resets the jobs missing in Flyte.
+    Checks workspace jobs and resets jobs whose local execution is no longer tracked.
     :param jobs: list of jobs to check
     """
-    logger.debug(f"Processing jobs {[job.id for job in jobs]}")
-
-    executions_ids = [job.executions.main.execution_id for job in jobs if job.executions.main.execution_id is not None]
-    executions = Flyte().list_workflow_executions(execution_names=executions_ids)
-    logger.debug(f"Found {len(executions)} workflow executions in Flyte")
+    logger.debug(f"[COMPOSE MODE] Processing jobs {[job.id for job in jobs]}")
+    executor = LocalExecutor()
+    # In celery mode, the local registry is process-local and is cleared on
+    # scheduler restart. Treating "missing in registry" as lost execution would
+    # incorrectly reset active jobs and trigger duplicate rescheduling.
+    if executor.run_mode == "celery":
+        logger.debug("[COMPOSE MODE] Skipping recovery reset checks in celery mode")
+        return
 
     for job in jobs:
         execution_id = job.executions.main.execution_id
-        execution = next(
-            (ex for ex in executions if ex.id.name == execution_id),
-            None,
-        )
-        if execution is not None:
+        if execution_id is None:
             continue
 
-        logger.warning(f"Found active job {job.id} with missing Flyte execution {execution_id}")
+        record = executor.get_execution_metadata(execution_name=execution_id)
+        if record is not None:
+            continue
+
+        logger.warning(f"Found active job {job.id} with missing local execution {execution_id}")
         StateMachine().reset_job_to_submitted_state(job_id=job.id)

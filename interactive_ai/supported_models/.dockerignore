@@ -1,0 +1,7 @@
+*
+!geti_supported_models
+!pyproject.toml
+!uv.lock
+**/__pycache__/
+**/*.pyc
+**/*.pyo

@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"account_service/app/common/utils"
-	"account_service/app/config"
 	"account_service/app/fsm"
 	"account_service/app/grpc/common"
 	grpcUtils "account_service/app/grpc/utils"
@@ -92,7 +91,7 @@ func (s *GRPCServer) Change(ctx context.Context, request *pb.UserStatusRequest) 
 				return status.Errorf(codes.Unauthenticated, "Unexpected error")
 			}
 
-			rolesMgr, err := roles.NewRolesManager(config.SpiceDBAddress, config.SpiceDBToken)
+			rolesMgr, err := roles.NewRolesManager()
 			if err != nil {
 				logger.Errorf("unable to initialize roles manager: %v", err)
 				return status.Errorf(codes.Unknown, "unexpected error")

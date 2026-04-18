@@ -6,8 +6,6 @@ from http import HTTPStatus
 from typing import Any
 from unittest.mock import ANY, patch
 
-from geti_spicedb_tools import SpiceDB
-
 from geti_kafka_tools import publish_event
 from geti_types import CTX_SESSION_VAR, ID, DatasetStorageIdentifier
 from iai_core.algorithms import ModelTemplateList
@@ -74,10 +72,7 @@ DETECTION_PROJECT_DATA: dict[str, Any] = {
     ],
 }
 
-PATCHED_SPICEDB_CREATE_PROJECT = patch.object(
-    SpiceDB,
-    "create_project",
-)
+PATCHED_PROJECT_ROLE_ASSIGN = patch("managers.project_manager.assign_project_admin_role")
 
 
 class TestLabelAdditionRestEndpoint:
@@ -193,7 +188,7 @@ class TestLabelAdditionRestEndpoint:
         with (
             patch_publish_event_project as patched_pub_proj,
             patch_publish_event_annotation as patched_pub_ann,
-            PATCHED_SPICEDB_CREATE_PROJECT,
+            PATCHED_PROJECT_ROLE_ASSIGN,
         ):
             project_update_response = fxt_resource_rest.put(
                 project_update_endpoint,
@@ -243,7 +238,7 @@ class TestLabelAdditionRestEndpoint:
                     f"/api/v1/organizations/{str(session.organization_id)}/workspaces/{str(session.workspace_id)}/projects/{project.id_}"
                     f"/datasets/{project.training_dataset_storage_id}/media/images/{image.id_}/annotations/latest"
                 )
-                with PATCHED_SPICEDB_CREATE_PROJECT:
+                with PATCHED_PROJECT_ROLE_ASSIGN:
                     annotation_get_response = fxt_resource_rest.get(
                         annotation_get_endpoint,
                     )
@@ -371,7 +366,7 @@ class TestLabelAdditionRestEndpoint:
         with (
             patch_publish_event_project as patched_pub_proj,
             patch_publish_event_annotation as patched_pub_ann,
-            PATCHED_SPICEDB_CREATE_PROJECT,
+            PATCHED_PROJECT_ROLE_ASSIGN,
         ):
             project_update_response = fxt_resource_rest.put(
                 project_update_endpoint,
@@ -424,7 +419,7 @@ class TestLabelAdditionRestEndpoint:
                     f"/api/v1/organizations/{str(session.organization_id)}/workspaces/{str(session.workspace_id)}/projects/{project.id_}"
                     f"/datasets/{project.training_dataset_storage_id}/media/images/{image.id_}/annotations/latest"
                 )
-                with PATCHED_SPICEDB_CREATE_PROJECT:
+                with PATCHED_PROJECT_ROLE_ASSIGN:
                     annotation_get_response = fxt_resource_rest.get(
                         annotation_get_endpoint,
                         headers={"x-auth-request-access-token": "testing"},
@@ -546,7 +541,7 @@ class TestLabelAdditionRestEndpoint:
         with (
             patch_publish_event_project as patched_pub_proj,
             patch_publish_event_annotation as patched_pub_ann,
-            PATCHED_SPICEDB_CREATE_PROJECT,
+            PATCHED_PROJECT_ROLE_ASSIGN,
         ):
             project_update_response = fxt_resource_rest.put(
                 project_update_endpoint,
@@ -596,7 +591,7 @@ class TestLabelAdditionRestEndpoint:
                 f"/api/v1/organizations/{str(session.organization_id)}/workspaces/{str(session.workspace_id)}/projects/{project.id_}"
                 f"/datasets/{project.training_dataset_storage_id}/media/images/{image.id_}/annotations/latest"
             )
-            with PATCHED_SPICEDB_CREATE_PROJECT:
+            with PATCHED_PROJECT_ROLE_ASSIGN:
                 annotation_get_response = fxt_resource_rest.get(
                     annotation_get_endpoint,
                     headers={"x-auth-request-access-token": "testing"},

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from jobs_common_extras.experiments.utils.train_output_models import TrainOutputModelIds, TrainOutputModels
 
-from job.utils.train_workflow_data import TrainWorkflowData, TrainWorkflowDataForFlyteTaskTrainer
+from job.utils.train_workflow_data import TrainWorkflowData, TrainWorkflowDataForTaskTrainer
 
 
 @pytest.fixture
@@ -64,17 +64,17 @@ def mock_train_data(
 
 
 @pytest.fixture
-def fxt_train_data_for_flyte_task_trainer(
+def fxt_train_data_for_task_trainer(
     fxt_train_data,
     fxt_dataset_id,
     fxt_train_output_model_ids,
     fxt_mongo_id,
     tmp_path,
-) -> TrainWorkflowDataForFlyteTaskTrainer:
+) -> TrainWorkflowDataForTaskTrainer:
     train_data = fxt_train_data()
     tmp_file_path = tmp_path / "tmp"
     tmp_file_path.touch()
-    return TrainWorkflowDataForFlyteTaskTrainer(
+    return TrainWorkflowDataForTaskTrainer(
         train_data=train_data,
         dataset_id=str(fxt_dataset_id),
         organization_id=fxt_mongo_id(1),

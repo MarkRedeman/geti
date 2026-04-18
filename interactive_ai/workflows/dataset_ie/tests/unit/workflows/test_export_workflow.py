@@ -3,9 +3,8 @@
 
 """This module tests export workflow"""
 
-from flytekit.core.testing import task_mock
+from unittest.mock import patch
 
-from job.tasks.export_tasks.export_dataset_task import export_dataset_task
 from job.workflows.export_workflow import export_dataset_workflow
 
 ORGANIZATION_ID = "organization_id"
@@ -16,7 +15,7 @@ EXPORT_FORMAT = "coco"
 
 class TestExportWorkflow:
     def test_export_workflow(self) -> None:
-        with task_mock(export_dataset_task) as mock_export_dataset_task:
+        with patch("job.workflows.export_workflow.export_dataset_task") as mock_export_dataset_task:
             mock_export_dataset_task.return_value = "dataset_id"
             export_dataset_workflow(
                 organization_id=ORGANIZATION_ID,

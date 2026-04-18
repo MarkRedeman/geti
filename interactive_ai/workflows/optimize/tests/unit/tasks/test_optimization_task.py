@@ -20,10 +20,10 @@ class TestOptimizationTask:
     @patch("job.tasks.optimization_task.ModelRepo")
     @patch("job.tasks.optimization_task.shard_dataset")
     @patch("job.tasks.optimization_task.prepare_optimize")
-    @patch("job.tasks.optimization_task.create_flyte_container_task")
+    @patch("job.tasks.optimization_task.create_container_task")
     def test_shard_dataset_prepare_models_and_start_optimization(
         self,
-        mock_create_flyte_container_task,
+        mock_create_container_task,
         mock_prepare_optimize,
         mock_shard_dataset,
         mock_model_repo,
@@ -79,5 +79,5 @@ class TestOptimizationTask:
             mock_model_repo().get_by_id.assert_not_called()
             mock_shard_dataset.assert_not_called()
         mock_prepare_optimize.assert_called_once()
-        mock_create_flyte_container_task.assert_called_once()
+        mock_create_container_task.assert_called_once()
         assert result == fxt_optimization_trainer_ctx

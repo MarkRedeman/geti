@@ -11,8 +11,6 @@ import pytest
 from _pytest.fixtures import FixtureRequest
 from iai_core.repos.base.mongo_connector import MongoConnector
 from migration.utils.connection import MongoDBConnection
-from testcontainers.core.container import DockerContainer
-from testcontainers.core.waiting_utils import wait_for_logs
 from testcontainers.mongodb import MongoDbContainer
 
 logging.basicConfig(level=logging.INFO)
@@ -34,30 +32,6 @@ def mongodb_testcontainer() -> Generator[MongoDbContainer, None, None]:
             patch.object(MongoDBConnection, "_get_connection_string", return_value=db_url),
         ):
             yield mongo
-
-
-@pytest.fixture(scope="session", autouse=True)
-def fxt_spicedb_server(request: FixtureRequest):
-    container = DockerContainer("ghcr.io/authzed/spicedb:v1.34.0")
-    container.with_bind_ports(50051, 50051)
-    test_dir = pathlib.Path(__file__).parent
-    container.with_volume_mapping((test_dir / "configs/spicedb.zaml").resolve(), "/schema/spicedb.zaml", "ro")
-    container.with_env("SPICEDB_GRPC_PRESHARED_KEY", "test")
-    container.with_command(
-        [
-            "serve-testing",
-            "--skip-release-check",
-            "--load-configs",
-            "/schema/spicedb.zaml",
-        ]
-    )
-    container.start()
-
-    wait_for_logs(container, "grpc server started serving", timeout=30)
-
-    yield container
-
-    container.stop()
 
 
 def detect_fixtures(module_name: str) -> list:

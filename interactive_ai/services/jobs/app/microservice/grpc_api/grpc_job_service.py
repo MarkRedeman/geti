@@ -14,6 +14,7 @@ from json import JSONDecodeError
 
 import grpc
 
+from microservice.authz import can_view_all_workspace_jobs, get_permitted_project_ids
 from microservice.exceptions import DuplicateJobFoundException
 from microservice.grpc_api.mappers.proto_mapper import JobToProto
 from microservice.job_manager import JobManager, JobsAcl, JobSortingField, Pagination, SortDirection, TimestampFilter
@@ -21,9 +22,8 @@ from model.duplicate_policy import DuplicatePolicy
 from model.job_state import JobStateGroup
 from model.telemetry import Telemetry
 
-from geti_spicedb_tools import Permissions, SpiceDB, SpiceDBResourceTypes
 from geti_telemetry_tools import unified_tracing
-from geti_types import ID
+from geti_types import CTX_SESSION_VAR, ID
 from grpc_interfaces.credit_system.client import InsufficientCreditsException
 from grpc_interfaces.job_submission.pb.job_service_pb2 import (
     CancelJobRequest,
@@ -41,6 +41,11 @@ from grpc_interfaces.job_submission.pb.job_service_pb2_grpc import JobServiceSer
 from iai_core.session.session_propagation import setup_session_grpc
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mock_auth_mode() -> bool:
+    return os.getenv("AUTH_MODE", "").lower() == "mock"
+
 
 GRPC_MAX_MESSAGE_SIZE = int(os.environ.get("GRPC_MAX_MESSAGE_SIZE", 128 * 1024**2))
 
@@ -205,25 +210,24 @@ class GRPCJobService(JobServiceServicer):
             )
 
         workspace_jobs_author = None
-        if author_uid is not None and request.all_permitted_jobs and workspace_id is not None:
-            view_all_workspace_jobs = SpiceDB().check_permission(
-                subject_type=SpiceDBResourceTypes.USER.value,
-                subject_id=author_uid,
-                resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-                resource_id=workspace_id,
-                permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-            )
-            if not view_all_workspace_jobs:
-                workspace_jobs_author = author_uid
+        if _is_mock_auth_mode():
+            permitted_projects = None
+        else:
+            organization_id = str(CTX_SESSION_VAR.get().organization_id)
+            if author_uid is not None and request.all_permitted_jobs and workspace_id is not None:
+                view_all_workspace_jobs = can_view_all_workspace_jobs(
+                    user_id=author_uid,
+                    organization_id=organization_id,
+                    workspace_id=str(workspace_id),
+                )
+                if not view_all_workspace_jobs:
+                    workspace_jobs_author = author_uid
 
-        permitted_projects = (
-            [
-                ID(project_id)
-                for project_id in SpiceDB().get_user_projects(user_id=author_uid, permission=Permissions.VIEW_PROJECT)
-            ]
-            if author_uid is not None and request.all_permitted_jobs
-            else None
-        )
+            permitted_projects = (
+                get_permitted_project_ids(user_id=author_uid, organization_id=organization_id)
+                if author_uid is not None and request.all_permitted_jobs
+                else None
+            )
         acl = JobsAcl(
             permitted_projects=permitted_projects,
             workspace_jobs_author=workspace_jobs_author,
@@ -298,25 +302,24 @@ class GRPCJobService(JobServiceServicer):
             return ListJobsResponse()
 
         workspace_jobs_author = None
-        if author_uid is not None and request.all_permitted_jobs:
-            view_all_workspace_jobs = SpiceDB().check_permission(
-                subject_type=SpiceDBResourceTypes.USER.value,
-                subject_id=author_uid,
-                resource_type=SpiceDBResourceTypes.WORKSPACE.value,
-                resource_id=workspace_id,
-                permission=Permissions.VIEW_ALL_WORKSPACE_JOBS.value,
-            )
-            if not view_all_workspace_jobs:
-                workspace_jobs_author = author_uid
+        if _is_mock_auth_mode():
+            permitted_projects = None
+        else:
+            organization_id = str(CTX_SESSION_VAR.get().organization_id)
+            if author_uid is not None and request.all_permitted_jobs:
+                view_all_workspace_jobs = can_view_all_workspace_jobs(
+                    user_id=author_uid,
+                    organization_id=organization_id,
+                    workspace_id=str(workspace_id),
+                )
+                if not view_all_workspace_jobs:
+                    workspace_jobs_author = author_uid
 
-        permitted_projects = (
-            [
-                ID(project_id)
-                for project_id in SpiceDB().get_user_projects(user_id=author_uid, permission=Permissions.VIEW_PROJECT)
-            ]
-            if author_uid is not None and request.all_permitted_jobs
-            else None
-        )
+            permitted_projects = (
+                get_permitted_project_ids(user_id=author_uid, organization_id=organization_id)
+                if author_uid is not None and request.all_permitted_jobs
+                else None
+            )
         acl = JobsAcl(
             permitted_projects=permitted_projects,
             workspace_jobs_author=workspace_jobs_author,

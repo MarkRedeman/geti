@@ -3,12 +3,9 @@
 
 """This module implements export workflow"""
 
-from flytekit import workflow
-
 from job.tasks.export_tasks.export_dataset_task import export_dataset_task
 
 
-@workflow
 def export_dataset_workflow(
     organization_id: str,
     project_id: str,

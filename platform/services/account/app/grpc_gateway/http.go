@@ -52,8 +52,10 @@ func HTTPResponseModifier(ctx context.Context, w http.ResponseWriter, _ proto.Me
 
 func HTTPRequestHeadersMatcher(key string) (string, bool) {
 	switch key {
-	case "X-Auth-Request-Access-Token":
-		return key, true
+	case "X-Auth-Request-Access-Token", "x-auth-request-access-token":
+		// Accept both the canonical (title-case) and lowercase forms of the header.
+		// Traefik forwardAuth propagates the header in lowercase so we must handle both.
+		return "x-auth-request-access-token", true
 	default:
 		return key, false
 	}

@@ -1,3 +1,7 @@
 *
 !iai_core
 !pyproject.toml
+!uv.lock
+**/__pycache__/
+**/*.pyc
+**/*.pyo

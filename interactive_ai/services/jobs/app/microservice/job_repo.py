@@ -164,7 +164,7 @@ class WorkspaceBasedMicroserviceJobRepo(SessionBasedRepo[Job]):
         The operation will result in a failure if duplicates are found on:
         - "key" field for non-cancelled SUBMITTED jobs
         - "key" field for jobs in intermediate states
-        - flyte "execution_id" field for jobs in SCHEDULED and further steps
+        - "execution_id" field for jobs in SCHEDULED and further steps
 
         :param document: Document to insert
         :param mongodb_session: Optional, ClientSession for MongoDB transactions
@@ -199,7 +199,7 @@ class WorkspaceBasedMicroserviceJobRepo(SessionBasedRepo[Job]):
         """
         state = document.get("state", -1)
         cancelled = document.get("cancellation_info", {}).get("is_cancelled", False)
-        flyte_execution_id = document.get("executions", {}).get("main", {}).get("execution_id", "")
+        execution_id = document.get("executions", {}).get("main", {}).get("execution_id", "")
 
         filters: list[Any] = [{"_id": document.get("_id")}]
         if state == JobState.SUBMITTED.value and not cancelled:
@@ -220,10 +220,10 @@ class WorkspaceBasedMicroserviceJobRepo(SessionBasedRepo[Job]):
                     },
                 },
             )
-        if flyte_execution_id:
+        if execution_id:
             filters.append(
                 {
-                    "executions.main.execution_id": flyte_execution_id,
+                    "executions.main.execution_id": execution_id,
                     "state": {"$gte": JobState.SCHEDULED.value},
                 }
             )

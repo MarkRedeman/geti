@@ -23,7 +23,6 @@ from model.mapper.job_mapper import JobMapper
 from scheduler.job_repo import SessionBasedSchedulerJobRepo
 from scheduler.state_machine import StateMachine
 
-from geti_spicedb_tools import SpiceDB
 from geti_types import ID, make_session, session_context
 from iai_core.repos.mappers import IDToMongo
 from iai_core.utils.time_utils import now
@@ -186,13 +185,15 @@ def test_find_jobs_ids_by_project_id(
     )
 
 
-@patch.object(SpiceDB, "delete_job")
 @patch.object(SessionBasedSchedulerJobRepo, "delete_by_id")
+@patch.object(SessionBasedSchedulerJobRepo, "get_document_by_id", return_value={"author": "test_uid"})
+@patch("scheduler.state_machine.revoke_job_view_access")
 @patch.object(SessionBasedSchedulerJobRepo, "__init__", new=mock_job_repo)
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_delete_deleted(
+    mock_revoke_job_view_access,
+    mock_repo_get_document_by_id,
     mock_repo_delete_by_id,
-    mock_spicedb_delete_job,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -205,18 +206,21 @@ def test_delete_deleted(
     deleted = StateMachine().delete_job(job_id=job_id)
 
     # Assert
+    mock_repo_get_document_by_id.assert_called_once_with(job_id)
     mock_repo_delete_by_id.assert_called_once_with(job_id)
-    mock_spicedb_delete_job.assert_called_once_with(job_id="job_id")
+    mock_revoke_job_view_access.assert_called_once_with(user_id="test_uid", job_id="job_id")
     assert deleted
 
 
-@patch.object(SpiceDB, "delete_job")
 @patch.object(SessionBasedSchedulerJobRepo, "delete_by_id")
+@patch.object(SessionBasedSchedulerJobRepo, "get_document_by_id", return_value={"author": "test_uid"})
+@patch("scheduler.state_machine.revoke_job_view_access")
 @patch.object(SessionBasedSchedulerJobRepo, "__init__", new=mock_job_repo)
 @patch.object(StateMachine, "__init__", new=mock_state_machine)
 def test_delete_not_deleted(
+    mock_revoke_job_view_access,
+    mock_repo_get_document_by_id,
     mock_repo_delete_by_id,
-    mock_spicedb_delete_job,
     request,
 ) -> None:
     request.addfinalizer(reset_singletons)
@@ -229,8 +233,9 @@ def test_delete_not_deleted(
     deleted = StateMachine().delete_job(job_id=job_id)
 
     # Assert
+    mock_repo_get_document_by_id.assert_called_once_with(job_id)
     mock_repo_delete_by_id.assert_called_once_with(job_id)
-    mock_spicedb_delete_job.assert_not_called()
+    mock_revoke_job_view_access.assert_not_called()
     assert not deleted
 
 
@@ -404,8 +409,8 @@ def test_set_scheduled_state(mock_repo_update, updated, request) -> None:
     # Act
     result = StateMachine().set_scheduled_state(
         job_id=job_id,
-        flyte_launch_plan_id="launch_plan_id",
-        flyte_execution_id="execution_id",
+        launch_plan_id="launch_plan_id",
+        execution_id="execution_id",
         step_details=[
             JobStepDetails(
                 index=1,
@@ -880,7 +885,7 @@ def test_set_revert_scheduled_state(mock_repo_update, updated, request) -> None:
     # Act
     result = StateMachine().set_revert_scheduled_state(
         job_id=job_id,
-        flyte_execution_id="execution_id",
+        execution_id="execution_id",
     )
 
     # Assert

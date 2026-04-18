@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 async def healthz_handler(request):  # noqa: ANN001, ANN201, ARG001
-    """Starts a kubernetes health service"""
+    """Returns health check response."""
     return web.Response(text="OK")
 
 

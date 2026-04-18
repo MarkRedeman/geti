@@ -12,20 +12,16 @@ dependencies = [
     "jsonschema==4.17.3",
     "boto3==1.40.18",# to match s3fs==2025.9.0 dep
     "geti-kafka-tools",
-    "geti-spicedb-tools",
     "geti-telemetry-tools[telemetry,grpc,kafka,logger]",
     "geti-types",
-    "geti-k8s-tools",
     "workflows_common[datumaro-conversion]",
     "geti-supported-models",
 ]
 
 [tool.uv.sources]
 geti-kafka-tools = { path = "../../../libs/kafka_tools", editable = true }
-geti-spicedb-tools = { path = "../../../libs/spicedb_tools", editable = true }
 geti-telemetry-tools = { path = "../../../libs/telemetry_tools", editable = true }
 geti-types = { path = "../../../libs/types", editable = true }
-geti-k8s-tools = { path = "../../../libs/k8s_tools", editable = true }
 workflows_common = { path = "../common", editable = true }
 geti-supported-models = { path = "../../supported_models", editable = true }
 

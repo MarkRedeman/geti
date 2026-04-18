@@ -43,7 +43,7 @@ export const oidcConfigDex = (origin: string, store: Storage): AuthProviderProps
         metadata: {
             // We only need to override this field on the metadata, the rest should be the default.
             // All the metadata is gathered from <environment>/dex/.well-known/openid-configuration
-            authorization_endpoint: `${origin}/dex/auth/regular_users`,
+            authorization_endpoint: `${origin}/dex/auth/local`,
             token_endpoint: `${origin}/dex/token`,
             // Overwrite the end_session_endpoint as DEX does not support this, after
             // the user signs out this makes it so that we reload the main app and show

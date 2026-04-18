@@ -6,7 +6,6 @@ from unittest.mock import patch
 import cv2
 import pytest
 from _pytest.fixtures import FixtureRequest
-from geti_spicedb_tools import SpiceDB
 from geti_supported_models.default_models import DefaultModels
 from tests.utils.custom_project_parser import CustomTestProjectParser
 
@@ -90,7 +89,7 @@ def fxt_create_upload_annotate_project(
     model_template_classification = ModelTemplateList().get_by_id("classification")
 
     with (
-        patch.object(SpiceDB, "create_project"),
+        patch("managers.project_manager.assign_project_admin_role"),
         patch.object(
             ProjectBuilder,
             "get_default_model_template_by_task_type",
@@ -356,7 +355,7 @@ class TestResourceManagers:
         assert videos_after == videos_before - 1
 
         # Try to delete the project
-        with patch.object(SpiceDB, "delete_project"):
+        with patch("managers.project_manager.remove_project_roles"):
             ProjectManager.delete_project(project_id=project_created.id_)
 
         # Checking that there are no more projects

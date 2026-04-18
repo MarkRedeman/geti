@@ -11,7 +11,7 @@ from geti_types import ID
 from iai_core.entities.model import NullModel
 from iai_core.repos import ModelRepo
 from jobs_common.exceptions import CommandDeliberateFailureException, TaskErrorMessage
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import (
     publish_metadata_update,
@@ -29,7 +29,7 @@ from job.tasks.evaluate_and_infer.post_model_acceptance import post_model_accept
 from job.tasks.evaluate_and_infer.pre_evaluate import pre_evaluate
 from job.tasks.evaluate_and_infer.task_infer_on_unannotated import task_infer_on_unannotated
 from job.tasks.prepare_and_train.train_helpers import finalize_train
-from job.utils.train_workflow_data import TrainWorkflowData, TrainWorkflowDataForFlyteTaskTrainer
+from job.utils.train_workflow_data import TrainWorkflowData, TrainWorkflowDataForTaskTrainer
 
 IDX_STEP_PRE_EVALUATE = 0
 IDX_STEP_EVALUATE = 1
@@ -233,7 +233,7 @@ def pre_evaluate_model(train_data: TrainWorkflowData, base_model_id: ID, dataset
     failure_message="Model evaluation and inference failed",
 )
 def evaluate_and_infer(
-    train_data: TrainWorkflowDataForFlyteTaskTrainer,
+    train_data: TrainWorkflowDataForTaskTrainer,
     should_activate_model: bool,
     infer_on_pipeline: bool,
     from_scratch: bool,

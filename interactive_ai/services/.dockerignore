@@ -1,0 +1,16 @@
+*
+!main.py
+!pyproject.toml
+!uv.lock
+!Dockerfile.api
+!auto_train/app
+!dataset_ie/app
+!director/app
+!jobs/app
+!project_ie/app
+!resource/app
+!visual_prompt/app
+!model_registration/app
+**/__pycache__/
+**/*.pyc
+**/*.pyo

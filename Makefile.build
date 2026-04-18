@@ -1,10 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # LIMITED EDGE SOFTWARE DISTRIBUTION LICENSE
 
-PACKAGABLE_SUBPROJECTS := $(shell find . -name "Chart.yaml.template" | xargs dirname | xargs dirname)
-
 .PHONY: clean
-clean: clean-go clean-python clean-packagable
+clean: clean-go clean-python
 
 .PHONY: clean-go
 clean-go:
@@ -13,10 +11,6 @@ clean-go:
 .PHONY: clean-python
 clean-python:
 	@$(call run_for_each,$(PY_SUBPROJECTS),Cleaning for Python component,clean)
-
-.PHONY: clean-packagable
-clean-packagable:
-	@$(call run_for_each,$(PACKAGABLE_SUBPROJECTS),Cleaning for packagable components,clean)
 
 .PHONY: build-image
 build-image: build-image-go build-image-python
@@ -50,18 +44,6 @@ publish-image-go:
 .PHONY: publish-image-python
 publish-image-python:
 	@$(call run_for_each,$(PY_BUILDABLE_SUBPROJECTS),Pushing image for Python component,publish-image)
-
-list-umbrella-chart:
-	@$(call run_for_each,$(PACKAGABLE_SUBPROJECTS),List components,list-umbrella-chart)
-
-build-chart:
-	@$(call run_for_each,$(PACKAGABLE_SUBPROJECTS),Building charts for components,build-chart)
-
-lint-chart:
-	@$(call run_for_each,$(PACKAGABLE_SUBPROJECTS),Building charts for components,lint-chart)
-
-publish-chart:
-	@$(call run_for_each,$(PACKAGABLE_SUBPROJECTS),Building charts for components,publish-chart)
 
 .PHONY: tests
 tests: tests-go tests-python
@@ -142,4 +124,3 @@ define run_for_each
         (cd $$item && make $3); \
     done
 endef
-

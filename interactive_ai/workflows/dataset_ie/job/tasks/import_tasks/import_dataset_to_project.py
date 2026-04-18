@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, cast
 from geti_types import ID
 from iai_core.entities.model_template import task_type_to_label_domain
 from iai_core.repos import LabelSchemaRepo
-from jobs_common.tasks import flyte_multi_container_task as task
+from jobs_common.tasks import compose_task as task
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import publish_metadata_update, task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, env_vars

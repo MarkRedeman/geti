@@ -7,13 +7,10 @@ Task node train workflow module
 
 from typing import Optional
 
-from flytekit import workflow
-
 from job.tasks.evaluate_and_infer.evaluate_and_infer import evaluate_and_infer
 from job.tasks.prepare_and_train.prepare_data_and_train import prepare_training_data_model_and_start_training
 
 
-@workflow
 def train_workflow(  # noqa: PLR0913
     project_id: str,
     task_id: str,

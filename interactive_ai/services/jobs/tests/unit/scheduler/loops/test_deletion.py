@@ -3,7 +3,6 @@
 
 from unittest.mock import MagicMock, patch
 
-from scheduler.flyte import Flyte
 from scheduler.loops.deletion import run_deletion_loop
 from scheduler.state_machine import StateMachine
 
@@ -12,17 +11,11 @@ from geti_types import ID
 job_id = ID("test_job")
 
 
-def mock_flyte_client(self, *args, **kwargs) -> None:
-    self.client = MagicMock()
-    self.client.client = MagicMock()
-
-
 def mock_state_machine(self, *args, **kwargs) -> None:
     return None
 
 
 def reset_singletons() -> None:
-    Flyte._instance = None  # type: ignore[attr-defined]
     StateMachine._instance = None  # type: ignore[attr-defined]
 
 

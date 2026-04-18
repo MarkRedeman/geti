@@ -11,6 +11,14 @@ from geti_telemetry_tools.tracing.common import get_logging_format_with_tracing_
 from geti_types import SESSION_LOGGING_FORMAT_HEADER, enhance_log_records_with_session_info
 
 
+class _DowngradeUvicornAccessToDebug(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
+        if record.name == "uvicorn.access" and record.levelno == logging.INFO:
+            record.levelno = logging.DEBUG
+            record.levelname = "DEBUG"
+        return True
+
+
 def configure_logger() -> logging.Logger:
     """
     Initialize and configures logger, disable/reconfigure external loggers
@@ -34,6 +42,9 @@ def configure_logger() -> logging.Logger:
     for logger_name in ["uvicorn.access", "uvicorn"]:
         uvicorn_logger = logging.getLogger(logger_name)
         uvicorn_logger.propagate = True
+        uvicorn_logger.setLevel(logging.INFO)
+        if logger_name == "uvicorn.access":
+            uvicorn_logger.addFilter(_DowngradeUvicornAccessToDebug())
         for handler in uvicorn_logger.handlers:
             uvicorn_logger.removeHandler(handler)
 

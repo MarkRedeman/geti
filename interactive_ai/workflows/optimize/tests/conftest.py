@@ -15,8 +15,8 @@ from iai_core.entities.compiled_dataset_shards import (
     NullCompiledDatasetShards,
 )
 from iai_core.repos.base.mongo_connector import MongoConnector
-from jobs_common.k8s_helpers.k8s_resources_calculation import ComputeResources, EphemeralStorageResources
-from jobs_common.k8s_helpers.trainer_image_info import TrainerImageInfo
+from jobs_common.runtime_helpers.k8s_resources_calculation import ComputeResources, EphemeralStorageResources
+from jobs_common.runtime_helpers.trainer_image_info import TrainerImageInfo
 from testcontainers.mongodb import MongoDbContainer
 
 from job.models import OptimizationTrainerContext

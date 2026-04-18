@@ -1,7 +1,7 @@
 # Component build & test workflow (Geti project)
 #
 # This reusable workflow performs static analysis, unit & integration testing,
-# optional container image build/publish, and Helm chart lint/publish for a single
+# optional container image build/publish for a single
 # component directory. It supports both Python and Go projects via builder images
 # and can be invoked directly (workflow_dispatch) or from higher‑level orchestration
 # (workflow_call) with versioning and publish controls.
@@ -11,7 +11,7 @@
 # - Runs static code analysis, unit tests, integration tests (builder vs host fallback)
 # - Conditional cleanup phases (initial / pre-build / all) via component config action
 # - Skips image build gracefully if Make target indicates so (captures SKIP_IMAGE flag)
-# - Optionally logs into GHCR and publishes image & Helm chart when publish_binaries=true
+# - Optionally logs into GHCR and publishes image when publish_binaries=true
 # - Injects build/version tag (TAG) with fallback to commit SHA
 #
 # Process Stages:
@@ -23,13 +23,12 @@
 # 6. Integration tests (builder or host + ffmpeg install when needed)
 # 7. Optional pre-build cleanup
 # 8. Container image build (skip-aware)
-# 9. (Optional) Image push & chart lint
-# 10. (Optional) Chart publish
+# 9. (Optional) Image push
 #
 # Inputs (workflow_call / dispatch):
 # - component_dir (string, required): Root-relative path of the component
 # - build_version (string, required): Version tag applied to built artifacts (fallback to commit)
-# - publish_binaries (bool, default false): Enable push of image & Helm chart
+# - publish_binaries (bool, default false): Enable push of image
 # - registry (string, required): Target container registry base
 #
 
@@ -159,11 +158,3 @@ jobs:
       - name: Push image
         if: steps.build-image.outputs.SKIP_IMAGE != 'true' && inputs.publish_binaries
         run: make -C "${COMPONENT_DIR}" publish-image
-
-      - name: Lint chart
-        if: steps.build-image.outputs.SKIP_IMAGE != 'true'
-        run: make -C "${COMPONENT_DIR}" lint-chart
-
-      - name: Publish chart
-        if: steps.build-image.outputs.SKIP_IMAGE != 'true' && inputs.publish_binaries
-        run: make -C "${COMPONENT_DIR}" publish-chart

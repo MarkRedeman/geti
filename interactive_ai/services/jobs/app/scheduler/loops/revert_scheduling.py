@@ -4,10 +4,9 @@
 import logging
 import os
 
-from flytekit.remote import FlyteWorkflow, FlyteWorkflowExecution
-
 from model.job import Job
-from scheduler.flyte import ExecutionType, Flyte
+from scheduler.execution_type import ExecutionType
+from scheduler.local_executor import LocalExecutor
 from scheduler.state_machine import StateMachine
 from scheduler.utils import get_revert_execution_name, resolve_revert_job
 
@@ -45,10 +44,10 @@ def schedule_revert_job(job_id: ID) -> None:
     If this is not the first attempt to schedule this job and number of retries exceeded allowed maximum, transfers
     the job either to FAILED state or to CANCELLED state depending ob cancelled flag.
     If this is not the first attempt to schedule this job and the maximum number of retries has not been reached,
-    attempt to obtain Flyte execution.
-    If execution is found, uses it. Otherwise starts execution in Flyte.
+    attempt to obtain an existing execution.
+    If execution is found, uses it. Otherwise starts a new execution.
     Updates the job and sets SCHEDULED state.
-    If Flyte execution start fails, sets READY_FOR_REVERT state.
+    If execution start fails, sets READY_FOR_REVERT state.
     :param job_id: Job ID
     """
     logger.info(f"Job a revert execution to be scheduled for: {job_id}")
@@ -78,92 +77,45 @@ def schedule_revert_job(job_id: ID) -> None:
             set_final_state()
             return
 
-        # Update job in database
+        execution_id = execution
         StateMachine().set_revert_scheduled_state(
             job_id=job_id,
-            flyte_execution_id=execution.id.name,
+            execution_id=execution_id,
         )
     except Exception:
-        logger.exception(f"Failed to schedule Flyte revert execution for job {job_id}")
+        logger.exception(f"Failed to schedule revert execution for job {job_id}")
         StateMachine().reset_revert_scheduling_job(job_id=job_id)
 
 
 @unified_tracing
-def start_revert_execution(job: Job) -> FlyteWorkflowExecution | None:
+def start_revert_execution(job: Job) -> str | None:
     """
-    Starts jobs revert execution
+    Starts jobs revert execution.
+
+    Launches via LocalExecutor (Docker/Celery compose runtime) and returns
+    the execution_name string.
 
     :param job: Job to start revert execution for
-    :return: FlyteWorkflowExecution Flyte workflow execution object
+    :return: execution_name (compose) | None
     """
     execution_name = get_revert_execution_name(job_id=job.id)
 
-    # Resolving Flyte workflow name and version
-    resolved_revert_job = resolve_revert_job(job_type=job.type)
-    if resolved_revert_job is None:
+    # Resolving revert workflow/image for this job type
+    resolved = resolve_revert_job(job_type=job.type)
+    if resolved is None:
         return None
 
-    workflow_name, workflow_version = resolved_revert_job
-    logger.debug(f"Trying to lookup for {workflow_name}:{workflow_version} revert workflow")
-    workflow = Flyte().fetch_workflow(workflow_name=workflow_name, workflow_version=workflow_version)
-    if workflow is None:
-        logger.debug(f"Workflow {workflow_name}:{workflow_version} is not found")
-        return None
-
-    logger.debug(
-        f"Workflow {workflow_name}:{workflow_version} is found, launching it with execution name {execution_name}"
-    )
-    return start_execution(
-        job=job,
-        workflow=workflow,
+    container_id = LocalExecutor().start_execution(
+        execution_name=execution_name,
+        job_id=str(job.id),
+        workspace_id=str(job.workspace_id),
+        organization_id=str(job.session.organization_id),
         execution_type=ExecutionType.REVERT,
-        execution_name=execution_name,
+        job_type=job.type,
         payload={},
+        session_headers=list(job.session.as_list_bytes()),
     )
-
-
-@unified_tracing
-def start_execution(
-    job: Job,
-    workflow: FlyteWorkflow,
-    execution_type: ExecutionType,
-    execution_name: str,
-    payload: dict,
-) -> FlyteWorkflowExecution:
-    """
-    Starts job related execution
-
-    :param job: Job to start execution for
-    :param workflow: Job workflow
-    :param execution_type: Execution type: MAIN or REVERT
-    :param execution_name: Execution name
-    :return: FlyteWorkflowExecution Flyte workflow execution object
-    """
-    # Let's check maybe it's already running
-    execution = Flyte().fetch_workflow_execution(execution_name=execution_name)
-
-    if execution is not None:
-        logger.info(f"Reusing already running job execution in Flyte: {execution.id.name}")
-        return execution
-
-    # If no running execution exists, need to launch it
-    project_id = str(job.project_id) if job.project_id is not None else None
     logger.info(
-        f"Scheduling a job execution with name {execution_name} in Flyte: "
-        f"workspace_id={job.workspace_id}, project_id={project_id}, "
-        f"workflow={workflow.id}, payload={job.payload}"
+        f"Revert execution started locally (compose mode): execution_name={execution_name}, container_id={container_id}"
     )
-
-    execution = Flyte().start_workflow_execution(
-        workspace_id=job.workspace_id,
-        job=job,
-        project_id=project_id,
-        execution_type=execution_type,
-        execution_name=execution_name,
-        workflow=workflow,
-        payload=payload,
-        telemetry=job.telemetry,
-        session=job.session,
-    )
-    logger.info(f"Job execution scheduled in Flyte: {execution.id.name}")
-    return execution
+    return execution_name

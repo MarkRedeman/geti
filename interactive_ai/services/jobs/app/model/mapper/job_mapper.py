@@ -14,11 +14,11 @@ from model.job import (
     JobCancellationInfo,
     JobConsumedResource,
     JobCost,
-    JobFlyteExecutions,
+    JobExecutions,
     JobGpuRequest,
-    JobMainFlyteExecution,
+    JobMainExecution,
     JobResource,
-    JobRevertFlyteExecution,
+    JobRevertExecution,
     JobStepDetails,
     JobTaskExecutionBranch,
 )
@@ -181,17 +181,17 @@ class JobCancellationInfoMapper(IMapperSimple[JobCancellationInfo, dict]):
         )
 
 
-class JobMainFlyteExecutionMapper(IMapperSimple[JobMainFlyteExecution, dict]):
+class JobMainExecutionMapper(IMapperSimple[JobMainExecution, dict]):
     """
-    Job main Flyte execution mapper (from MongoDB dict) to a "business layer" level object
+    Job main execution mapper (from MongoDB dict) to a "business layer" level object
     """
 
     @staticmethod
-    def forward(instance: JobMainFlyteExecution) -> dict:
+    def forward(instance: JobMainExecution) -> dict:
         """
-        Maps a JobMainFlyteExecution entity to MongoDB dict
+        Maps a JobMainExecution entity to MongoDB dict
 
-        :param instance: JobMainFlyteExecution entity
+        :param instance: JobMainExecution entity
         :return: MongoDB dict
         """
         doc: dict = {}
@@ -208,13 +208,13 @@ class JobMainFlyteExecutionMapper(IMapperSimple[JobMainFlyteExecution, dict]):
         return doc
 
     @staticmethod
-    def backward(instance: dict) -> JobMainFlyteExecution:
+    def backward(instance: dict) -> JobMainExecution:
         """
-        Maps a MongoDB dict to JobMainFlyteExecution entity
+        Maps a MongoDB dict to JobMainExecution entity
         :param instance: MongoDB dict
-        :return JobMainFlyteExecution entity
+        :return JobMainExecution entity
         """
-        return JobMainFlyteExecution(
+        return JobMainExecution(
             launch_plan_id=_opt(instance, "launch_plan_id"),
             execution_id=_opt(instance, "execution_id"),
             start_retry_counter=_opt(instance, "start_retry_counter"),
@@ -223,17 +223,17 @@ class JobMainFlyteExecutionMapper(IMapperSimple[JobMainFlyteExecution, dict]):
         )
 
 
-class JobRevertFlyteExecutionMapper(IMapperSimple[JobRevertFlyteExecution, dict]):
+class JobRevertExecutionMapper(IMapperSimple[JobRevertExecution, dict]):
     """
-    Job revert Flyte execution mapper (from MongoDB dict) to a "business layer" level object
+    Job revert execution mapper (from MongoDB dict) to a "business layer" level object
     """
 
     @staticmethod
-    def forward(instance: JobRevertFlyteExecution) -> dict:
+    def forward(instance: JobRevertExecution) -> dict:
         """
-        Maps a JobRevertFlyteExecution entity to MongoDB dict
+        Maps a JobRevertExecution entity to MongoDB dict
 
-        :param instance: JobRevertFlyteExecution entity
+        :param instance: JobRevertExecution entity
         :return: MongoDB dict
         """
         doc: dict = {}
@@ -246,47 +246,47 @@ class JobRevertFlyteExecutionMapper(IMapperSimple[JobRevertFlyteExecution, dict]
         return doc
 
     @staticmethod
-    def backward(instance: dict) -> JobRevertFlyteExecution:
+    def backward(instance: dict) -> JobRevertExecution:
         """
-        Maps a MongoDB dict to JobRevertFlyteExecution entity
+        Maps a MongoDB dict to JobRevertExecution entity
         :param instance: MongoDB dict
-        :return JobRevertFlyteExecution entity
+        :return JobRevertExecution entity
         """
-        return JobRevertFlyteExecution(
+        return JobRevertExecution(
             execution_id=_opt(instance, "execution_id"),
             start_retry_counter=_opt(instance, "start_retry_counter"),
             process_start_time=_opt_datetime(instance, "process_start_time"),
         )
 
 
-class JobExecutionsMapper(IMapperSimple[JobFlyteExecutions, dict]):
+class JobExecutionsMapper(IMapperSimple[JobExecutions, dict]):
     """
-    Job Flyte executions mapper (from MongoDB dict) to a "business layer" level object
+    Job executions mapper (from MongoDB dict) to a "business layer" level object
     """
 
     @staticmethod
-    def forward(instance: JobFlyteExecutions) -> dict:
+    def forward(instance: JobExecutions) -> dict:
         """
-        Maps a JobFlyteExecutions entity to MongoDB dict
+        Maps a JobExecutions entity to MongoDB dict
 
-        :param instance: JobFlyteExecutions entity
+        :param instance: JobExecutions entity
         :return: MongoDB dict
         """
-        doc = {"main": JobMainFlyteExecutionMapper.forward(instance.main)}
+        doc = {"main": JobMainExecutionMapper.forward(instance.main)}
         if instance.revert is not None:
-            doc["revert"] = JobRevertFlyteExecutionMapper.forward(instance.revert)
+            doc["revert"] = JobRevertExecutionMapper.forward(instance.revert)
         return doc
 
     @staticmethod
-    def backward(instance: dict) -> JobFlyteExecutions:
+    def backward(instance: dict) -> JobExecutions:
         """
-        Maps a MongoDB dict to JobFlyteExecutions entity
+        Maps a MongoDB dict to JobExecutions entity
         :param instance: MongoDB dict
-        :return JobFlyteExecutions entity
+        :return JobExecutions entity
         """
-        return JobFlyteExecutions(
-            main=JobMainFlyteExecutionMapper.backward(instance["main"]),
-            revert=JobRevertFlyteExecutionMapper.backward(instance["revert"]) if "revert" in instance else None,
+        return JobExecutions(
+            main=JobMainExecutionMapper.backward(instance["main"]),
+            revert=JobRevertExecutionMapper.backward(instance["revert"]) if "revert" in instance else None,
         )
 
 

@@ -7,7 +7,6 @@ Optimize workflow
 import logging
 from typing import Optional
 
-from flytekit import workflow
 from iai_core.entities.model import ModelOptimizationType
 
 from job.tasks.evaluation_task import evaluate_optimized_model_pot
@@ -16,7 +15,6 @@ from job.tasks.optimization_task import shard_dataset_prepare_models_and_start_o
 logger = logging.getLogger(__name__)
 
 
-@workflow
 def optimize_workflow_pot(  # noqa: PLR0913
     project_id: str,
     dataset_storage_id: str,

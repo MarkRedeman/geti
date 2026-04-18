@@ -4,13 +4,7 @@
 import os
 from functools import wraps
 
-from flytekit import Secret, current_context
-from jobs_common.tasks.utils.secrets import SECRETS
-
-PROJECT_IE_SECRETS = [
-    *SECRETS,
-    Secret(group="signing-ie-certificate", key="tls.key", mount_requirement=Secret.MountType.FILE),
-]
+PROJECT_IE_SECRETS: list[str] = []
 
 
 def signing_key_env_vars(fn):  # noqa: ANN001, ANN201
@@ -20,7 +14,8 @@ def signing_key_env_vars(fn):  # noqa: ANN001, ANN201
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        os.environ["SIGNING_IE_PRIVKEY"] = current_context().secrets.get("signing-ie-certificate", "tls.key")
+        if not os.environ.get("SIGNING_IE_PRIVKEY"):
+            raise RuntimeError("SIGNING_IE_PRIVKEY must be set in compose mode.")
         return fn(*args, **kwargs)
 
     return wrapper

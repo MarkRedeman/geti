@@ -19,21 +19,21 @@ class JobState(Enum):
     Intermediate states:
     READY_FOR_SCHEDULING            job is persisted in MongoDB, no running duplicates, ready to be picked for
                                     scheduling
-    SCHEDULING                      job is picked by scheduler, Flyte execution is being created
-    SCHEDULED                       Flyte execution is created but not started yet
-    RUNNING                         Flyte execution is started
+    SCHEDULING                      job is picked by scheduler, workflow execution is being created
+    SCHEDULED                       workflow execution is created but not started yet
+    RUNNING                         workflow execution is started
 
-    CANCELING                       job is picked by scheduler, Flyte execution is being canceling
+    CANCELING                       job is picked by scheduler, workflow execution is being cancelled
 
     READY_FOR_REVERT                job main execution has been cancelled or has failed, ready for reverting
-    REVERT_SCHEDULING               job is picked by scheduler, Flyte revert execution is being created
-    REVERT_SCHEDULED                Flyte revert execution is created but not started yet
-    REVERT_RUNNING                  Flyte revert execution is started
+    REVERT_SCHEDULING               job is picked by scheduler, revert execution is being created
+    REVERT_SCHEDULED                revert execution is created but not started yet
+    REVERT_RUNNING                  revert execution is started
 
     Final states:
-    FINISHED                        Flyte execution is finished successfully
-    FAILED                          Flyte execution failed
-    CANCELLED                       Flyte execution is cancelled
+    FINISHED                        workflow execution finished successfully
+    FAILED                          workflow execution failed
+    CANCELLED                       workflow execution is cancelled
     """
 
     SUBMITTED = 0

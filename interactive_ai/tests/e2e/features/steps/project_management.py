@@ -268,9 +268,9 @@ def _create_project_from_scratch(  # noqa: C901
     }
     context._media_info_by_name = {}  # dict[str, Image | Video]; populated when uploading media
 
-    # After creating the project, it may remain inaccessible for a few seconds due to SpiceDB consistency model.
-    # To avoid 403 Forbidden errors in subsequent steps, wait for the project to become accessible.
-    time.sleep(5)  # SpiceDB cache is refreshed every 5s by default
+    # After creating the project, propagation may take a few seconds in CI.
+    # To avoid transient 403 errors in subsequent steps, wait until access is available.
+    time.sleep(5)
 
 
 @given("a project of type '{project_type}' with structure")

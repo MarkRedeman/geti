@@ -157,6 +157,7 @@ def run_migration(start_version: str, target_version: str, history: MigrationHis
     all_projects_upgraded_successfully: bool = True
     failed_script_index: int = -1
     failed_proj_index: int = -1
+    projects: list[dict] = []
     for intermediate_target_version in intermediate_versions:
         try:
             script_filename, _ = VersionManager.find_migration_script_file_by_version(intermediate_target_version)
@@ -175,10 +176,11 @@ def run_migration(start_version: str, target_version: str, history: MigrationHis
             raise
     for script_idx, script_desc in enumerate(script_descriptors):
         start_time = datetime.now(tz=timezone.utc)
+        projects_upgraded_count = 0
         try:
             # With each data version, find and try to upgrade the individual projects
             projects = get_all_projects(client)
-            for project_idx, project in enumerate(projects):
+            for project in projects:
                 logger.info(f"Starting upgrade of project {str(project['_id'])} to {script_desc.data_version}")
                 script_desc.script.upgrade_project(
                     organization_id=str(project["organization_id"]),
@@ -186,6 +188,7 @@ def run_migration(start_version: str, target_version: str, history: MigrationHis
                     project_id=str(project["_id"]),
                 )
                 logger.info(f"Completed upgrade of project {str(project['_id'])} to {script_desc.data_version}")
+                projects_upgraded_count += 1
             logger.info(f"Starting upgrade of non-project data to {script_desc.data_version}")
             script_desc.script.upgrade_non_project_data()
             logger.info(f"Completed upgrade of non-project data to {script_desc.data_version}")
@@ -215,7 +218,7 @@ def run_migration(start_version: str, target_version: str, history: MigrationHis
             # something went wrong while upgrading a project with the i-th script
             logger.exception(e)
             failed_script_index = script_idx
-            failed_proj_index = project_idx
+            failed_proj_index = projects_upgraded_count
             all_projects_upgraded_successfully = False
             break
 

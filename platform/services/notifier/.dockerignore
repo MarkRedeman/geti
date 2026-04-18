@@ -1,6 +1,0 @@
-*
-!entrypoint.sh
-!app
-!common_libs
-!uv.lock
-!pyproject.toml

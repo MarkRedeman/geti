@@ -14,14 +14,14 @@ from geti_telemetry_tools.tracing.common import tracer
 from geti_types import CTX_SESSION_VAR, ID
 from iai_core.utils.type_helpers import str2bool
 from jobs_common.jobs.helpers.project_helpers import lock_project
-from jobs_common.k8s_helpers.k8s_resources_calculation import (
+from jobs_common.runtime_helpers.k8s_resources_calculation import (
     ComputeResources,
     EphemeralStorageResources,
     calculate_training_resources,
 )
-from jobs_common.k8s_helpers.trainer_image_info import TrainerImageInfo
-from jobs_common.k8s_helpers.trainer_pod_definition import create_flyte_container_task
-from jobs_common.tasks import flyte_multi_container_dynamic as dynamic
+from jobs_common.runtime_helpers.trainer_image_info import TrainerImageInfo
+from jobs_common.runtime_helpers.trainer_pod_definition import create_container_task
+from jobs_common.tasks import compose_dynamic as dynamic
 from jobs_common.tasks.utils.logging import init_logger
 from jobs_common.tasks.utils.progress import publish_consumed_resources, report_task_step_progress, task_progress
 from jobs_common.tasks.utils.secrets import SECRETS, JobMetadata, env_vars
@@ -32,7 +32,7 @@ from job.tasks.prepare_and_train.create_task_train_dataset import create_task_tr
 from job.tasks.prepare_and_train.get_train_data import get_train_data
 from job.tasks.prepare_and_train.shard_dataset import shard_dataset_for_train
 from job.tasks.prepare_and_train.train_helpers import prepare_train
-from job.utils.train_workflow_data import TrainWorkflowDataForFlyteTaskTrainer
+from job.utils.train_workflow_data import TrainWorkflowDataForTaskTrainer
 
 IDX_STEP_RETRIEVE_TRAIN_DATA = 0
 IDX_STEP_CREATE_TRAIN_DATASET = 1
@@ -108,9 +108,9 @@ def prepare_training_data_model_and_start_training(  # noqa: PLR0913
     max_number_of_annotations: typing.Optional[int] = None,  # noqa: UP007
     reshuffle_subsets: bool = False,
     training_configuration_json: typing.Optional[str] = None,  # noqa: UP007
-) -> TrainWorkflowDataForFlyteTaskTrainer:
+) -> TrainWorkflowDataForTaskTrainer:
     """
-    Prepare data and model for the consecutive model training Flyte task.
+    Prepare data and model for the consecutive model training workflow task.
 
     :param project_id: Project ID
     :param task_id: Task ID
@@ -132,8 +132,8 @@ def prepare_training_data_model_and_start_training(  # noqa: PLR0913
     annotation scene will be ignored during training.
     :param reshuffle_subsets: Whether to reassign/shuffle all the items to subsets including Test set from scratch
     :param training_configuration_json: JSON string containing the training configuration, including hyperparameters.
-    :return TrainWorkflowDataForFlyteTaskTrainer: train workflow data class and others needed
-        the next model training Flyte task.
+    :return TrainWorkflowDataForTaskTrainer: train workflow data class and others needed
+        the next model training workflow task.
     """
     ############################ NOTE ############################
     # It was inevitable to copy and paste `prepare_training_data()`
@@ -142,7 +142,7 @@ def prepare_training_data_model_and_start_training(  # noqa: PLR0913
     # so that we need to reuse them.
     # This can bring a code divergence between both functions.
     # However, we can deprecate `prepare_training_data()` in the future
-    # if we successfully move to Flyte task based model training.
+    # if we successfully move to workflow task based model training.
     ##############################################################
 
     # Lock the project to prevent data race conditions
@@ -195,7 +195,7 @@ def prepare_training_data_model_and_start_training(  # noqa: PLR0913
 
     resources, accelerator_name = asyncio.run(calculate_training_resources())
 
-    otx2_task = create_flyte_container_task(
+    otx2_task = create_container_task(
         session=session,
         project_id=train_data.project_id,
         job_id=str(job_metadata.id),
@@ -218,7 +218,7 @@ def prepare_training_data_model_and_start_training(  # noqa: PLR0913
     with tracer.start_as_current_span("otx2_task"):
         otx2_task()
 
-    return TrainWorkflowDataForFlyteTaskTrainer(
+    return TrainWorkflowDataForTaskTrainer(
         train_data=train_data,
         dataset_id=dataset.id_,
         organization_id=str(session.organization_id),
